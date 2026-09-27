@@ -3,6 +3,8 @@
 A 60-second wordless 2D animated short. Every frame, note and sound is generated from code;
 there are no image, video or audio assets.
 
+![Last Light](output/poster.jpg)
+
 **Watch:** [`output/last_light.mp4`](output/last_light.mp4) (1920×1080, 30 fps, H.264 + AAC stereo)
 
 ## Story
