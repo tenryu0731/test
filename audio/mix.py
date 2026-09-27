@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Final mix: music stem + SFX stem -> audio/mix.wav (48 kHz stereo, -16 LUFS, <= -1 dBTP).
+"""Final mix: music stem + SFX stem -> audio/mix.wav (48 kHz stereo, about -14 LUFS, <= -1 dBTP).
 
 Run from the repo root after music.py and sfx.py:  python3 audio/mix.py
 """

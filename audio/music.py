@@ -776,7 +776,6 @@ def compose():
             step = 0.125 if fast else 0.25
             top = "A6" if t >= 51 else ("D6" if fast else "A5")
             tones = arp_tones(ch, "D4" if not fast else "A3", top)
-            per = 16 if fast else 8
             i = int(round(bar_pos / step))
             if t >= 52.0:              # final run: keep rising to the climax
                 i = int(round((t - 51.0) / step))
@@ -975,7 +974,6 @@ def master(main, storm):
     m = main.render(irs)
     s = storm.render(irs)
     # hard, dramatic storm cut: 30.0 -> -20 dB in 45 ms, gone by 30.6
-    t = tvec(N)
     g = np.ones(N)
     a, b = ns(30.0), ns(30.045)
     g[a:b] = 1 - 0.9 * (0.5 - 0.5 * np.cos(np.pi * np.arange(b - a) / (b - a)))

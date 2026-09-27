@@ -20,7 +20,7 @@ Scene timings are in [`story/storyboard.md`](story/storyboard.md). The picture a
 | Render | `render/render.js` | Headless Chromium (Playwright), 4 parallel pages → JPEG → ffmpeg/libx264 |
 | Music | `audio/music.py` | Synthesised score with numpy/scipy (additive, FM, subtractive and physical-model synthesis, reverb) |
 | Sound effects | `audio/sfx.py` | Procedural Foley and ambience (modal glass/bell synthesis, filtered noise, granular sparkles, synthetic convolution reverb) |
-| Mix | `audio/mix.py` | Stem sum, light bus compression, loudness normalisation to -16 LUFS, true-peak limit at -1 dBTP |
+| Mix | `audio/mix.py` | Stem sum, light bus compression, loudness normalisation to about -14 LUFS, true-peak limit at -1 dBTP |
 
 ## Rebuild
 ```bash
