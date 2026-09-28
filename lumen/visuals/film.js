@@ -368,7 +368,7 @@ function lanternLight(t) {
   if (t < 17.0) return fl;
   if (t < 17.45) { const u = inv(17.0, 17.45, t); return (1 - u * u) * (N2(t * 45, 1.1) > -0.15 ? 1 : 0.15) * fl; }
   if (t < 25.0) return 0;
-  return fl * (1 + 1.8 * hit(t, 25.0, 0.4, 0.06)) * (1 + 0.35 * smooth(inv(48, 49.5, t)));
+  return fl * (1 + 1.2 * hit(t, 25.0, 0.4, 0.06)) * (1 + 0.35 * smooth(inv(48, 49.5, t)));
 }
 
 // the traveller + lantern, rendered through a buffer so light can be painted onto him
@@ -397,8 +397,10 @@ function drawTraveller(t, info) {
   const Lx = FO[0] + (info.lantern[0] - q.x) * z, Ly = FO[1] + (info.lantern[1] - gy) * z;
   if (L > 0.01) glowDot(fx, Lx, Ly, 150 * z * s, [255, 150, 70], 0.42 * Math.min(L, 1.4));
   const ray = rayAt(t);
-  if (ray > 0) { const g = fx.createLinearGradient(0, FO[1] - 260 * z, 0, FO[1]); g.addColorStop(0, rgba([255, 236, 196], 0.4 * ray)); g.addColorStop(1, rgba([255, 236, 196], 0.04 * ray)); fx.fillStyle = g; fx.fillRect(0, 0, F.width, F.height); }
+  if (ray > 0) { const g = fx.createLinearGradient(0, FO[1] - 260 * z, 0, FO[1]); g.addColorStop(0, rgba([255, 236, 196], 0.22 * ray)); g.addColorStop(1, rgba([255, 236, 196], 0.03 * ray)); fx.fillStyle = g; fx.fillRect(0, 0, F.width, F.height); }
   const lf = info.lf;
+  // faint cool ambient so the silhouette still reads in the dark
+  fx.fillStyle = rgba([118, 132, 172], 0.1 * (1 - dn)); fx.fillRect(0, 0, F.width, F.height);
   if (lf > 0) { fx.fillStyle = rgba([150, 170, 215], 0.3 * lf); fx.fillRect(0, 0, F.width, F.height); }
   const bl = blazeAt(t);
   if (dn > 0 || bl > 0) {
@@ -975,8 +977,8 @@ function drawDove(t) {
   setLayer(X, 1); drawDoveShape(X, st, t, wp, dir, [255, 252, 240], st.al);
   setLayer(gx, 1, 0.5);
   gx.globalCompositeOperation = 'lighter';
-  drawDoveShape(gx, st, t, wp, dir, [255, 236, 190], 0.8 * st.al, 1.15);
-  glowDot(gx, st.x, st.y, 110, [255, 232, 180], 0.55 * st.al);
+  drawDoveShape(gx, st, t, wp, dir, [255, 236, 190], 0.35 * st.al, 1.1);
+  glowDot(gx, st.x, st.y, 80, [255, 232, 180], 0.22 * st.al);
   for (let k = 1; k < 26; k++) {
     const p = doveAt(t - k * 0.035); if (!p) break;
     const jx = (hash(k * 3.1 + Math.floor(t * 30)) - 0.5) * 10, jy = (hash(k * 7.7 + Math.floor(t * 30)) - 0.5) * 10 + k * 0.8;
@@ -991,15 +993,16 @@ function drawRay(t) {
   const top = rayTop(), bot = [-178 + 10, ground(-168) + 10];
   const dx = bot[0] - top[0], dy = bot[1] - top[1], dl = Math.hypot(dx, dy), nx = -dy / dl, ny = dx / dl;
   const poly = (ctx, w0, w1) => { ctx.beginPath(); ctx.moveTo(top[0] + nx * w0, top[1] + ny * w0); ctx.lineTo(bot[0] + nx * w1, bot[1] + ny * w1); ctx.lineTo(bot[0] - nx * w1, bot[1] - ny * w1); ctx.lineTo(top[0] - nx * w0, top[1] - ny * w0); ctx.closePath(); };
-  for (const [ctx, k] of [[X, 1], [gx, 0.5]]) {
+  for (const [ctx, k] of [[gx, 0.5]]) {
     setLayer(ctx, 1, k);
+    ctx.filter = 'blur(10px)';
     ctx.globalCompositeOperation = 'lighter';
     const g = ctx.createLinearGradient(top[0], top[1], bot[0], bot[1]);
     const c = [255, 234, 186];
-    g.addColorStop(0, rgba(c, 0)); g.addColorStop(0.35, rgba(c, 0.03 * a)); g.addColorStop(1, rgba(c, (ctx === X ? 0.07 : 0.1) * a));
-    ctx.fillStyle = g; poly(ctx, 40, 170); ctx.fill();
-    poly(ctx, 12, 60); ctx.fill();
-    ctx.globalCompositeOperation = 'source-over';
+    g.addColorStop(0, rgba(c, 0)); g.addColorStop(0.35, rgba(c, 0.03 * a)); g.addColorStop(1, rgba(c, 0.05 * a));
+    ctx.fillStyle = g;
+    for (let i = 0; i < 6; i++) { const f = 1 - i / 6; poly(ctx, 8 + 40 * f, 30 + 150 * f); ctx.fill(); }
+    ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
   }
   // motes in the beam
   setLayer(gx, 1, 0.5);
@@ -1009,7 +1012,7 @@ function drawRay(t) {
     const px = top[0] + dx * v + nx * w + Math.sin(t * 0.7 + i) * 6, py = top[1] + dy * v + ny * w;
     glowDot(gx, px, py, 5 + hash(i * 2.2) * 5, [255, 240, 200], 0.55 * a * (0.4 + 0.6 * Math.sin(t * 2 + i) ** 2));
   }
-  glowDot(gx, bot[0], bot[1] - 60, 260, [255, 230, 180], 0.35 * a);
+  glowDot(gx, bot[0], bot[1] - 60, 240, [255, 230, 180], 0.2 * a);
 }
 function drawFootprints(t) {
   if (t < 30 || t > 40) return;
@@ -1051,10 +1054,11 @@ function drawRain(t) {
     const wx = (sx - W / 2) / CAM.z + CAM.x;
     const sy = (ground(wx) - CAM.y) * CAM.z + H / 2 + 3;
     if (sy > H + 10 || sy < 0) continue;
-    const r = (2 + ph * 9) * CAM.z;
+    if (ph > 0.6) continue;
+    const r = (1.5 + ph * 6) * CAM.z;
     X.moveTo(sx + r, sy); X.ellipse(sx, sy, r, r * 0.3, 0, 0, TAU);
   }
-  X.strokeStyle = rgba([170, 185, 215], 0.3 * amt); X.lineWidth = 1; X.stroke();
+  X.strokeStyle = rgba([170, 185, 215], 0.14 * amt); X.lineWidth = 1; X.stroke();
 }
 function drawSparks(t, info) {
   if (!info.lights || !info.crossTop) return;

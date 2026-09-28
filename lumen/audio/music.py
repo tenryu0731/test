@@ -247,7 +247,7 @@ def choir_line(notes, vowel="a", vt=None, nv=7, attack=0.35, release=0.7,
         L += sig * gl
         R += sig * gr
     x = np.vstack([L, R])
-    x = 0.35 * x + 0.65 * onepole_lp(x, 1400.0)     # glottal tilt
+    x = 0.5 * x + 0.5 * onepole_lp(x, 1400.0)       # glottal tilt
     y = formant_bank(x, vt, vowel)
     y = filt(butter("high", 70), y)
     return T0, y / (np.abs(y).max() + 1e-12)
@@ -880,7 +880,7 @@ def master(mix):
     t0 = time.time()
     hall_ir = make_ir([5.8, 5.2, 4.2, 2.8], 7.5, 42, 0.03)
     cath_ir = make_ir([8.5, 7.5, 6.0, 3.8], 10.0, 43, 0.05, 0.09)
-    wet = 0.30 * convolve_bus(mix.hall, hall_ir) + 0.28 * convolve_bus(mix.cath, cath_ir)
+    wet = 0.42 * convolve_bus(mix.hall, hall_ir) + 0.40 * convolve_bus(mix.cath, cath_ir)
     x = mix.dry + wet
     print(f"  reverb: {time.time() - t0:.1f}s")
     # gentle glue compression (RMS detector, slow)
@@ -891,6 +891,9 @@ def master(mix):
     gr = onepole_lp(gr, 1 / (2 * np.pi * 0.15))
     x *= 10 ** (gr / 20)
     x = filt(butter("high", 22), x)
+    # tone: tame the sub build-up (timpani/pedal/boom), add a little air
+    x = x - (1 - 10 ** (-4.0 / 20)) * filt(butter("low", 85), x)
+    x = x + (10 ** (3.0 / 20) - 1) * filt(butter("high", 3800), x)
     # final fade to complete silence at 60.0 and a clean start
     t = np.arange(N) / SR
     fade = 1.0 - smoothstep((t - 58.3) / 1.65)

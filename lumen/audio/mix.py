@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Final mix: music stem + SFX stem -> lumen/audio/mix.wav (48 kHz stereo, about -16 LUFS, <= -1 dBTP).
+"""Final mix: music stem + SFX stem -> lumen/audio/mix.wav (48 kHz stereo, about -15 LUFS, <= -1 dBTP).
 
 Run from the repo root after music.py and sfx.py:  python3 lumen/audio/mix.py
 """
@@ -16,7 +16,7 @@ SR = 48_000
 N = 2_880_000
 MUSIC_DB = 0.0
 SFX_DB = -2.0
-TARGET_LUFS = -16.0
+TARGET_LUFS = -15.0
 CEILING_DBTP = -1.0
 
 
@@ -52,6 +52,8 @@ def main():
     mix = mix * 10 ** ((TARGET_LUFS - lufs) / 20)
     lim = Pedalboard([Limiter(threshold_db=CEILING_DBTP - 1.2, release_ms=120)])
     mix = lim(mix.T.copy(), SR).T
+    # pedalboard's Limiter adds make-up gain, so bring the loudness back to target afterwards
+    mix = mix * 10 ** ((TARGET_LUFS - meter.integrated_loudness(mix)) / 20)
     tp = true_peak(mix)
     if tp > CEILING_DBTP:
         mix *= 10 ** ((CEILING_DBTP - 0.05 - tp) / 20)
