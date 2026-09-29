@@ -70,13 +70,13 @@ scene.add(sky);
   const envScene = new THREE.Scene();
   envScene.add(makeSky());
   scene.environment = pmrem.fromScene(envScene, 0.02).texture;
-  scene.environmentIntensity = 0.55;
+  scene.environmentIntensity = 0.45;
   pmrem.dispose();
 }
 
-const hemi = new THREE.HemisphereLight(0xd8e8ff, 0xa08a6a, 0.9);
+const hemi = new THREE.HemisphereLight(0xdde6f0, 0xb49a78, 0.8);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff0d8, 3.2);
+const sun = new THREE.DirectionalLight(0xffe9cc, 3.0);
 sun.castShadow = true;
 const SHADOW_R = isTouch ? 34 : 45;
 // ?q=low: small shadow map (used by headless screenshot tooling, also handy on weak phones).
@@ -96,11 +96,15 @@ const city = buildCity(scene, materials);
 const physics = new Physics(city.colliders);
 console.log(`[boot] city built in ${(performance.now() - t0).toFixed(0)} ms, ${city.colliders.length} colliders`);
 
+const t1 = performance.now();
 const audio = new GameAudio();
 const weapon = new Weapon({ renderer, audio });
+const t2 = performance.now();
 const enemies = new EnemyManager({ scene, physics, audio, spawns: city.enemySpawns, navPoints: city.navPoints });
+const t3 = performance.now();
 const input = new Input(canvas, { isTouch });
 const ui = new UI(document.getElementById('ui'), { isTouch });
+console.log(`[boot] weapon ${(t2 - t1).toFixed(0)} ms, enemies ${(t3 - t2).toFixed(0)} ms, ui ${(performance.now() - t3).toFixed(0)} ms`);
 
 // ---------- player ----------
 const PLAYER = { radius: 0.35, height: 1.75, eye: 1.62, maxHP: 100, walk: 4.6, sprint: 7.0, jump: 4.8, gravity: 16 };
@@ -361,8 +365,16 @@ function render() {
 const _far = new THREE.Vector3(0, -999, 0), _zero = new THREE.Vector3();
 
 // ---------- boot ----------
+const t4 = performance.now();
 resetGame();
+console.log(`[boot] resetGame ${(performance.now() - t4).toFixed(0)} ms`);
 applySize();
+// Compile every shader behind the loading screen so the first frames don't hitch (slow on phones).
+try {
+  updateSun(_zero);
+  await Promise.all([renderer.compileAsync(scene, camera), renderer.compileAsync(weapon.viewScene, weapon.viewCamera)]);
+} catch (e) { console.warn('[boot] shader precompile skipped', e); }
+console.log(`[boot] ready in ${(performance.now() - t0).toFixed(0)} ms`);
 document.getElementById('boot')?.remove();
 ui.setHUDVisible(false);
 ui.showStart(() => startPlaying());
