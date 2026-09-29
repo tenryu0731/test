@@ -138,11 +138,11 @@ function decalTexture() {
   const hole = g.createRadialGradient(m, m, 2, m, m, 16);
   hole.addColorStop(0, 'rgba(12,10,9,1)'); hole.addColorStop(0.55, 'rgba(40,34,30,1)'); hole.addColorStop(1, 'rgba(95,85,75,1)');
   g.fillStyle = hole; blob(10, 15, 14);
-  g.strokeStyle = 'rgba(40,34,30,0.8)'; g.lineWidth = 1.2;
-  for (let i = 0; i < 6; i++) { // hairline cracks
+  g.strokeStyle = 'rgba(60,52,45,0.45)'; g.lineWidth = 0.8;
+  for (let i = 0; i < 4; i++) { // hairline cracks
     const a = rand(0, PI * 2); let r = 12, x = m + Math.cos(a) * r, y = m + Math.sin(a) * r;
     g.beginPath(); g.moveTo(x, y);
-    for (let k = 0; k < 4; k++) { r += rand(5, 9); const aa = a + rand(-0.25, 0.25); x = m + Math.cos(aa) * r; y = m + Math.sin(aa) * r; g.lineTo(x, y); }
+    for (let k = 0; k < 3; k++) { r += rand(4, 7); const aa = a + rand(-0.25, 0.25); x = m + Math.cos(aa) * r; y = m + Math.sin(aa) * r; g.lineTo(x, y); }
     g.stroke();
   }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
@@ -236,9 +236,9 @@ function zcyl(r0, r1, len, seg = 12, open = false) { const g = new THREE.Cylinde
 
 // ---------------------------------------------------------------- colours (sRGB hex)
 const C = {
-  recv: 0x44474b, recvDark: 0x323438, guard: 0x3c3e41, barrel: 0x2c2c2e, steel: 0x5d5f63, steelBright: 0xa4a29c,
+  recv: 0x3b3d41, recvDark: 0x2c2e31, guard: 0x35373a, barrel: 0x2c2c2e, steel: 0x5d5f63, steelBright: 0xa4a29c,
   poly: 0x2f2e2c, polyMag: 0x3a3733, rubber: 0x1c1c1c, void: 0x060606, wear: 0x6c6e70,
-  glove: 0x8a7656, gloveDark: 0x4d4538, glovePalm: 0x6f6149, sleeve: 0x5b6045, sleeveDark: 0x474b36, brass: 0xc79a4a,
+  glove: 0x6e5f47, gloveDark: 0x3f382e, glovePalm: 0x5c5040, sleeve: 0x5b6045, sleeveDark: 0x474b36, brass: 0xc79a4a,
 };
 
 // ---------------------------------------------------------------- gun model
@@ -464,7 +464,7 @@ void main() {
     vec2 d = (modelViewMatrix * vec4(iVel, 0.0)).xy;
     float l = length(d);
     vec2 ax = l > 1e-5 ? d / l : vec2(0.0, 1.0);
-    off = vec2(-ax.y, ax.x) * c.x * size + ax * c.y * (size + l * stretch);
+    off = vec2(ax.y, -ax.x) * c.x * size + ax * c.y * (size + l * stretch);
   } else {
     float cs = cos(iData.z), sn = sin(iData.z);
     off = vec2(cs * c.x - sn * c.y, sn * c.x + cs * c.y) * size;
@@ -536,9 +536,11 @@ class Particles {
     d[o + 11] = col.r; d[o + 12] = col.g; d[o + 13] = col.b; d[o + 14] = grav; d[o + 15] = drag;
     d[o + 16] = Math.random() * PI * 2; d[o + 17] = rand(-1.5, 1.5); d[o + 18] = fadeIn;
   }
-  clear() { this.n = 0; this.mesh.geometry.instanceCount = 0; }
+  clear() { this.n = 0; this.mesh.geometry.instanceCount = 0; this.mesh.visible = false; }
   update(dt) {
     const d = this.d;
+    this.mesh.visible = this.n > 0;
+    if (this.n === 0) return;
     for (let i = 0; i < this.n;) {
       const o = i * 20;
       d[o + 6] += dt;
@@ -596,7 +598,7 @@ const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
 // Viewmodel layout (gun space: bore along -z, origin above the pistol grip). Exported for tuning.
 export const ARM = {
-  base: [0.15, -0.125, -0.38], baseRot: [0.0, 0.1, -0.18],
+  base: [0.155, -0.135, -0.395], baseRot: [0.0, 0.1, -0.18],
   // [palm faces, fingers point, palm centre]
   rPalm: [[-1, 0.05, 0.25], [0, 0.0, -1], [0.03, -0.1, 0.078]], rElbow: [0.13, -0.3, 0.42],
   lPalm: [[-0.25, 1, 0], [-1, -0.1, -0.45], [0.006, -0.047, -0.39]], lElbow: [-0.12, -0.37, 0.02],
@@ -605,7 +607,7 @@ export const ARM = {
     thumb: { pos: [-0.03, -0.035, -0.012], rot: [-0.34, 0.07, 0.0], curl: [-0.1, -0.05] },
   },
   lPose: {
-    fingers: [[1.0, 1.2, 0.6, 0.06], [1.05, 1.25, 0.6, 0.0], [1.1, 1.25, 0.55, -0.05], [1.15, 1.2, 0.5, -0.1]],
+    fingers: [[1.0, 1.2, 0.6, 0.03], [1.05, 1.25, 0.6, 0.0], [1.1, 1.25, 0.55, -0.03], [1.15, 1.2, 0.5, -0.06]],
     thumb: { rot: [-0.6, -0.1, 0.0], curl: [0.2, 0.1] },
   },
 };
@@ -671,7 +673,7 @@ export class Weapon {
     {
       const pos = [], uv = [], idx = [];
       const quad = (pts, uvs) => { const b = pos.length / 3; pts.forEach((p) => pos.push(...p)); uvs.forEach((u) => uv.push(...u)); idx.push(b, b + 1, b + 2, b, b + 2, b + 3); };
-      const s = 0.5;
+      const s = 0.8;
       quad([[-s, -s, 0], [s, -s, 0], [s, s, 0], [-s, s, 0]], [[0, 0], [0.5, 0], [0.5, 1], [0, 1]]);
       const L = 1.6, w = 0.45;
       quad([[0, -w, 0], [0, -w, -L], [0, w, -L], [0, w, 0]], [[0.5, 0], [1, 0], [1, 1], [0.5, 1]]);
@@ -707,7 +709,7 @@ export class Weapon {
 
     // ---- world-space effects (added to the world scene lazily)
     this.dust = new Particles(220, this.puffTex);
-    this.sparks = new Particles(120, this.sparkTex, { additive: true, stretch: 0.028 });
+    this.sparks = new Particles(120, this.sparkTex, { additive: true, stretch: 0.016 });
     this.chipMax = 70;
     const chipGeo = new THREE.IcosahedronGeometry(1, 0);
     this.chips = new THREE.InstancedMesh(chipGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, flatShading: true }), this.chipMax);
@@ -761,7 +763,7 @@ export class Weapon {
         side: THREE.BackSide, depthWrite: false,
         vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
         fragmentShader: `varying vec3 vD; void main(){ vec3 d = normalize(vD);
-          vec3 top = vec3(0.25,0.45,0.85), hor = vec3(0.78,0.84,0.9), gnd = vec3(0.55,0.45,0.33);
+          vec3 top = vec3(0.42,0.52,0.68), hor = vec3(0.82,0.82,0.8), gnd = vec3(0.58,0.48,0.36);
           vec3 c = d.y > 0.0 ? mix(hor, top, pow(d.y, 0.6)) : mix(hor, gnd, clamp(-d.y * 3.0, 0.0, 1.0));
           float s = max(dot(d, normalize(vec3(-0.55, 1.0, 0.45))), 0.0);
           c += vec3(1.0, 0.92, 0.78) * pow(s, 60.0) * 6.0;
@@ -805,12 +807,12 @@ export class Weapon {
     this.rig.add(this.leftArm);
 
     // Left-hand key poses (gun space) for the reload.
-    const magGrab = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.2, 0.25, -1.35, 'YXZ'));
+    const E = (x, y, z) => new THREE.Quaternion().setFromEuler(new THREE.Euler(x, y, z, 'YXZ'));
     this.poseA = { p: this.leftPalm.clone(), q: new THREE.Quaternion() };
-    this.poseB = { p: new THREE.Vector3(-0.03, -0.17, -0.1), q: magGrab };                     // holding the inserted mag
-    this.poseP = { p: this.poseB.p.clone().add(new THREE.Vector3(0, -0.07, 0.01)), q: magGrab };  // mag just below the well
-    this.poseD = { p: new THREE.Vector3(-0.1, -0.45, 0.02), q: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, 0.3, -1.2, 'YXZ')) };
-    this.poseS = { p: new THREE.Vector3(-0.05, -0.06, -0.03), q: new THREE.Quaternion().setFromEuler(new THREE.Euler(0.1, 0.5, -0.9, 'YXZ')) }; // slap bolt catch
+    this.poseB = { p: new THREE.Vector3(0.004, -0.268, -0.118), q: E(0.15, -0.25, 0.1) };             // palm under the seated mag
+    this.poseP = { p: this.poseB.p.clone().add(new THREE.Vector3(0, -0.075, 0.012)), q: this.poseB.q }; // mag just below the well
+    this.poseD = { p: new THREE.Vector3(-0.07, -0.52, 0.06), q: E(0.3, -0.2, 0.15) };                 // down at the pouch
+    this.poseS = { p: new THREE.Vector3(-0.03, -0.095, -0.05), q: E(0.1, 0.2, -0.35) };               // slap the bolt catch
     // Mag relative to the hand at pose B (so it follows the hand while carried).
     _mA.compose(this.poseB.p, this.poseB.q, _s.set(1, 1, 1)).invert();
     _mB.compose(this.magHome, _q1.identity(), _s);
@@ -849,7 +851,7 @@ export class Weapon {
       return null;
     }
     this.ammo--;
-    this.cool = FIRE_INTERVAL;
+    this.cool = Math.max(-0.034, this.cool) + FIRE_INTERVAL; // keeps the cadence stable at low frame rates
     this.lastShot = 0;
     this.trigger = 1;
     this.boltT = 0;
@@ -867,7 +869,7 @@ export class Weapon {
     // muzzle flash
     this.flashT = 0.05;
     this.flash.rotation.z = Math.random() * PI * 2;
-    const sc = rand(0.055, 0.075);
+    const sc = rand(0.085, 0.11);
     this.flash.scale.set(sc, sc, sc * rand(0.8, 1.2));
     this._pose(0);
     this._emitMuzzleFx();
@@ -989,7 +991,7 @@ export class Weapon {
     pz += this.rec.z.x; py += this.rec.pitch.x * 0.05; rx += this.rec.pitch.x; rz += this.rec.roll.x * 0.05; px += this.rec.x.x * 0.02; ry += this.rec.yaw.x * 0.03;
     // sprint: gun canted and lowered
     const s = this.sprint;
-    px -= 0.03 * s; py -= 0.035 * s; ry += 0.55 * s; rx -= 0.2 * s; rz += 0.25 * s;
+    px -= 0.02 * s; py -= 0.05 * s; ry += 0.42 * s; rx -= 0.22 * s; rz += 0.2 * s;
 
     // reload
     let tilt = 0;
@@ -1001,7 +1003,7 @@ export class Weapon {
       this.leftArm.position.copy(this.poseA.p); this.leftArm.quaternion.identity();
       this.mag.visible = true; this.mag.position.copy(this.magHome); this.mag.quaternion.identity();
     }
-    px -= 0.035 * tilt; py += 0.025 * tilt; pz += 0.02 * tilt; rx += 0.18 * tilt; ry -= 0.25 * tilt; rz -= 0.6 * tilt;
+    px -= 0.035 * tilt; py += 0.05 * tilt; pz += 0.0 * tilt; rx += 0.14 * tilt; ry -= 0.04 * tilt; rz -= 0.42 * tilt;
 
     this.rig.position.set(px, py, pz);
     this.rig.rotation.set(rx, ry, rz, 'XYZ');
@@ -1053,7 +1055,8 @@ export class Weapon {
       this.casings.setMatrixAt(n++, _mA);
     }
     this.casings.count = n;
-    this.casings.instanceMatrix.needsUpdate = true;
+    this.casings.visible = n > 0;
+    if (n) this.casings.instanceMatrix.needsUpdate = true;
   }
 
   getMuzzleWorld(camera, target) {
@@ -1093,8 +1096,8 @@ export class Weapon {
       const ns = 12 + (Math.random() * 6 | 0);
       for (let i = 0; i < ns; i++) {
         dirAround(1.3, tmp); const sp = rand(2.5, 7);
-        _col.setRGB(1.0, rand(0.62, 0.8), rand(0.3, 0.45)).multiplyScalar(rand(1.0, 1.6));
-        this.sparks.spawn(px, py, pz, tmp.x * sp, tmp.y * sp, tmp.z * sp, rand(0.12, 0.3), 0.012, 0.006, 1, _col, 9.8, 1.5);
+        _col.setRGB(1.0, rand(0.5, 0.7), rand(0.15, 0.3)).multiplyScalar(rand(1.2, 1.8));
+        this.sparks.spawn(px, py, pz, tmp.x * sp, tmp.y * sp, tmp.z * sp, rand(0.12, 0.3), 0.015, 0.007, 1, _col, 9.8, 1.5);
       }
       for (let i = 0; i < 6; i++) {
         dirAround(1.1, tmp); const sp = rand(1.2, 3.2);
@@ -1184,8 +1187,11 @@ export class Weapon {
       n++;
     }
     this.chips.count = n;
-    this.chips.instanceMatrix.needsUpdate = true;
-    if (this.chips.instanceColor) this.chips.instanceColor.needsUpdate = true;
+    this.chips.visible = n > 0;
+    if (n) {
+      this.chips.instanceMatrix.needsUpdate = true;
+      if (this.chips.instanceColor) this.chips.instanceColor.needsUpdate = true;
+    }
 
     // decals fade after ~20 s
     let dirty = false;
@@ -1211,8 +1217,10 @@ export class Weapon {
       AL[m] = tr.alpha;
       m++;
     }
-    this.tA.needsUpdate = this.tB.needsUpdate = this.tAlpha.needsUpdate = true;
+    if (m) this.tA.needsUpdate = this.tB.needsUpdate = this.tAlpha.needsUpdate = true;
     this.tracers.geometry.instanceCount = m;
+    this.tracers.visible = m > 0;
+    this.decals.visible = this.decalUsed > 0;
   }
 
   resize(aspect) {

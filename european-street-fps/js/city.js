@@ -225,7 +225,7 @@ export function buildCity(scene, M) {
     else lbox(f, fr, t0, t1, y0 + (y1 - y0) * 0.68, y0 + (y1 - y0) * 0.68 + 0.05, fd0, fd1, { gao: false });
 
     // Sill.
-    if (op.kind !== 'balc') lbox(f, trim, t0 - 0.09, t1 + 0.09, y0 - 0.08, y0, -FAC + 0.02, 0.07, { tint: L.tint, gao: false });
+    if (op.kind !== 'balc') lbox(f, trim, t0 - 0.09, t1 + 0.09, y0 - 0.08, y0 + 0.015, -FAC + 0.02, 0.07, { tint: L.tint, gao: false });
     // Stone surround.
     if (L.framed && !op.arch) {
       lbox(f, trim, t0 - 0.13, t0, y0, y1, 0, 0.035, { gao: false });
@@ -291,7 +291,7 @@ export function buildCity(scene, M) {
       lbox(f, trim, t0 - 0.28, t1 + 0.28, y1, y1 + 0.26, 0, 0.07, {});
     }
     lbox(f, trim, t0 - 0.1, t1 + 0.1, 0, 0.1, -FAC, 0.22, { gao: false }); // threshold step
-    if (R() < 0.5) { // potted plants beside the door
+    if (R() < 0.5 && walkOut(f, (t0 + t1) / 2, 3.2)) { // potted plants beside the door (not in narrow alleys)
       for (const t of [t0 - 0.55, t1 + 0.55]) {
         const x = fx(f, t, 0.35), z = fz(f, t, 0.35);
         const g = new THREE.CylinderGeometry(0.24, 0.17, 0.42, 10);
@@ -491,18 +491,21 @@ export function buildCity(scene, M) {
         else if (op.kind === 'shop') shopFill(f, op);
         else { windowFill(f, op, L); if (op.kind === 'balc') balcony(f, op); }
       }
-      // String courses.
+      // String courses (interrupted by balcony doors).
       if (L.banded) for (let s = 1; s < L.storeys; s++) {
         const y = L.G + (s - 1) * L.F;
-        lbox(f, trim, 0, f.W, y - 0.12, y + 0.06, 0, 0.07, { gao: false });
+        let t = 0;
+        const gaps = bands[s].ops.filter((op) => op.kind === 'balc').sort((a, b) => a.t0 - b.t0);
+        for (const op of gaps) { lbox(f, trim, t, op.t0, y - 0.12, y + 0.06, 0, 0.07, { gao: false }); t = op.t1; }
+        lbox(f, trim, t, f.W, y - 0.12, y + 0.06, 0, 0.07, { gao: false });
       }
-      // Eaves.
+      // Eaves: kept below the roof soffit (which starts 0.1 m under the roof plane at the wall line).
       if (L.eave === 'cornice') {
-        lbox(f, trim, 0, f.W, L.H - 0.55, L.H - 0.4, 0, 0.1, { ao: 0.95, gao: false });
-        lbox(f, trim, 0, f.W, L.H - 0.4, L.H - 0.24, 0, 0.22, { ao: 0.9, gao: false });
-        lbox(f, trim, 0, f.W, L.H - 0.24, L.H - 0.08, 0, 0.36, { ao: 0.9, gao: false });
+        lbox(f, trim, 0, f.W, L.H - 0.72, L.H - 0.58, 0, 0.1, { ao: 0.95, gao: false });
+        lbox(f, trim, 0, f.W, L.H - 0.58, L.H - 0.44, 0, 0.21, { ao: 0.9, gao: false });
+        lbox(f, trim, 0, f.W, L.H - 0.44, L.H - 0.3, 0, 0.32, { ao: 0.85, gao: false });
       } else {
-        for (let t = 0.3; t < f.W - 0.1; t += 0.55) lbox(f, M.wood, t - 0.05, t + 0.05, L.H - 0.36, L.H - 0.1, 0, 0.5, { ao: 0.8, gao: false });
+        for (let t = 0.3; t < f.W - 0.1; t += 0.55) lbox(f, M.wood, t - 0.05, t + 0.05, L.H - 0.5, L.H - 0.3, 0, 0.42, { ao: 0.8, gao: false });
       }
       // Drainpipe at one end of the façade.
       if (R() < 0.45) {
@@ -630,7 +633,7 @@ export function buildCity(scene, M) {
       }
       // Putlog holes: small dark squares in rows.
       for (let py = 6; py < H - 3; py += 3.3) for (let t = 0.9; t < f.W - 0.6; t += 1.7) {
-        if (R() < 0.55) lbox(f, M.iron, t - 0.09, t + 0.09, py, py + 0.18, 0, 0.005, { gao: false, ao: 0.5 });
+        if (R() < 0.55) lbox(f, M.iron, t - 0.09, t + 0.09, py, py + 0.18, 0, 0.02, { gao: false, ao: 0.5, skip: 4 | 8 });
       }
       if (street) contactStrip(f, 0, f.W);
     }
@@ -641,7 +644,15 @@ export function buildCity(scene, M) {
       geo.box(M.stone, x0 - 0.2, H - 0.35, z1 - 0.25, x1 + 0.2, H + 0.8, z1 + 0.2, { tint: L.tint, gao: false });
       geo.box(M.stone, x0 - 0.2, H - 0.35, z0 + 0.25, x0 + 0.25, H + 0.8, z1 - 0.25, { tint: L.tint, gao: false });
       geo.box(M.stone, x1 - 0.25, H - 0.35, z0 + 0.25, x1 + 0.2, H + 0.8, z1 - 0.25, { tint: L.tint, gao: false });
-      for (let x = x0 + 0.4; x < x1 - 0.2; x += 1.2) geo.box(M.stone, x - 0.15, H - 0.9, z0 - 0.18, x + 0.15, H - 0.6, z0 + 0.05, { gao: false });
+      // Corbels (beccatelli) under the parapet on every side.
+      for (let x = x0 + 0.4; x < x1 - 0.2; x += 1.2) {
+        geo.box(trim, x - 0.15, H - 0.9, z0 - 0.15, x + 0.15, H - 0.6, z0 + 0.05, { gao: false, ao: 0.9 });
+        geo.box(trim, x - 0.15, H - 0.9, z1 - 0.05, x + 0.15, H - 0.6, z1 + 0.15, { gao: false, ao: 0.9 });
+      }
+      for (let z = z0 + 0.4; z < z1 - 0.2; z += 1.2) {
+        geo.box(trim, x0 - 0.15, H - 0.9, z - 0.15, x0 + 0.05, H - 0.6, z + 0.15, { gao: false, ao: 0.9 });
+        geo.box(trim, x1 - 0.05, H - 0.9, z - 0.15, x1 + 0.15, H - 0.6, z + 0.15, { gao: false, ao: 0.9 });
+      }
     } else {
       buildRoof(x0, x1, z0, z1, H, L, 0.35, true);
     }
@@ -671,7 +682,7 @@ export function buildCity(scene, M) {
       geo.geom(trim, g, faceMatrix(f), { gao: false }); g.dispose();
     }
     // Pilasters and cornice.
-    for (const t of [0.4, 4.2, W - 4.2, W - 0.4]) lbox(f, trim, t - 0.35, t + 0.35, 0, H, 0, 0.12, {});
+    for (const t of [0.4, 5.75, W - 5.75, W - 0.4]) lbox(f, trim, t - 0.35, t + 0.35, 0, H, 0, 0.12, {});
     lbox(f, trim, 0, W, H - 0.4, H, 0, 0.3, { gao: false });
     // Gable roof with ridge along z so the gable faces the square.
     buildRoof(x0, x1, z0, z1, H, { ...L, pitch: 0.42 }, 0.3, false, 'z');
@@ -722,7 +733,9 @@ export function buildCity(scene, M) {
     // Body is set back behind the deep gate arch; the front wall is built from face pieces.
     const inset = { N: [0, 0, 1.2, 0], S: [0, 0, 0, -1.2], W: [1.2, 0, 0, 0], E: [0, -1.2, 0, 0] }[G.face];
     geo.box(M.stone, x0 + inset[0], 0, z0 + inset[2], x1 + inset[1], H, z1 + inset[3], { tint: L.tint });
-    collide(x0, 0, z0, x1, H, z1);
+    // The gate front projects 0.3 m into the street: the collider includes it.
+    const gx = { E: [0, 0.3], W: [-0.3, 0] }[G.face] || [0, 0], gz = { N: [-0.3, 0], S: [0, 0.3] }[G.face] || [0, 0];
+    collide(x0 + gx[0], 0, z0 + gz[0], x1 + gx[1], H, z1 + gz[1]);
     const f = makeFace(G.r, G.face);
     const c = f.W / 2, w = 4.4, spring = 3.8, top = spring + w / 2 + 0.02;
     // Deep arch with closed wooden gates.
@@ -796,8 +809,8 @@ export function buildCity(scene, M) {
     s.moveTo(0, bandTop); s.lineTo(0, spring);
     for (let k = 0; k < cols - 1; k++) {
       const a = xs[k] - x0 + 0.32, b = xs[k + 1] - x0 - 0.32;
-      s.lineTo(a, spring);
-      s.absarc((a + b) / 2, spring, (b - a) / 2, Math.PI, 0, true);
+      s.lineTo(a - 0.01, spring);
+      s.absarc((a + b) / 2, spring, (b - a) / 2 + 0.01, Math.PI, 0, true); // hidden behind the arch ring's intrados
     }
     s.lineTo(f.W, spring); s.lineTo(f.W, bandTop); s.lineTo(0, bandTop);
     lshape(f, M.plaster[1], s, -0.5, 0, { tint: 1.02 });
@@ -832,7 +845,7 @@ export function buildCity(scene, M) {
   const herr = M.herringbone || M.paving;
   geo.box(trim, -13, 0, -11, 13, 0.035, 11, { gao: false, cast: false });
   geo.box(herr, -12.4, 0, -10.4, 12.4, 0.045, 10.4, { gao: false, cast: false });
-  for (let x = -12.4; x < 12.3; x += 6.2) geo.box(trim, x - 0.2 + (x > -12.4 ? 0 : 0.2), 0, -10.4, x + 0.2, 0.05, 10.4, { gao: false, cast: false });
+  for (let x = -12.4; x < 12.3; x += 6.2) geo.box(M.paving, x - 0.2 + (x > -12.4 ? 0 : 0.2), 0, -10.4, x + 0.2, 0.05, 10.4, { gao: false, cast: false, tint: 0.92 });
   geo.box(M.paving, -10, 0, -44, 10, 0.04, -30, { gao: false, cast: false });
   geo.box(M.paving, -0.6, 0, 11, 0.6, 0.03, 46.8, { gao: false, cast: false });
   geo.box(M.paving, -0.6, 0, -30, 0.6, 0.03, -11, { gao: false, cast: false });
@@ -841,16 +854,16 @@ export function buildCity(scene, M) {
 
   // ------------------------------------------------------------------ fountain
   const V2 = (x, y) => new THREE.Vector2(x, y);
-  const lathe = (mat, pts, segs, o = {}) => {
-    const g = new THREE.LatheGeometry(pts, segs);
+  const lathe = (mat, pts, segs, o = {}, phi0 = 0) => {
+    const g = new THREE.LatheGeometry(pts, segs, phi0);
     geo.geom(mat, g, null, { flat: true, gao: false, ...o });
     g.dispose();
   };
-  lathe(trim, [V2(0, 0.06), V2(2.85, 0.06), V2(2.85, 0.4), V2(2.92, 0.42), V2(3.2, 0.42), V2(3.28, 0.39), V2(3.28, 0.3), V2(3.2, 0.27), V2(3.2, 0.1), V2(3.4, 0.06), V2(3.4, 0.0)].reverse(), 8);
+  lathe(trim, [V2(0, 0.06), V2(2.85, 0.06), V2(2.85, 0.4), V2(2.92, 0.42), V2(3.2, 0.42), V2(3.28, 0.39), V2(3.28, 0.3), V2(3.2, 0.27), V2(3.2, 0.1), V2(3.4, 0.06), V2(3.4, 0.0)].reverse(), 8, {}, Math.PI / 8);
   lathe(trim, [V2(0, 0.06), V2(0.48, 0.06), V2(0.48, 0.24), V2(0.32, 0.4), V2(0.24, 0.75), V2(0.3, 1.0), V2(0.26, 1.35), V2(0.34, 1.48), V2(0.2, 1.75), V2(0.26, 2.05), V2(0.16, 2.3), V2(0.22, 2.42), V2(0.1, 2.7), V2(0.14, 2.8), V2(0, 2.9)], 12);
   lathe(trim, [V2(0.3, 1.45), V2(0.9, 1.55), V2(1.35, 1.72), V2(1.42, 1.76), V2(1.42, 1.86), V2(1.32, 1.86), V2(0.9, 1.72), V2(0.3, 1.66)], 12);
   const water = (r, y, segs = 8) => {
-    const g = new THREE.CircleGeometry(r, segs); g.rotateX(-Math.PI / 2); g.translate(0, y, 0);
+    const g = new THREE.CircleGeometry(r, segs, segs === 8 ? Math.PI / 8 : 0); g.rotateX(-Math.PI / 2); g.translate(0, y, 0);
     geo.geom(M.water, g, null, { gao: false, cast: false });
     g.dispose();
   };
@@ -868,9 +881,18 @@ export function buildCity(scene, M) {
     const g = new THREE.TubeGeometry(curve, 8, 0.018, 4, false);
     geo.geom(M.waterJet || M.water, g, null, { gao: false, cast: false }); g.dispose();
   }
-  collide(-3.1, 0, -3.1, 3.1, 0.42, 3.1);
-  collide(-0.5, 0.42, -0.5, 0.5, 2.9, 0.5);
-  collide(-1.05, 1.45, -1.05, 1.05, 1.9, 1.05);
+  // Octagonal rim (flats facing the axes and diagonals): 0.42 m, low enough to step onto and over
+  // into the shallow basin. Axis flats are exact boxes, diagonal flats are covered by three boxes.
+  for (const s of [-1, 1]) {
+    collide(s > 0 ? 2.63 : -3.03, 0, -1.26, s > 0 ? 3.03 : -2.63, 0.42, 1.26);
+    collide(-1.26, 0, s > 0 ? 2.63 : -3.03, 1.26, 0.42, s > 0 ? 3.03 : -2.63);
+  }
+  for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) for (const tau of [-0.78, 0, 0.78]) {
+    const cx = sx * (2.0 - 0.707 * tau), cz = sz * (2.0 + 0.707 * tau);
+    collide(cx - 0.28, 0, cz - 0.28, cx + 0.28, 0.42, cz + 0.28);
+  }
+  collide(-0.5, 0, -0.5, 0.5, 2.9, 0.5);
+  collide(-1.3, 1.45, -1.3, 1.3, 1.9, 1.3);
   decalsRound(0, 0, 4.1, 0.55);
 
   // ------------------------------------------------------------------ street furniture

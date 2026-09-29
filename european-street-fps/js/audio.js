@@ -4,6 +4,11 @@
 // the stone façades of a narrow street).
 
 const MAX_VOICES = 12;
+// Per-sound loudness trim (recipes are authored roughly normalised; this balances the mix).
+const LEVEL = {
+  shot: 2.4, empty: 1.6, reload: 0.55, hitRobot: 1.8, hitWorld: 1.6, robotShot: 1.4, robotHurt: 1.8, robotDie: 0.6,
+  robotAlert: 1.6, playerHurt: 1.5, step: 2.2, win: 1, lose: 1, uiClick: 2.5, servo: 6,
+};
 
 export class GameAudio {
   constructor() {
@@ -82,7 +87,7 @@ export class GameAudio {
       this.voices = this.voices.filter((v) => v.end > now);
       while (this.voices.length >= MAX_VOICES) this._kill(this.voices.shift());
       const out = c.createGain();
-      out.gain.value = Math.max(0, volume);
+      out.gain.value = Math.max(0, volume) * (LEVEL[name] || 1);
       let node = out;
       if (c.createStereoPanner && pan) {
         const p = c.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan));

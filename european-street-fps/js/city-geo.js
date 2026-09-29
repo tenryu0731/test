@@ -49,7 +49,7 @@ export class Geo {
   }
 
   _bucket(mat, o) {
-    const cast = o.cast !== false, receive = o.receive !== false, k = (cast ? 2 : 0) + (receive ? 1 : 0);
+    const cast = o.cast !== false && !mat.userData.noCast, receive = o.receive !== false, k = (cast ? 2 : 0) + (receive ? 1 : 0);
     let arr = this.buckets.get(mat);
     if (!arr) this.buckets.set(mat, (arr = [null, null, null, null]));
     return arr[k] || (arr[k] = new Bucket(mat, cast, receive));
