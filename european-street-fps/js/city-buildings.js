@@ -369,7 +369,12 @@ export function createBuilders(ctx) {
       geo.box(mat, x0 - e, H - 0.35, z1 - 0.3, x1 + e, H + ph, z1 + e, o);
       geo.box(mat, x0 - e, H - 0.35, z0 + 0.3, x0 + 0.3, H + ph, z1 - 0.3, o);
       geo.box(mat, x1 - 0.3, H - 0.35, z0 + 0.3, x1 + e, H + ph, z1 - 0.3, o);
-      geo.box(trim, x0 - e - 0.04, H + ph, z0 - e - 0.04, x1 + e + 0.04, H + ph + 0.08, z1 + e + 0.04, { gao: false, tint: S.trimTint, skip: 8 });
+      // Coping stones along the parapet walls (not a lid: the terrace stays open to the sky).
+      const co = { gao: false, tint: S.trimTint }, cy0 = H + ph, cy1 = H + ph + 0.08, g = 0.04;
+      geo.box(trim, x0 - e - g, cy0, z0 - e - g, x1 + e + g, cy1, z0 + 0.34, co);
+      geo.box(trim, x0 - e - g, cy0, z1 - 0.34, x1 + e + g, cy1, z1 + e + g, co);
+      geo.box(trim, x0 - e - g, cy0, z0 + 0.34, x0 + 0.34, cy1, z1 - 0.34, co);
+      geo.box(trim, x1 - 0.34, cy0, z0 + 0.34, x1 + e + g, cy1, z1 - 0.34, co);
       towerTops.push({ t, top: H, rim: H + ph });
     } else if (t.top === 'roof' || t.top === 'belfry') {
       // Open loggia / belfry at the top under a low pyramid roof.
