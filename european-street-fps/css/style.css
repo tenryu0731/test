@@ -1,0 +1,4 @@
+/* STUB — replaced by the UI agent. */
+html, body { margin: 0; height: 100%; overflow: hidden; background: #1d1a16; }
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; color: #f3ead8; font: 16px sans-serif; }
