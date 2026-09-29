@@ -119,11 +119,15 @@ const CONTROLS = [
     }[s.id] || [s.y, 120];
     return [s.x, s.z, t[0], t[1]];
   }),
-  [LAKE.x, LAKE.z, LAKE.y + 5, 115],
-  [0, -290, -9, 110],      // ridge north of the town (north road)
-  [25, 300, -17, 95],      // southern spur (south road)
-  [235, 20, -10, 80],      // eastern spur
-  [-235, 0, -8, 90],       // western saddle
+  [LAKE.x, LAKE.z, LAKE.y + 2, 140],
+  [0, -300, -15, 100],     // ridge north of the town (north road)
+  [25, 310, -21, 95],      // southern spur (south road)
+  [240, 20, -14, 80],      // eastern spur
+  [-240, 0, -13, 85],      // western saddle
+  [175, 190, -34, 80],     // hollows around the town hill
+  [-190, 200, -30, 80],
+  [-170, -230, -26, 80],
+  [170, -220, -28, 80],
   [310, -250, 12, 170],    // hills north-east
   [-300, -250, 10, 150],   // hills north-west
   [-600, 350, 18, 170],    // south-west hill beyond the pieve
@@ -287,7 +291,7 @@ export function buildHeightfield() {
   const river = buildRiver();
   // River valley on both grids (distance to the smoothed river line on an 8 m helper grid).
   carveValley(H, n, o, st, river);
-  carveValley(HC, cn, co, cs, river);
+  carveValley(HC, cn, co, cs, river, true);
   T.valley = performance.now();
 
   // Site pads and town plateau (soft).
@@ -295,6 +299,8 @@ export function buildHeightfield() {
   applyPads(HC, cn, co, cs, false);
   T.pads = performance.now();
 
+  lakeBowl(H, n, o, st);
+  lakeBowl(HC, cn, co, cs);
   // Roads: graded profiles, then cut/fill stamping.
   const sampler = (x, z) => bilinear(H, n, o, st, x, z);
   const roads = gradeRoads(sampler);
@@ -372,10 +378,10 @@ function nearestOnPolyline(X, Z, x, z, out) {
   return out;
 }
 
-function carveValley(H, n, o, st, river) {
-  const sm = river.smooth;
-  const X = Float32Array.from(sm.pts, (p) => p[0]), Z = Float32Array.from(sm.pts, (p) => p[1]);
-  const Y = Float32Array.from(sm.pts, (p) => p[2] + RIVER_DEPTH);
+function carveValley(H, n, o, st, river, skipInside) {
+  const sm = river.smooth, sp = sm.pts.filter((_, i) => i % 4 === 0 || i === sm.pts.length - 1);
+  const X = Float32Array.from(sp, (p) => p[0]), Z = Float32Array.from(sp, (p) => p[1]);
+  const Y = Float32Array.from(sp, (p) => p[2] + RIVER_DEPTH);
   // helper grid 8 m (or the grid itself if coarser)
   const hs = Math.max(8, st), hn = Math.ceil((n - 1) * st / hs) + 1;
   const D = new Float32Array(hn * hn), WL = new Float32Array(hn * hn);
@@ -383,13 +389,14 @@ function carveValley(H, n, o, st, river) {
   // coarse pre-filter: only segments whose bbox is near
   for (let j = 0; j < hn; j++) for (let i = 0; i < hn; i++) {
     const x = o + i * hs, z = o + j * hs;
+    if (skipInside && Math.abs(x) < FINE.half - 24 && Math.abs(z) < FINE.half - 24) { D[j * hn + i] = 1e9; continue; }
     nearestOnPolyline(X, Z, x, z, q);
     D[j * hn + i] = q.d;
     WL[j * hn + i] = Y[q.i] + (Y[q.i + 1] - Y[q.i]) * q.t;
   }
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const x = o + i * st, z = o + j * st;
-    const d = bilinear(D, hn, o, hs, x, z);
+    const d = hs === st ? D[j * n + i] : bilinear(D, hn, o, hs, x, z);
     if (d > 420) continue;
     const wl = bilinear(WL, hn, o, hs, x, z);
     const e = Math.max(0, d - 22);
@@ -411,13 +418,13 @@ function applyPads(H, n, o, st, hard, chan) {
       const d = distToRect(x, z, TOWN.rect);
       if (hard) { if (d <= pm) H[k] = PLATEAU_Y; continue; }
       if (d <= pm) { H[k] = PLATEAU_Y; continue; }
-      const bw = clamp(Math.abs(H[k] - PLATEAU_Y) * 1.2, 8, 70);
+      const bw = clamp(Math.abs(H[k] - PLATEAU_Y) * 0.9, 6, 60);
       const w = 1 - smooth(pm, pm + bw, d);
       H[k] += (PLATEAU_Y - H[k]) * w;
     }
   }
   for (const s of SITES) {
-    const R = s.r + 90;
+    const R = s.r + 95;
     const i0 = Math.max(0, Math.floor((s.x - R - o) / st)), i1 = Math.min(n - 1, Math.ceil((s.x + R - o) / st));
     const j0 = Math.max(0, Math.floor((s.z - R - o) / st)), j1 = Math.min(n - 1, Math.ceil((s.z + R - o) / st));
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
@@ -428,8 +435,8 @@ function applyPads(H, n, o, st, hard, chan) {
         continue;
       }
       if (d <= s.r) { H[k] = s.y; continue; }
-      const bw = clamp(Math.abs(H[k] - s.y) * 2.0, 12, 85);
-      const w = 1 - smooth(s.r, s.r + bw, d);
+      const bw = clamp(Math.abs(H[k] - s.y) * 2.2, 24, 90);
+      let w = 1 - smooth(s.r, s.r + bw, d); w = w * w * (3 - 2 * w);
       H[k] += (s.y - H[k]) * w;
     }
   }
@@ -477,7 +484,7 @@ function gradeRoads(heightAt) {
       const need = Math.abs(pin[b] - pin[a]) / (c.s[b] - c.s[a]) + 0.004;
       if (need > MAXG) for (let i = a; i <= b; i++) G[i] = need;
     }
-    for (let it = 0; it < 4; it++) {
+    const limit = (Hh) => { for (let it = 0; it < 4; it++) {
       for (let i = 1; i < m; i++) {
         if (!Number.isNaN(pin[i])) continue;
         const ds = c.s[i] - c.s[i - 1], g = G[i] * ds;
@@ -488,12 +495,13 @@ function gradeRoads(heightAt) {
         const ds = c.s[i + 1] - c.s[i], g = G[i] * ds;
         Hh[i] = clamp(Hh[i], Hh[i + 1] - g, Hh[i + 1] + g);
       }
-    }
-    // round vertical curves, keep pins
-    let Hs = gauss1d(Hh, c.s, 6);
-    for (let i = 0; i < m; i++) if (!Number.isNaN(pin[i])) Hs[i] = pin[i];
-    Hs = gauss1d(Hs, c.s, 3);
-    for (let i = 0; i < m; i++) if (!Number.isNaN(pin[i])) Hs[i] = pin[i];
+    } };
+    for (let i = 0; i < m; i++) G[i] *= 0.95;
+    limit(Hh);
+    // round vertical curves, keep pins, re-limit
+    const Hs = gauss1d(Hh, c.s, 8);
+    for (let i = 0; i < m; i++) { if (!Number.isNaN(pin[i])) Hs[i] = pin[i]; G[i] /= 0.95; }
+    limit(Hs);
     let maxGrade = 0;
     for (let i = 1; i < m; i++) maxGrade = Math.max(maxGrade, Math.abs(Hs[i] - Hs[i - 1]) / (c.s[i] - c.s[i - 1]));
     const road = { id: r.id, width: r.width, hw: r.width / 2, X, Z, H: Hs, S: c.s, maxGrade };
@@ -515,7 +523,7 @@ function gauss1d(v, s, sigma) {
 
 // Per-road nearest-distance stamping with cut/fill banks; earlier road surfaces are protected.
 function stampRoads(H, n, o, st, roads) {
-  const R = 48;
+  const R = 70;
   const D = new Float32Array(n * n).fill(1e9), RH = new Float32Array(n * n);
   const lock = new Float32Array(n * n);
   for (const r of roads) {
@@ -550,8 +558,8 @@ function stampRoads(H, n, o, st, roads) {
       if (d >= R) continue;
       const h0 = H[k], rh = RH[k], dh = h0 - rh;
       // wide softening (roads follow spurs and valleys), then cut/fill bank
-      const hs = h0 - dh * 0.45 * (1 - smooth(hw + 2, R, d));
-      const bank = clamp(Math.abs(hs - rh) * 1.6, 1.5, 30);
+      const hs = h0 - dh * 0.7 * (1 - smooth(hw + 2, R, d));
+      const bank = clamp(Math.abs(hs - rh) * 1.8, 1.5, 30);
       const w = 1 - smooth(hw + 0.8, hw + 0.8 + bank, d);
       const hn = hs + (rh - hs) * w;
       const L = lock[k];
@@ -565,6 +573,19 @@ function stampRoads(H, n, o, st, roads) {
 // ------------------------------------------------------------------ water
 export function lakeRadiusAt(ang) {
   return LAKE.r + 3.5 * Math.sin(ang * 3 + 0.8) + 2.2 * Math.sin(ang * 5 + 2.1) + 1.2 * Math.sin(ang * 9);
+}
+
+// Gentle basin around the lake (before the roads are graded, so they follow it).
+function lakeBowl(H, n, o, st) {
+  const R = LAKE.r + 170;
+  const i0 = Math.max(0, Math.floor((LAKE.x - R - o) / st)), i1 = Math.min(n - 1, Math.ceil((LAKE.x + R - o) / st));
+  const j0 = Math.max(0, Math.floor((LAKE.z - R - o) / st)), j1 = Math.min(n - 1, Math.ceil((LAKE.z + R - o) / st));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const x = o + i * st, z = o + j * st, k = j * n + i;
+    const e = Math.max(0, Math.hypot(x - LAKE.x, z - LAKE.z) - LAKE.r);
+    const v = LAKE.y + 0.8 + 0.1 * e + 0.0012 * e * e;
+    if (H[k] > v) H[k] = v + (H[k] - v) * smooth(90, 170, e);
+  }
 }
 
 function carveLake(H, n, o, st) {
@@ -631,7 +652,7 @@ function carveChannelCoarse(H, n, o, st, river) {
   const { X, Z, W } = river, q = {};
   // only outside the fine area matters; coarse sampling of the river polyline
   const Xs = [], Zs = [], Ws = [];
-  for (let i = 0; i < X.length; i += 4) { Xs.push(X[i]); Zs.push(Z[i]); Ws.push(W[i]); }
+  for (let i = 0; i < X.length; i += 16) { Xs.push(X[i]); Zs.push(Z[i]); Ws.push(W[i]); }
   const XA = Float32Array.from(Xs), ZA = Float32Array.from(Zs);
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
     const x = o + i * st, z = o + j * st;
