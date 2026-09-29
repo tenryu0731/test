@@ -424,7 +424,7 @@ function genPlasterStructure(n, seed) {
   const brickRows = makeRows(seed + 50, new Array(48).fill(1), 0.065, 0.065, [0, 0.0325]);
   const bpal = [[0.6, 0.38, 0.27], [0.64, 0.43, 0.31], [0.68, 0.6, 0.5], [0.56, 0.36, 0.26], [0.66, 0.5, 0.38]];
   const BL = field(n, 8, 5, seed), TR = field(n, 48, 3, seed + 1), FI = field(n, 128, 2, 7128);
-  const PR = field(n, 3, 5, seed + 2), pq = quantile(PR, 0.94);
+  const PR = field(n, 3, 5, seed + 2), pq = quantile(PR, 0.975);
   const CR = field(n, 6, 4, seed + 4, 12), CM = field(n, 6, 3, seed + 10), cq = quantile(CM, 0.93);
   const SA = field(n, 40, 3, seed + 5, 2), SB = field(n, 3, 2, seed + 9), DA = field(n, 3, 4, seed + 6), dq = quantile(DA, 0.8);
   S.fine = FI;
@@ -890,7 +890,7 @@ export function createMaterials(renderer) {
   M.cobble = layer('cobble', genCobble(512, 11), 2.0, 6);          // 2 m per repeat (setts ~13 × 12–20 cm)
   M.paving = layer('paving', genPaving(512, 23), 3.0, 4);          // 3 m (flagstones 0.6–1.3 m)
   M.herringbone = layer('herringbone', genHerringbone(512, 31), 2.0, 5); // 2 m (bricks 12.5 × 25 cm)
-  M.stone = layer('stone', genMasonry(512, 41), 3.0, 4);           // 3 m (courses 20–35 cm)
+  M.stone = layer('stone', genMasonry(512, 41), 2.2, 4);           // 3 m (courses 20–35 cm)
   M.stoneDark = layer('stoneDark', genMasonry(256, 45, {             // aged tower / wall stone, bigger blocks
     rows: 9, h0: 0.08, hr: 0.07, wMin: 0.12, wMax: 0.3, round: 0.018, jitter: 0.02, streak: 1.4, soot: 0.22, lichen: 0.08,
     pal: [[0.6, 0.55, 0.46], [0.54, 0.51, 0.45], [0.62, 0.56, 0.47], [0.52, 0.49, 0.44], [0.58, 0.51, 0.42], [0.65, 0.59, 0.5], [0.55, 0.48, 0.4]],

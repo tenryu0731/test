@@ -225,6 +225,12 @@ export function createMonuments(ctx) {
         geo.quad(T.trim, kit.P3(f, a, ya + 0.05, 0), kit.P3(f, b, yb + 0.05, 0), kit.P3(f, b, yb + 0.05, 0.25), kit.P3(f, a, ya + 0.05, 0.25), [0, 1, 0], { gao: false });
       }
     }
+    // Screen gable across the whole façade (hides the lower aisle roofs, 'facciata a capanna').
+    for (const lod of [LOD.BASE, LOD.FAR]) {
+      setLod(lod);
+      geo.tri(mat, kit.P3(f, 0, H - 0.01, 0.02), kit.P3(f, W, H - 0.01, 0.02), kit.P3(f, W / 2, H + (W / 2) * tp, 0.02), [f.dx, 0, f.dz], { tint, gao: false });
+    }
+    setLod(LOD.BASE);
     // Rose window: ring, tracery spokes, glass.
     const ry = Math.min(H + 1.2, hTop - o.rose - 1.0), rad = o.rose;
     if (rad > 0) {

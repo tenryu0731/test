@@ -11,7 +11,7 @@ function tuftGeometry(blades = 4) {
   for (let b = 0; b < blades; b++) {
     const a = b / blades * Math.PI + (b % 2) * 0.4, ca = Math.cos(a), sa = Math.sin(a);
     const ox = Math.cos(b * 2.4) * 0.2 * (0.4 + (b % 3) * 0.3), oz = Math.sin(b * 2.4) * 0.2 * (0.4 + (b % 3) * 0.3);
-    const w = 0.045, lean = 0.12 + 0.08 * (b % 3);
+    const w = 0.03, lean = 0.05 + 0.05 * (b % 3);
     const lx = Math.cos(b * 1.7) * lean, lz = Math.sin(b * 1.7) * lean;
     const P = [
       [ox - ca * w, 0, oz - sa * w], [ox + ca * w, 0, oz + sa * w],
@@ -102,27 +102,27 @@ export function createGrass(scene, land, heightAt, quality = 'high') {
       let dens, h, cr, cg, cb;
       switch (cl) {
         case CLS.MEADOW: case CLS.EDGE: dens = 0.95; h = 0.35 + r3 * 0.3; cr = 0.36; cg = 0.46; cb = 0.18; break;
-        case CLS.WHEAT: dens = 1; h = 0.75 + r3 * 0.25; cr = 0.82; cg = 0.66; cb = 0.32; break;
-        case CLS.STUBBLE: dens = 0.8; h = 0.13 + r3 * 0.08; cr = 0.78; cg = 0.68; cb = 0.45; break;
+        case CLS.WHEAT: dens = 1; h = 0.75 + r3 * 0.25; cr = 0.72; cg = 0.57; cb = 0.27; break;
+        case CLS.STUBBLE: dens = 0.9; h = 0.16 + r3 * 0.1; cr = 0.62; cg = 0.52; cb = 0.32; break;
         case CLS.PLOUGH: dens = 0.06; h = 0.2; cr = 0.4; cg = 0.42; cb = 0.2; break;
         case CLS.VINE: dens = 0.6; h = 0.25 + r3 * 0.15; cr = 0.4; cg = 0.46; cb = 0.2; break;
-        case CLS.OLIVE: dens = 0.75; h = 0.3 + r3 * 0.25; cr = 0.55; cg = 0.52; cb = 0.28; break;
+        case CLS.OLIVE: dens = 0.8; h = 0.3 + r3 * 0.25; cr = 0.42; cg = 0.44; cb = 0.22; break;
         case CLS.WOOD: dens = 0.35; h = 0.35 + r3 * 0.2; cr = 0.3; cg = 0.38; cb = 0.16; break;
-        case CLS.SCRUB: dens = 0.6; h = 0.3 + r3 * 0.2; cr = 0.62; cg = 0.56; cb = 0.32; break;
-        case CLS.PAD: dens = 0.35; h = 0.18 + r3 * 0.12; cr = 0.5; cg = 0.52; cb = 0.26; break;
+        case CLS.SCRUB: dens = 0.6; h = 0.3 + r3 * 0.2; cr = 0.5; cg = 0.46; cb = 0.27; break;
+        case CLS.PAD: dens = 0.6; h = 0.2 + r3 * 0.12; cr = 0.4; cg = 0.43; cb = 0.22; break;
         default: dens = 0;
       }
       if (dens <= 0 || rand2(ix, iz, 74) > dens) continue;
       if (land.roadSD(x, z) < 0.25 || land.riverD(x, z) < RIVER_HALF_W + 1.2 || land.lakeE(x, z) < 1) continue;
       const mix = rand2(ix, iz, 75);
-      if (cl === CLS.MEADOW || cl === CLS.OLIVE || cl === CLS.EDGE) { if (mix < 0.3) { cr = 0.62; cg = 0.56; cb = 0.3; } }
+      if (cl === CLS.MEADOW || cl === CLS.OLIVE || cl === CLS.EDGE || cl === CLS.PAD) { if (mix < 0.3) { cr = 0.52; cg = 0.47; cb = 0.26; } }
       if (land.roadSD(x, z) < 1.8) h *= 0.6;
       const y = heightAt(x, z);
       const isFlower = (cl === CLS.MEADOW || cl === CLS.EDGE || cl === CLS.OLIVE || cl === CLS.PAD) && mix > 0.86;
       e.set((r1 - 0.5) * 0.3, r2 * 6.28, (r3 - 0.5) * 0.3);
       q.setFromEuler(e);
       pv.set(x, y - 0.03, z);
-      const w = 0.8 + mix * 0.6;
+      const w = (0.8 + mix * 0.5) * Math.min(1, 0.45 + h * 0.9);
       if (isFlower && fi < f0 + fPer) {
         sv.set(1, 0.8 + r3 * 0.6, 1);
         m4.compose(pv, q, sv); flowers.setMatrixAt(fi, m4);

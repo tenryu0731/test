@@ -106,7 +106,7 @@ export function createBuilders(ctx) {
     S.wall = S.upper; S.tint = S.upperTint;
     S.wallFor = (bi) => (bi === 0 ? S.groundMat : S.upper);
     S.tintFor = (bi) => (bi === 0 ? S.groundTint : S.upperTint);
-    S.trimTint = mulTint([1, 0.98, 0.94], rr(0.9, 1.05));
+    S.trimTint = mulTint([0.95, 0.91, 0.83], rr(0.88, 1.02));
     S.shutterTint = pick(shutterTints);
     S.frameTint = pick([0.9, 0.7, [0.75, 0.85, 0.75], [1.1, 1.05, 0.95]]);
     S.ww = S.small ? rr(0.75, 0.9) : rr(0.95, 1.15); S.wh = S.small ? rr(1.1, 1.35) : rr(1.55, 1.8);
@@ -141,7 +141,7 @@ export function createBuilders(ctx) {
           if (i === doorBay) {
             const big = S.type === 'palazzo', w = big ? 1.9 : 1.25;
             const spring = big ? Math.min(3.1, S.G - 1.5) : 2.3;
-            ops.push(S.archDoor ? { kind: 'door', t0: tc - w / 2, t1: tc + w / 2, y0: 0, y1: spring, shape: big && S.archShape === 'pointed' ? 'pointed' : 'round', ring: big ? 0.42 : 0.28 } : { kind: 'door', t0: tc - w / 2, t1: tc + w / 2, y0: 0, y1: 2.55, shape: 'rect' });
+            ops.push(S.archDoor ? { kind: 'door', t0: tc - w / 2, t1: tc + w / 2, y0: 0, y1: spring, shape: big && S.archShape === 'pointed' ? 'pointed' : 'round', ring: big ? 0.34 : 0.22 } : { kind: 'door', t0: tc - w / 2, t1: tc + w / 2, y0: 0, y1: 2.55, shape: 'rect' });
           } else if (R() < S.shop) {
             const w = Math.min(2.5, bw - 0.9);
             ops.push({ kind: 'shop', t0: tc - w / 2, t1: tc + w / 2, y0: 0, y1: Math.min(2.4, S.G - 0.45 - w / 2), shape: S.type === 'casa' && R() < 0.4 ? 'seg' : 'round', wooden: R() < 0.25 });
