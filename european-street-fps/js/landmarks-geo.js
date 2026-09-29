@@ -30,12 +30,12 @@ class Bucket {
   }
   reserve(verts, idx) {
     if (this.n + verts > this.cap) {
-      const cap = Math.max(this.cap * 2, this.n + verts);
+      const cap = Math.max(this.cap * 4, this.n + verts);
       const grow = (A, k) => { const B = new A.constructor(cap * k); B.set(A); return B; };
       this.P = grow(this.P, 3); this.N = grow(this.N, 3); this.U = grow(this.U, 2); this.C = grow(this.C, 3);
       this.cap = cap;
     }
-    if (this.ni + idx > this.I.length) { const B = new Uint32Array(Math.max(this.I.length * 2, this.ni + idx)); B.set(this.I); this.I = B; }
+    if (this.ni + idx > this.I.length) { const B = new Uint32Array(Math.max(this.I.length * 4, this.ni + idx)); B.set(this.I); this.I = B; }
   }
 }
 
@@ -257,44 +257,43 @@ export class LGeo {
     return { meshes, tris };
   }
 
-  // One merged vertex-colour mesh of every opaque bucket (far LOD). Materials flagged
-  // userData.noFar (water, glass…) are left out.
-  farMesh() {
-    let nv = 0, ni = 0;
-    const list = [];
-    for (const b of [...this.buckets.values()].flat()) {
-      if (!b || !b.n || b.mat.transparent || b.mat.userData.noFar) continue;
-      list.push(b); nv += b.n; ni += b.ni;
-    }
-    if (!nv) return null;
-    const P = new Float32Array(nv * 3), N = new Float32Array(nv * 3), C = new Float32Array(nv * 3);
-    const I = nv < 65536 ? new Uint16Array(ni) : new Uint32Array(ni);
-    let vo = 0, io = 0;
-    for (const b of list) {
-      P.set(b.P.subarray(0, b.n * 3), vo * 3);
-      N.set(b.N.subarray(0, b.n * 3), vo * 3);
-      const a = avgColor(b.mat);
-      for (let i = 0; i < b.n * 3; i += 3) {
-        C[vo * 3 + i] = b.C[i] * a[0]; C[vo * 3 + i + 1] = b.C[i + 1] * a[1]; C[vo * 3 + i + 2] = b.C[i + 2] * a[2];
-      }
-      for (let i = 0; i < b.ni; i++) I[io + i] = b.I[i] + vo;
-      vo += b.n; io += b.ni;
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(P, 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(N, 3));
-    g.setAttribute('color', new THREE.BufferAttribute(C, 3));
-    g.setIndex(new THREE.BufferAttribute(I, 1));
-    g.computeBoundingSphere();
-    const mesh = new THREE.Mesh(g, farMaterial());
-    mesh.castShadow = false; mesh.receiveShadow = true;
-    mesh.matrixAutoUpdate = false;
-    mesh.updateMatrix();
-    mesh.userData.tris = ni / 3;
-    return mesh;
-  }
-
   clear() { this.buckets.clear(); }
+}
+
+// One merged vertex-colour mesh (far LOD) from finished per-material meshes. Transparent
+// materials and those flagged userData.noFar are left out.
+export function farMeshFrom(meshes) {
+  let nv = 0, ni = 0;
+  const list = [];
+  for (const m of meshes) {
+    if (!m.isMesh || m.material.transparent || m.material.userData.noFar || m.userData.noFar) continue;
+    list.push(m); nv += m.geometry.attributes.position.count; ni += m.geometry.index.count;
+  }
+  if (!nv) return null;
+  const P = new Float32Array(nv * 3), N = new Float32Array(nv * 3), C = new Float32Array(nv * 3);
+  const I = nv < 65536 ? new Uint16Array(ni) : new Uint32Array(ni);
+  let vo = 0, io = 0;
+  for (const m of list) {
+    const g = m.geometry, n = g.attributes.position.count, src = g.attributes.color.array, idx = g.index.array, a = avgColor(m.material);
+    P.set(g.attributes.position.array, vo * 3);
+    N.set(g.attributes.normal.array, vo * 3);
+    const a0 = a[0], a1 = a[1], a2 = a[2], o3 = vo * 3;
+    for (let i = 0; i < n * 3; i += 3) { C[o3 + i] = src[i] * a0; C[o3 + i + 1] = src[i + 1] * a1; C[o3 + i + 2] = src[i + 2] * a2; }
+    for (let i = 0; i < idx.length; i++) I[io + i] = idx[i] + vo;
+    vo += n; io += idx.length;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(N, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(C, 3));
+  g.setIndex(new THREE.BufferAttribute(I, 1));
+  g.computeBoundingSphere();
+  const mesh = new THREE.Mesh(g, farMaterial());
+  mesh.castShadow = false; mesh.receiveShadow = true;
+  mesh.matrixAutoUpdate = false;
+  mesh.updateMatrix();
+  mesh.userData.tris = ni / 3;
+  return mesh;
 }
 
 // World-space box projection matching the box() convention (normal given as components).

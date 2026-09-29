@@ -185,12 +185,12 @@ export function buildPieve(K, ctx) {
     K.sbox(T, CX1 - 0.65, 0, gz, CX1 + 0.15, 2.9, gz + 0.6);
     K.pyramid(CX1 - 0.65, CX1 + 0.15, gz, gz + 0.6, 2.9, 0.45, { ov: 0.05, mat: T });
   }
-  for (let i = 0; i < 12; i++) { // iron gate (two leaves, ajar)
-    const z = gz0 + 0.15 + i * 0.27;
-    K.box(M.iron, CX1 - 0.3, 0.05, z - 0.015, CX1 - 0.27, 2.0, z + 0.015, { d: true, gao: false });
+  // Iron gate: two leaves swung open against the inside of the wall.
+  for (const [gz, sg] of [[gz0 + 0.12, 1], [gz1 - 0.12, -1]]) {
+    for (let i = 0; i < 7; i++) { const x = CX1 - 0.4 - i * 0.24; K.box(M.iron, x - 0.015, 0.05, gz - 0.015, x + 0.015, 2.0, gz + 0.015, { d: true, gao: false }); }
+    for (const y of [0.4, 1.9]) K.box(M.iron, CX1 - 1.9, y, gz - 0.025, CX1 - 0.35, y + 0.06, gz + 0.025, { d: true, gao: false });
+    void sg;
   }
-  K.box(M.iron, CX1 - 0.31, 1.9, gz0, CX1 - 0.26, 1.96, gz1, { d: true, gao: false });
-  K.box(M.iron, CX1 - 0.31, 0.4, gz0, CX1 - 0.26, 0.45, gz1, { d: true, gao: false });
   K.box(ctx.L.gravel, CX0 + 0.5, -0.1, gz0 + 0.2, CX1 - 0.5, 0.03, gz1 - 0.2, { receive: true, cast: false });
   // Graves in rows either side of the path.
   for (let row = 0; row < 3; row++) for (let i = 0; i < 7; i++) for (const side of [-1, 1]) {

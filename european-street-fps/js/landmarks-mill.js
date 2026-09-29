@@ -204,7 +204,7 @@ export function buildMill(K, ctx) {
 
   // River channel is not walkable ground: keep nav points off it (the bridge adds its own).
   ctx.navExclude = (x, z) => riverAt(K.wx(x, z), K.wz(x, z)).d < 9;
-  ctx.spawnsLocal([[-6, -20], [4, -30], [28, -30], [-12, 18], [10, 20], [-10, -30], [0, HB + 0.05, 0]].map((p) => p.length === 3 ? [p[0], p[2], p[1]] : p));
+  ctx.spawnsLocal([[-6, -20], [4, -30], [18, -31], [-12, 18], [10, 20], [-10, -30], [0, HB + 0.05, 0]].map((p) => p.length === 3 ? [p[0], p[2], p[1]] : p));
   ctx.enemy = { x: 4, z: -12, r: 30 };
 }
 

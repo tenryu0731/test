@@ -217,7 +217,7 @@ export function createProps(ctx) {
     geo.lock(x, z);
     setLod(LOD.BASE);
     geo.proto(T.wood, TPL.cyl6, x, 0, z, 0.12 * s, 1.5 * s, 0.12 * s, 0, { tint: 0.7 });
-    geo.proto(T.plant, TPL.blob1, x, 2.3 * s, z, 1.4 * s, 1.1 * s, 1.4 * s, R() * 3, { gao: false, tint });
+    geo.proto(T.plant, s > 1.2 ? TPL.blob1 : TPL.blob0, x, 2.3 * s, z, 1.4 * s, 1.1 * s, 1.4 * s, R() * 3, { gao: false, tint });
     geo.proto(T.plant, TPL.blob0, x + 0.5 * s, 2.9 * s, z - 0.3 * s, 0.8 * s, 0.7 * s, 0.8 * s, R() * 3, { gao: false, tint });
     setLod(LOD.FAR);
     geo.proto(T.plant, TPL.blob0, x, 2.4 * s, z, 1.5 * s, 1.2 * s, 1.5 * s, 0, { gao: false, tint });

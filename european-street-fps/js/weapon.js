@@ -915,7 +915,7 @@ export class Weapon {
   }
 
   /** Adds reserve ammunition (supply pickups). Returns the number of rounds actually added. */
-  addAmmo(n = MAG * 2, max = RESERVE * 2) {
+  addAmmo(n = MAG * 2, max = Infinity) {
     const add = Math.max(0, Math.min(n, max - this.reserve));
     this.reserve += add;
     return add;

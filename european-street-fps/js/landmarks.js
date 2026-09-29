@@ -7,7 +7,7 @@
 // Returns colliders, nav points, enemy sites, viewpoints and map markers (see docs/CONTRACT.md).
 import * as THREE from 'three';
 import { SITES, ROADS, RIVER } from './layout.js';
-import { LGeo, mulberry32 } from './landmarks-geo.js';
+import { LGeo, mulberry32, farMeshFrom } from './landmarks-geo.js';
 import { Kit } from './landmarks-kit.js';
 import { createLandmarkMaterials } from './landmarks-mat.js';
 import { buildPieve, buildChapel, buildWatchtower } from './landmarks-church.js';
@@ -96,19 +96,26 @@ export function buildLandmarks(scene, M, { heightAt } = {}) {
     };
     const K = Kit.root(ctx, s.x, s.y, s.z);
     const build = BUILDERS[s.type];
+    const tb = performance.now();
     try { build(K, ctx); } catch (e) { console.error(`[landmarks] ${s.id} failed:`, e); }
 
     // --- meshes and LOD groups
     const mid = new THREE.Group(), near = new THREE.Group();
     mid.name = `lm-${s.id}-mid`; near.name = `lm-${s.id}-near`;
+    const tf = performance.now();
     const gm = ctx.G.finish(mid), dm = ctx.D.finish(near);
-    const far = ctx.G.farMesh();
+    const tfar = performance.now();
+    // The far LOD is merged lazily (one site per frame, see update) except for the first site,
+    // so its material is compiled with the rest at boot.
+    const far = sites.length === 0 ? farMeshFrom(gm.meshes) : null;
+    const tn = performance.now();
+    stats.tBuild = (stats.tBuild || 0) + tf - tb; stats.tFinish = (stats.tFinish || 0) + tfar - tf; stats.tFar = (stats.tFar || 0) + tn - tfar;
     for (const m of ctx.extraMeshes) near.add(m);
     root.add(mid, near);
-    if (far) { far.name = `lm-${s.id}-far`; far.visible = false; root.add(far); }
-    stats.mid += gm.tris; stats.near += dm.tris; stats.far += far ? far.userData.tris : 0; stats.meshes += gm.meshes.length + dm.meshes.length;
+    if (far) { far.name = `lm-${s.id}-far`; root.add(far); }
+    stats.mid += gm.tris; stats.near += dm.tris; stats.meshes += gm.meshes.length + dm.meshes.length;
     ctx.G.clear(); ctx.D.clear();
-    sites.push({ s, mid, near, far, anim: ctx.anim, nearOn: true, midOn: true });
+    sites.push({ s, mid, near, far, midMeshes: gm.meshes, anim: ctx.anim, nearOn: true, midOn: true });
 
     // --- gameplay data
     colliders.push(...ctx.col);
@@ -136,12 +143,13 @@ export function buildLandmarks(scene, M, { heightAt } = {}) {
     enemySites.push({ id: s.id, name: s.name, x: ec.x, y: ec.y, z: ec.z, r: e.r, spawns });
     viewpoints.push(...ctx.viewpoints);
     markers.push({ id: s.id, name: s.name, type: s.type, x: s.x, z: s.z });
+    stats.tNav = (stats.tNav || 0) + performance.now() - tn;
     timings.push(`${s.id} ${(performance.now() - ts).toFixed(0)}`);
   }
 
   const ms = performance.now() - t0;
-  console.log(`[landmarks] ${SITES.length} sites in ${ms.toFixed(0)} ms (${timings.join(', ')}); tris mid ${stats.mid | 0} + detail ${stats.near | 0}, far ${stats.far | 0}; ` +
-    `${stats.meshes} meshes + ${sites.filter((q) => q.far).length} far; ${colliders.length} colliders, ${navPoints.length} nav points, ${viewpoints.length} viewpoints`);
+  console.log(`[landmarks] ${SITES.length} sites in ${ms.toFixed(0)} ms (${timings.join(', ')}); tris main ${stats.mid | 0} + detail ${stats.near | 0}; ` +
+    `${stats.meshes} meshes (+1 far mesh per site); ${colliders.length} colliders, ${navPoints.length} nav points, ${viewpoints.length} viewpoints`);
 
   let time = 0;
   const cam = new THREE.Vector3();
@@ -151,12 +159,18 @@ export function buildLandmarks(scene, M, { heightAt } = {}) {
       time += dt;
       if (!camera) return;
       camera.getWorldPosition(cam);
+      let merged = false;
       for (const q of sites) {
         const dx = cam.x - q.s.x, dy = (cam.y - q.s.y) * 0.7, dz = cam.z - q.s.z, d2 = dx * dx + dy * dy + dz * dz;
         const nearLim = q.nearOn ? NEAR + HYST : NEAR - HYST, midLim = q.midOn ? MID + HYST : MID - HYST;
         const nOn = d2 < nearLim * nearLim, mOn = d2 < midLim * midLim;
         if (nOn !== q.nearOn) { q.nearOn = nOn; q.near.visible = nOn; }
-        if (mOn !== q.midOn) { q.midOn = mOn; q.mid.visible = mOn; if (q.far) q.far.visible = !mOn; }
+        if (!mOn && !q.far && !merged) { // merge the far LOD on first need (at most one per frame)
+          q.far = farMeshFrom(q.midMeshes); merged = true;
+          if (q.far) { q.far.name = `lm-${q.s.id}-far`; root.add(q.far); stats.far += q.far.userData.tris; q.midOn = !mOn; }
+        }
+        if (mOn !== q.midOn && (mOn || q.far)) { q.midOn = mOn; q.mid.visible = mOn; if (q.far) q.far.visible = !mOn; }
+        else if (q.far && q.far.visible === q.mid.visible) q.far.visible = !q.mid.visible;
         if (nOn) for (const a of q.anim) a(dt, time);
       }
     },

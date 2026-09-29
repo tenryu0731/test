@@ -268,7 +268,7 @@ export function buildQuarry(K, ctx) {
       K.quad(ctx.L.soil, [rd[0] * d0 + nx - 0.22, 0.035, rd[1] * d0 + nz], [rd[0] * d0 + nx + 0.22, 0.035, rd[1] * d0 + nz], [rd[0] * d1 + nx + 0.22, 0.035, rd[1] * d1 + nz], [rd[0] * d1 + nx - 0.22, 0.035, rd[1] * d1 + nz], [0, 1, 0], { gao: false, cast: false, tint: 0.8 });
     }
   }
-  K.cart(-12, 14, 0, 3, {});
+  K.cart(-22, 8, 0, 3, {});
   K.pine(-40, 30, 12, 6); K.tree(24, 30, 5, 2.4, 0, { tint: [0.62, 0.7, 0.5] }); K.cypress(-14, 36, 12, 1.05);
   ctx.spawnsLocal([[-10, 4], [8, 14], [-20, 18], [0, -12], [-28, 6], [4, 26]]);
   ctx.enemy = { x: -6, z: 6, r: 30 };

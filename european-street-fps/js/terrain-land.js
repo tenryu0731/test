@@ -4,7 +4,7 @@
 // row, bale, rock and dry-stone wall.
 import * as THREE from 'three';
 import { TOWN, SITES, LAKE, ROADS, MAP_HALF } from './layout.js';
-import { FINE, RIVER_HALF_W, smooth, clamp, distToRect, lakeRadiusAt, rand2 } from './terrain-height.js';
+import { FINE, RIVER_HALF_W, smooth, clamp, distToRect, lakeRadiusAt, rand2, hash2i } from './terrain-height.js';
 
 export const CLS = { MEADOW: 0, WHEAT: 1, STUBBLE: 2, PLOUGH: 3, VINE: 4, OLIVE: 5, WOOD: 6, SCRUB: 7, EDGE: 8, TOWN: 9, PAD: 10, WATER: 11, ROAD: 12 };
 export const ROAD_SD_MAX = 10.25, ROAD_SD_MIN = -2.5; // encoded range of the signed road distance
@@ -13,6 +13,32 @@ const SP = 92;          // field seed spacing (m)
 function mulberry(seed) {
   let a = seed >>> 0;
   return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+// ---- hash-driven field layout shared with the shader (see terrain-mesh.js fieldHash)
+const G0 = -(FINE.half + SP);
+export const FIELD = { SP, G0 };
+const hh = (i, j, s) => hash2i(i, j, s) / 4294967296;
+function seedPos(i, j) {
+  return { x: G0 + (i + 0.5) * SP + (hh(i, j, 1) - 0.5) * SP * 0.8, z: G0 + (j + 0.5) * SP + (hh(i, j, 2) - 0.5) * SP * 0.8 };
+}
+function seedRep(i, j) {
+  const m = hh(i, j, 5);
+  return m < 0.28 ? [i - 1, j] : m < 0.48 ? [i, j - 1] : [i, j];
+}
+export function farSeedClass(i, j) {
+  const [ri, rj] = seedRep(i, j), r = hh(ri, rj, 3);
+  return r < 0.42 ? CLS.WOOD : r < 0.58 ? CLS.MEADOW : r < 0.72 ? CLS.WHEAT : r < 0.84 ? CLS.STUBBLE : r < 0.93 ? CLS.PLOUGH : CLS.VINE;
+}
+// class of the far field at a world point (for far woods placement)
+export function farClassAt(x, z) {
+  const ci = Math.floor((x - G0) / SP), cj = Math.floor((z - G0) / SP);
+  let best = 1e18, bi = 0, bj = 0;
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    const p = seedPos(ci + di, cj + dj), d = (x - p.x) ** 2 + (z - p.z) ** 2;
+    if (d < best) { best = d; bi = ci + di; bj = cj + dj; }
+  }
+  return farSeedClass(bi, bj);
 }
 
 // Sample the macro noise texture data (same as the GPU does with LinearFilter + repeat).
@@ -75,16 +101,18 @@ export function buildLand(hf, noise) {
   const slopeAt = (x, z) => { const e = 3; return Math.hypot(heightAt(x + e, z) - heightAt(x - e, z), heightAt(x, z + e) - heightAt(x, z - e)) / (2 * e); };
 
   // ---------------------------------------------------------------- field seeds
-  const G = Math.ceil((half + SP) * 2 / SP) + 1, G0 = -(half + SP);
+  // Seed positions, field merging and the classes of outer fields come from an integer hash that
+  // the terrain shader reproduces exactly (fields continue seamlessly beyond the detailed area).
+  const G = Math.ceil((half + SP) * 2 / SP) + 1;
   const seeds = [];
   const rng = mulberry(4242);
   for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
-    const x = G0 + (i + 0.5) * SP + (rng() - 0.5) * SP * 0.8, z = G0 + (j + 0.5) * SP + (rng() - 0.5) * SP * 0.8;
+    const { x, z } = seedPos(i, j);
     const r = rng(), h = heightAt(x, z), sl = slopeAt(x, z), dR = distToRect(x, z, TOWN.rect);
     const edge = Math.max(Math.abs(x), Math.abs(z));
     let near = 1e9; for (const s of SITES) if (s.type === 'farm' || s.type === 'villa') near = Math.min(near, Math.hypot(x - s.x, z - s.z));
     let cls;
-    if (edge > 690) cls = r < 0.5 ? CLS.WOOD : r < 0.7 ? CLS.MEADOW : r < 0.85 ? CLS.WHEAT : CLS.PLOUGH;
+    if (edge > 640) cls = farSeedClass(i, j);
     else if (dR < 75) cls = r < 0.6 ? CLS.OLIVE : r < 0.8 ? CLS.MEADOW : r < 0.9 ? CLS.VINE : CLS.SCRUB;
     else if (riverD(x, z) < 50) cls = r < 0.7 ? CLS.MEADOW : CLS.WHEAT;
     else if (sl > 0.32) cls = r < 0.45 ? CLS.WOOD : r < 0.75 ? CLS.SCRUB : CLS.OLIVE;
@@ -92,11 +120,21 @@ export function buildLand(hf, noise) {
     else if (h > 22 || edge > 590) cls = r < 0.42 ? CLS.WOOD : r < 0.55 ? CLS.SCRUB : r < 0.7 ? CLS.OLIVE : r < 0.85 ? CLS.STUBBLE : CLS.MEADOW;
     else cls = r < 0.17 ? CLS.WHEAT : r < 0.34 ? CLS.STUBBLE : r < 0.49 ? CLS.PLOUGH : r < 0.65 ? CLS.VINE : r < 0.79 ? CLS.OLIVE : r < 0.91 ? CLS.MEADOW : CLS.WOOD;
     // contour-following row direction: rows run across the slope
-    const gx = heightAt(x + 8, z) - heightAt(x - 8, z), gz = heightAt(x, z + 8) - heightAt(x, z - 8);
-    let ang = Math.hypot(gx, gz) > 0.4 ? Math.atan2(gz, gx) : rng() * Math.PI; // row normal = gradient
-    ang = ((ang % Math.PI) + Math.PI) % Math.PI;
-    seeds.push({ x, z, cls, ang, tint: rng(), id: seeds.length, walls: rng() });
+    let ang;
+    if (edge > 640) ang = hh(i, j, 7) * Math.PI;
+    else {
+      const gx = heightAt(x + 8, z) - heightAt(x - 8, z), gz = heightAt(x, z + 8) - heightAt(x, z - 8);
+      ang = Math.hypot(gx, gz) > 0.4 ? Math.atan2(gz, gx) : hh(i, j, 7) * Math.PI; // row normal = gradient
+      ang = ((ang % Math.PI) + Math.PI) % Math.PI;
+    }
+    seeds.push({ x, z, i, j, cls, ang, tint: hh(i, j, 4), id: seeds.length, walls: hh(i, j, 8) });
   }
+  // merge neighbouring seeds into larger, irregular fields
+  for (const sd of seeds) {
+    const [ri, rj] = seedRep(sd.i, sd.j);
+    sd.rep = ri >= 0 && rj >= 0 ? seeds[rj * G + ri] : sd;
+  }
+  for (const sd of seeds) { sd.cls = sd.rep.cls; sd.ang = sd.rep.ang; sd.tint = sd.rep.tint; sd.walls = sd.rep.walls; }
   const nearestSeeds = (x, z, out) => {
     const ci = Math.floor((x - G0) / SP), cj = Math.floor((z - G0) / SP);
     let d1 = 1e18, d2 = 1e18, s1 = null, s2 = null;
@@ -107,7 +145,7 @@ export function buildLand(hf, noise) {
       if (d < d1) { d2 = d1; s2 = s1; d1 = d; s1 = s; } else if (d < d2) { d2 = d; s2 = s; }
     }
     out.s = s1;
-    out.e = s2 ? (d2 - d1) / (2 * Math.hypot(s2.x - s1.x, s2.z - s1.z)) : 99;
+    out.e = s2 && s2.rep !== s1.rep ? (d2 - d1) / (2 * Math.hypot(s2.x - s1.x, s2.z - s1.z)) : 99;
     return out;
   };
 
@@ -172,14 +210,6 @@ export function buildLand(hf, noise) {
       if (le < 7) { wet = Math.max(wet, 1 - smooth(0.5, 7, le)); if (le < 1) c = CLS.WATER; }
       if (wet > 0) { const k2 = 1 - wet * 0.8; wheat *= k2; plough *= k2; vine *= k2; dry *= k2; }
       if (RS[k] < 0.3) c = CLS.ROAD;
-      // blend to the far land use at the border of the detailed area
-      const r = Math.max(Math.abs(x), Math.abs(z));
-      if (r > 700) {
-        const w = smooth(700, half - 4, r), F = farLand(ns, x, z), k2 = 1 - w;
-        wheat = wheat * k2 + F.wheat * w; plough = plough * k2 + F.plough * w; lush = lush * k2 + F.lush * w;
-        dry = dry * k2 + F.dry * w; woods = woods * k2 + F.woods * w; vine *= k2; wet *= k2;
-        tint = tint * k2 + 0.5 * w;
-      }
       cls[k] = c;
       L0[p + 2] = Math.round(tint * 255);
       L0[L1o + p] = wheat * 255; L0[L1o + p + 1] = plough * 255; L0[L1o + p + 2] = lush * 255; L0[L1o + p + 3] = vine * 255;
@@ -405,8 +435,7 @@ function placeAll(ctx) {
     const jx = x + (rand2(x, z, 11) - 0.5) * 26, jz = z + (rand2(x, z, 12) - 0.5) * 26;
     const r = Math.max(Math.abs(jx), Math.abs(jz));
     if (r < FINE.half + 6 || r > 1500) continue;
-    const F = farLand(ns, jx, jz);
-    if (rand2(x, z, 13) > F.woods * 0.9 + 0.03) continue;
+    if (farClassAt(jx, jz) !== CLS.WOOD || rand2(x, z, 13) > 0.8) continue;
     const t = rand2(x, z, 14);
     farTrees.push(jx, heightAt(jx, jz), jz, t * 6.28, 1.9 + t * 0.9, 1, t, t < 0.2 ? 1 : 0);
   }

@@ -241,7 +241,7 @@ export function buildRocca(K, ctx) {
     ctx.navPts([[bx + 6, 1.1, zc], [bx + 3, 2.4, zc], [bx, CY, zc], [bx - 3, CY, zc]]);
   }
   // Vegetation outside the walls.
-  K.cypress(-26, 50, 12, 1.1); K.cypress(-6, 47, 11, 1.0); K.pine(44, 36, 12, 6); K.pine(-50, -20, 11, 5.5);
+  K.cypress(-36, 46, 12, 1.1); K.cypress(-4, 48, 11, 1.0); K.cypress(-40, 38, 13, 1.1); K.pine(44, 36, 12, 6); K.pine(-50, -20, 11, 5.5);
   K.tree(45, -8, 5, 2.5, 0, { tint: [0.62, 0.7, 0.5] }); K.tree(-48, 8, 4.6, 2.2, 0, { tint: [0.62, 0.7, 0.5] });
 
   ctx.navRect(IX0 + 1, IZ0 + 1, IX1 - 1, IZ1 - 1, CY, 5);

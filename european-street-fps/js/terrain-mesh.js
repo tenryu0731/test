@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { TOWN } from './layout.js';
 import { FINE } from './terrain-height.js';
+import { FIELD } from './terrain-land.js';
 
 const Q = 32;                     // quads per node side
 const ROOT = 4096;                // root node size (±2048 m)
@@ -129,7 +130,7 @@ function makeMaterial({ fieldTex, ground, noiseTex, quality }) {
   const uniforms = {
     tFields: { value: fieldTex }, tAlb: { value: ground.albedo }, tNrm: { value: ground.normal }, tNoise: { value: noiseTex },
     uFineHalf: { value: FINE.half }, uFineN: { value: FINE.n }, uDetail: { value: quality === 'low' ? 0.0 : 1.0 },
-    uVineNear: { value: 110 },
+    uVineNear: { value: 110 }, uG0: { value: FIELD.G0 }, uSP: { value: FIELD.SP },
   };
   mat.userData.uniforms = uniforms;
   mat.onBeforeCompile = (sh) => {
@@ -153,21 +154,37 @@ uniform sampler2DArray tFields;
 uniform sampler2DArray tAlb;
 uniform sampler2DArray tNrm;
 uniform sampler2D tNoise;
-uniform float uFineHalf, uFineN, uDetail, uVineNear;
+uniform float uFineHalf, uFineN, uDetail, uVineNear, uG0, uSP;
 varying vec3 vWPos;
 varying vec3 vWN;
 float gRough;
 vec3 gN;
-void farLand(vec2 xz, out vec4 l1, out vec4 l2) {
-  float n1 = textureLod(tNoise, xz / 1100.0, 0.0).r;
-  float n2 = textureLod(tNoise, xz / 420.0, 0.0).g;
-  float n3 = textureLod(tNoise, xz / 300.0 + vec2(0.3, 0.0), 0.0).b;
-  float woods = smoothstep(0.47, 0.55, n1 + (n2 - 0.5) * 0.35);
-  float f = 1.0 - woods;
-  float wheat = smoothstep(0.54, 0.6, n3) * f, plough = (1.0 - smoothstep(0.38, 0.44, n3)) * f;
-  float meadow = max(0.0, f - wheat - plough);
-  l1 = vec4(wheat, plough, meadow * 0.6, 0.0);
-  l2 = vec4(meadow * 0.4, woods, 0.0, 0.25);
+uint hsh(ivec2 c, int s) {
+  uint h = (uint(c.x) * 0x27d4eb2du) ^ (uint(c.y) * 0x165667b1u) ^ (uint(s) * 0x9e3779b9u);
+  h = (h ^ (h >> 15u)) * 0x85ebca6bu;
+  h = (h ^ (h >> 13u)) * 0xc2b2ae35u;
+  return h ^ (h >> 16u);
+}
+float hh(ivec2 c, int s) { return float(hsh(c, s)) / 4294967296.0; }
+vec2 seedPos(ivec2 c) { return uG0 + (vec2(c) + 0.5) * uSP + (vec2(hh(c, 1), hh(c, 2)) - 0.5) * uSP * 0.8; }
+ivec2 seedRep(ivec2 c) { float m = hh(c, 5); return m < 0.28 ? c - ivec2(1, 0) : m < 0.48 ? c - ivec2(0, 1) : c; }
+// Same Voronoi field layout as terrain-land.js, for the ground beyond the detailed area.
+void farFields(vec2 xz, out vec4 l1, out vec4 l2, out float tint) {
+  ivec2 cc = ivec2(floor((xz - uG0) / uSP));
+  float d1 = 1e18, d2 = 1e18; ivec2 c1 = cc, c2 = cc; vec2 p1 = xz, p2 = xz;
+  for (int dj = -1; dj <= 1; dj++) for (int di = -1; di <= 1; di++) {
+    ivec2 c = cc + ivec2(di, dj); vec2 p = seedPos(c); vec2 dd = xz - p; float d = dot(dd, dd);
+    if (d < d1) { d2 = d1; c2 = c1; p2 = p1; d1 = d; c1 = c; p1 = p; } else if (d < d2) { d2 = d; c2 = c; p2 = p; }
+  }
+  ivec2 r1 = seedRep(c1), r2 = seedRep(c2);
+  float e = r1 == r2 ? 99.0 : (d2 - d1) / (2.0 * length(p2 - p1));
+  float r = hh(r1, 3);
+  l1 = vec4(0.0); l2 = vec4(0.0);
+  if (r < 0.42) l2.g = 1.0; else if (r < 0.58) { l1.b = 0.75; l2.r = 0.25; } else if (r < 0.72) l1.r = 1.0;
+  else if (r < 0.84) l2.r = 1.0; else if (r < 0.93) l1.g = 1.0; else l1.a = 1.0;
+  float em = 1.0 - smoothstep(1.2, 3.2, e);
+  l1 *= 1.0 - em; l2 *= 1.0 - em; l2.r += 0.5 * em; l1.b += 0.45 * em;
+  l2.a = hh(r1, 7); tint = hh(r1, 4);
 }
 vec4 lay(vec2 uv, float i) { return texture(tAlb, vec3(uv, i)); }
 vec4 layN(vec2 uv, float i) { return texture(tNrm, vec3(uv, i)); }
@@ -190,8 +207,9 @@ const FRAG_SPLAT = /* glsl */`
     N.y = sqrt(max(0.02, 1.0 - dot(N.xz, N.xz)));
     N = normalize(N);
   } else {
-    farLand(xz, L1, L2);
-    A = vec4(0.5, 0.5, 0.5, 1.0);
+    float tn;
+    farFields(xz, L1, L2, tn);
+    A = vec4(0.5, 0.5, tn, 1.0);
     N = normalize(vWN);
   }
   vec4 mn = texture(tNoise, xz / 97.0);
@@ -242,13 +260,17 @@ const FRAG_SPLAT = /* glsl */`
   cd *= mix(vec3(1.06, 1.0, 0.88), vec3(1.14, 0.94, 0.55), wf);
   cd *= mix(1.0, 0.92 + 0.16 * smoothstep(0.3, 0.7, abs(fract(t / 3.4) - 0.5) * 2.0), (1.0 - wf) * dry * (1.0 - clamp(fwidth(t / 3.4) * 2.0, 0.0, 1.0)));
   cd *= 0.9 + 0.2 * tint;
-  vec3 clay = mix(vec3(1.05, 0.92, 0.78), vec3(0.78, 0.6, 0.48), tint);
+  vec3 clay = mix(vec3(1.0, 0.9, 0.78), vec3(0.7, 0.57, 0.45), tint);
   ce *= mix(clay, vec3(0.62, 0.56, 0.42), clamp(woods * 1.3, 0.0, 1.0));
   // furrows on ploughed fields
   float tf = t / 0.9, aaF = clamp(fwidth(tf) * 2.0, 0.0, 1.0);
   float fur = sin(tf * 6.2832) * (1.0 - aaF);
   ce *= 1.0 + 0.16 * fur * plough;
 
+  // strada bianca: compacted wheel tracks, loose gravel and a hint of grass on the crown
+  float trk = smoothstep(-2.3, -1.9, sd) * (1.0 - smoothstep(-1.2, -0.85, sd));
+  cv *= 1.0 + 0.1 * trk - 0.06 * (1.0 - trk);
+  cv = mix(cv, cg, (1.0 - smoothstep(-2.5, -2.1, sd)) * smoothstep(0.45, 0.75, mn2.r) * 0.45);
   vec3 col = cg * wG + cd * wD + ce * wE + cv * wV + cr * wR;
   // macro brightness variation, wet darkening
   col *= 0.9 + 0.22 * mn.a + 0.08 * (mn2.a - 0.5);

@@ -34,7 +34,7 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
   const TPL = {
     blob0: Geo.template(new THREE.IcosahedronGeometry(1, 0)),
     blob1: Geo.template(new THREE.IcosahedronGeometry(1, 1)),
-    pot: Geo.template(new THREE.CylinderGeometry(1, 0.72, 1, 8).translate(0, 0.5, 0)),
+    pot: Geo.template(new THREE.CylinderGeometry(1, 0.72, 1, 6, 1, true).translate(0, 0.5, 0)),
     cyl6: Geo.template(new THREE.CylinderGeometry(1, 1, 1, 6, 1, true).translate(0, 0.5, 0), false),
     cyl8: Geo.template(new THREE.CylinderGeometry(1, 1, 1, 8, 1, false).translate(0, 0.5, 0), false),
     cyl12: Geo.template(new THREE.CylinderGeometry(1, 1, 1, 12, 1, true).translate(0, 0.5, 0), false),
@@ -76,12 +76,12 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
         else if (ch === 'u') skip |= 8;
       }
     }
-    geo.box(mat, Math.min(xa, xb), y0, Math.min(za, zb), Math.max(xa, xb), y1, Math.max(za, zb), { ...o, skip });
+    geo.box(mat, Math.min(xa, xb), y0, Math.min(za, zb), Math.max(xa, xb), y1, Math.max(za, zb), o, skip);
   }
   const faceMatrix = (f) => new THREE.Matrix4().makeBasis(V3(f.tx, 0, f.tz), V3(0, 1, 0), V3(f.dx, 0, f.dz)).setPosition(f.ox, 0, f.oz);
 
   // ---------------------------------------------------------------- arches
-  const segsFor = (w) => (w < 1.2 ? 6 : w < 2.6 ? 8 : w < 4.5 ? 10 : 12);
+  const segsFor = (w) => (w < 1.0 ? 4 : w < 1.7 ? 6 : w < 3 ? 8 : w < 5 ? 10 : 12);
   // Intrados curve from the left springer to the right one: [[t, y], ...].
   function archCurve(t0, t1, spring, kind = 'round', n = 0) {
     const w = t1 - t0, tc = (t0 + t1) / 2, pts = [];
@@ -144,14 +144,15 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     for (let k = 0; k < curve.length - 1; k++) {
       const i0 = curve[k], i1 = curve[k + 1], e0 = ext[k], e1 = ext[k + 1];
       geo.quad(mat, P3(f, i0[0], i0[1], d1), P3(f, i1[0], i1[1], d1), P3(f, e1[0], e1[1], d1), P3(f, e0[0], e0[1], d1), out, { gao: false, ...o });
-      if (d1 - d0 > 0.005) {
+      if (d1 - d0 > 0.09 && w >= 0.3) {
         const mt = (e0[0] + e1[0]) / 2 - tc, my = (e0[1] + e1[1]) / 2 - sp, l = Math.hypot(mt, my) || 1;
         geo.quad(mat, P3(f, e0[0], e0[1], d0), P3(f, e1[0], e1[1], d0), P3(f, e1[0], e1[1], d1), P3(f, e0[0], e0[1], d1), [(mt / l) * f.tx, my / l, (mt / l) * f.tz], { gao: false, ...o });
       }
     }
     if (keystone) {
-      const top = curve[Math.floor(curve.length / 2)];
-      lbox(f, mat, top[0] - 0.12, top[0] + 0.12, top[1] - 0.02, top[1] + w + 0.06, d0, d1 + 0.03, { gao: false, open: 'b', ...o });
+      const top = curve[Math.floor(curve.length / 2)], pl = setLod(geo.lod === LOD.BASE ? LOD.DETAIL : geo.lod);
+      lbox(f, mat, top[0] - 0.12, top[0] + 0.12, top[1] - 0.02, top[1] + w + 0.06, Math.max(d0, d1 - 0.02), d1 + 0.03, { gao: false, open: 'bu', ...o });
+      setLod(pl);
     }
     return ext;
   }
@@ -189,7 +190,7 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
       // Plinth / base course on the ground band.
       if (bi === 0 && S.plinth) {
         let c0 = ts;
-        const plinthPiece = (a, b) => { if (b - a > 0.02) lbox(f, S.plinth, a, b, 0, S.plinthH, 0, 0.05, { tint: S.plinthTint || 1, open: 'bu' }); };
+        const plinthPiece = (a, b) => { if (b - a > 0.02) lbox(f, S.plinth, a, b, 0, S.plinthH, 0, 0.05, { tint: S.plinthTint || 1, open: 'bulr' }); };
         for (const op of ops) { if (op.y0 < S.plinthH) { plinthPiece(c0, op.t0 - (op.kind === 'door' || op.kind === 'shop' ? 0.25 : 0)); c0 = op.t1 + (op.kind === 'door' || op.kind === 'shop' ? 0.25 : 0); } }
         plinthPiece(c0, te);
       }
@@ -269,14 +270,15 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     if (op.curve) {
       archFill(f, S.fanlight ? T.glass : T.door, op.curve, dd, { tint: S.fanlight ? 1 : 0.9 });
       archRing(f, T.trim, op.curve, op.ring ?? 0.3, -0.02, 0.05, { tint: S.trimTint });
-      lbox(f, T.trim, t0 - (op.ring ?? 0.3), t0, 0, y1, 0, 0.05, { ...st, tint: S.trimTint });
-      lbox(f, T.trim, t1, t1 + (op.ring ?? 0.3), 0, y1, 0, 0.05, st);
+      lbox(f, T.trim, t0 - (op.ring ?? 0.3), t0, 0, y1, 0, 0.05, { ...st, open: 'btu' });
+      lbox(f, T.trim, t1, t1 + (op.ring ?? 0.3), 0, y1, 0, 0.05, { ...st, open: 'btu' });
     } else {
-      lbox(f, T.trim, t0 - 0.2, t0, 0, y1, 0, 0.05, st);
-      lbox(f, T.trim, t1, t1 + 0.2, 0, y1, 0, 0.05, st);
+      lbox(f, T.trim, t0 - 0.2, t0, 0, y1, 0, 0.05, { ...st, open: 'btu' });
+      lbox(f, T.trim, t1, t1 + 0.2, 0, y1, 0, 0.05, { ...st, open: 'btu' });
       lbox(f, T.trim, t0 - 0.28, t1 + 0.28, y1, y1 + 0.26, 0, 0.08, st);
     }
-    lbox(f, T.trim, t0 - 0.1, t1 + 0.1, 0, 0.1, -FAC, 0.2, { gao: false, tint: S.trimTint });
+    setLod(LOD.DETAIL);
+    lbox(f, T.trim, t0 - 0.1, t1 + 0.1, 0, 0.1, -FAC, 0.2, { gao: false, tint: S.trimTint, open: 'bu' });
     setLod(LOD.FAR);
     front(f, T.door, t0, t1, 0, opTop(op), 0.02, { gao: false, tint: 0.7 });
     setLod(LOD.DETAIL);
@@ -321,8 +323,8 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     if (op.curve) {
       archFill(f, wooden ? T.door : T.glass, op.curve, dd, { tint: wooden ? 0.85 : 1 });
       archRing(f, T.trim, op.curve, 0.32, -0.02, 0.05, { tint: S.trimTint });
-      lbox(f, T.trim, t0 - 0.32, t0, 0, y1, 0, 0.05, { tint: S.trimTint, open: 'b' });
-      lbox(f, T.trim, t1, t1 + 0.32, 0, y1, 0, 0.05, { tint: S.trimTint, open: 'b' });
+      lbox(f, T.trim, t0 - 0.32, t0, 0, y1, 0, 0.05, { tint: S.trimTint, open: 'btu' });
+      lbox(f, T.trim, t1, t1 + 0.32, 0, y1, 0, 0.05, { tint: S.trimTint, open: 'btu' });
     }
     setLod(LOD.FAR);
     front(f, T.glass, t0, t1, 0, opTop(op), 0.02, { gao: false, tint: 0.8 });
@@ -414,8 +416,8 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     lbox(f, ir, t1 - 0.06, t1 - 0.02, top - 0.04, top, 0, D - 0.06, io);
     lbox(f, ir, t0 + 0.02, t1 - 0.02, y + 0.1, y + 0.13, D - 0.06, D - 0.02, { gao: false });
     const bars = { gao: false, open: 'tu' };
-    for (let t = t0 + 0.06; t <= t1 - 0.05; t += 0.14) lbox(f, ir, t - 0.01, t + 0.01, y, top, D - 0.05, D - 0.03, bars);
-    for (let d = 0.12; d < D - 0.08; d += 0.14) {
+    for (let t = t0 + 0.06; t <= t1 - 0.05; t += 0.2) lbox(f, ir, t - 0.01, t + 0.01, y, top, D - 0.05, D - 0.03, bars);
+    for (let d = 0.15; d < D - 0.08; d += 0.2) {
       lbox(f, ir, t0 + 0.03, t0 + 0.05, y, top, d - 0.01, d + 0.01, bars);
       lbox(f, ir, t1 - 0.05, t1 - 0.03, y, top, d - 0.01, d + 0.01, bars);
     }
@@ -483,8 +485,8 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
         }
       }
       if (lod === LOD.BASE) {
-        if (Ar1 - Ar0 > 0.05) halfTube(rf, P(Ar0, Hr + 0.02, Bc), P(Ar1, Hr + 0.02, Bc), 0.13, { tint: rt }, 4);
-        if (hip) for (const [ae, ar] of [[A0, Ar0], [A1, Ar1]]) for (const be of [B0, B1]) halfTube(rf, P(ae, ye + 0.02, be), P(ar, Hr + 0.02, Bc), 0.11, { tint: rt }, 3);
+        if (Ar1 - Ar0 > 0.05) halfTube(rf, P(Ar0, Hr + 0.02, Bc), P(Ar1, Hr + 0.02, Bc), 0.13, { tint: rt }, 3);
+        if (hip) for (const [ae, ar] of [[A0, Ar0], [A1, Ar1]]) for (const be of [B0, B1]) halfTube(rf, P(ae, ye + 0.02, be), P(ar, Hr + 0.02, Bc), 0.11, { tint: rt }, 2);
       }
       setLod(prev);
     };

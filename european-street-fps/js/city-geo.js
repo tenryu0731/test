@@ -33,7 +33,7 @@ const FACES = [
 class Bucket {
   constructor(scale) {
     this.scale = scale; // colour byte per unit
-    this.cap = 4096; this.n = 0; this.ni = 0;
+    this.cap = scale > 200 ? 2048 : 16384; this.n = 0; this.ni = 0;
     this.P = new Float32Array(this.cap * 3); this.N = new Int8Array(this.cap * 3);
     this.U = new Float32Array(this.cap * 2); this.C = new Uint8Array(this.cap * 3); this.L = new Uint8Array(this.cap);
     this.I = new Uint32Array(this.cap * 2);
@@ -107,28 +107,28 @@ export class Geo {
 
   // Axis-aligned box in world space.
   // o: { tint, ao, gao (ground AO, default on), top (eave height for under-eave AO), uvOff:[u,v], skip (face bitmask) }
-  box(mat, x0, y0, z0, x1, y1, z1, o = {}) {
+  box(mat, x0, y0, z0, x1, y1, z1, o = {}, xs = 0, noGao = false) {
     if (x1 - x0 < 1e-4 || y1 - y0 < 1e-4 || z1 - z0 < 1e-4) return;
-    const gao = o.gao !== false;
+    const gao = !noGao && o.gao !== false;
     // Foundations below the town floor: no contact AO there.
     if (gao && y0 < -0.05 && y1 > 0.05) {
-      this.box(mat, x0, y0, z0, x1, 0, z1, { ...o, gao: false, skip: (o.skip || 0) | 4 });
-      this.box(mat, x0, 0, z0, x1, y1, z1, { ...o, skip: (o.skip || 0) | 8 });
+      this.box(mat, x0, y0, z0, x1, 0, z1, o, xs | 4, true);
+      this.box(mat, x0, 0, z0, x1, y1, z1, o, xs | 8, noGao);
       return;
     }
     // Split tall boxes so the AO gradients have vertices where they start.
-    if (gao && y0 < 0.8 && y1 > 1.4) {
-      this.box(mat, x0, y0, z0, x1, 0.8, z1, { ...o, skip: (o.skip || 0) | 4 });
-      this.box(mat, x0, 0.8, z0, x1, y1, z1, { ...o, skip: (o.skip || 0) | 8 });
+    if (gao && y0 < 0.8 && y1 > 1.4 && (xs & 51) !== 51) {
+      this.box(mat, x0, y0, z0, x1, 0.8, z1, o, xs | 4, noGao);
+      this.box(mat, x0, 0.8, z0, x1, y1, z1, o, xs | 8, noGao);
       return;
     }
     const eb = o.top ? o.top - EAVE_BAND : 0;
-    if (o.top && y0 < eb - 0.3 && y1 > eb + 0.05) {
-      this.box(mat, x0, y0, z0, x1, eb, z1, { ...o, skip: (o.skip || 0) | 4 });
-      this.box(mat, x0, eb, z0, x1, y1, z1, { ...o, skip: (o.skip || 0) | 8 });
+    if (o.top && y0 < eb - 0.3 && y1 > eb + 0.05 && (xs & 51) !== 51) {
+      this.box(mat, x0, y0, z0, x1, eb, z1, o, xs | 4, noGao);
+      this.box(mat, x0, eb, z0, x1, y1, z1, o, xs | 8, noGao);
       return;
     }
-    let skip = o.skip || 0;
+    let skip = (o.skip || 0) | xs;
     if (y0 <= 0.001 && y0 >= -0.3) skip |= 8;
     const b = this._bucket(mat, (x0 + x1) / 2, (z0 + z1) / 2), tint = this._tint(o), top = o.top || 0;
     const layer = mat.layer | 0, tile = mat.tile || mat.userData?.tile || 2, ou = o.uvOff ? o.uvOff[0] : 0, ov = o.uvOff ? o.uvOff[1] : 0;

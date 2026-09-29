@@ -97,8 +97,8 @@ function genDry(n) {
     const c = clump[k];
     const bare = smooth(0.62, 0.8, soil[k] * 0.7 + (1 - c) * 0.4);
     const lum = 0.7 + 0.45 * st + 0.15 * (fine[k] - 0.5);
-    let r = 0.66, g = 0.55, b = 0.33;
-    r = r + (0.52 - r) * bare; g = g + (0.42 - g) * bare; b = b + (0.3 - b) * bare;
+    let r = 0.5, g = 0.42, b = 0.25;
+    r = r + (0.42 - r) * bare; g = g + (0.34 - g) * bare; b = b + (0.24 - b) * bare;
     col[k * 3] = r * lum; col[k * 3 + 1] = g * lum; col[k * 3 + 2] = b * lum;
     H[k] = clamp01(0.3 + 0.5 * st + 0.2 * c - 0.3 * bare); R[k] = 0.9;
   }
@@ -112,8 +112,8 @@ function genEarth(n) {
     const h = clamp01(0.25 + clod * 0.45 + (f[k] - 0.5) * 0.5 + (g[k] - 0.5) * 0.2);
     const lum = 0.72 + 0.4 * h + 0.12 * (w.ID[k] - 0.5);
     const pebble = w.ID[k] > 0.93 && w.F1[k] < 0.25 ? 1 : 0;
-    let r = 0.47, gg = 0.35, b = 0.24;
-    if (pebble) { r = 0.7; gg = 0.66; b = 0.58; }
+    let r = 0.37, gg = 0.27, b = 0.19;
+    if (pebble) { r = 0.6; gg = 0.56; b = 0.5; }
     col[k * 3] = r * lum; col[k * 3 + 1] = gg * lum; col[k * 3 + 2] = b * lum;
     H[k] = pebble ? 0.9 : h; R[k] = 0.95 - 0.1 * pebble;
   }
@@ -128,7 +128,7 @@ function genGravel(n) {
     const tone = 0.82 + 0.2 * (w1.ID[k] - 0.5) * p1 + 0.12 * (w2.ID[k] - 0.5) * p2;
     const dust = smooth(0.4, 0.7, d[k]);
     const lum = tone * (0.86 + 0.18 * h);
-    let r = 0.82, g = 0.78, b = 0.7;
+    let r = 0.68, g = 0.63, b = 0.55;
     r -= 0.06 * dust; g -= 0.08 * dust; b -= 0.1 * dust;
     col[k * 3] = r * lum; col[k * 3 + 1] = g * lum; col[k * 3 + 2] = b * lum;
     H[k] = h; R[k] = 0.82 + 0.1 * dust;
@@ -145,7 +145,7 @@ function genRock(n) {
     const pit = 1 - smooth(0.05, 0.2, pits.F1[k]);
     const h = clamp01(0.3 + 0.5 * f[k] + 0.15 * strata) * crack - 0.15 * pit;
     const lum = 0.75 + 0.35 * f[k] + 0.1 * (w.ID[k] - 0.5) - 0.2 * (1 - crack);
-    col[k * 3] = 0.68 * lum; col[k * 3 + 1] = 0.63 * lum; col[k * 3 + 2] = 0.54 * lum;
+    col[k * 3] = 0.56 * lum; col[k * 3 + 1] = 0.52 * lum; col[k * 3 + 2] = 0.45 * lum;
     H[k] = clamp01(h); R[k] = 0.78;
   }
   return { col, H, R, normal: 4.0 };

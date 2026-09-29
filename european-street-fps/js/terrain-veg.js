@@ -279,7 +279,7 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
       scene.add(im);
       return im;
     };
-    const cap = Math.min(N, type === 'vine' ? 6000 : 4000);
+    const cap = Math.min(N, type === "vine" ? 6000 : 4000);
     const t = { type, N, Mx, Cl, Px, Pz, grid, far: mk(cap, 'veg-' + type, false), close: TREE[type] ? mk(Math.min(N, 600), 'veg-' + type + '-near', true) : null };
     types.push(t);
     instCount += N;

@@ -10,15 +10,15 @@ function tuftGeometry(blades = 4) {
   const pos = [], col = [], nor = [];
   for (let b = 0; b < blades; b++) {
     const a = b / blades * Math.PI + (b % 2) * 0.4, ca = Math.cos(a), sa = Math.sin(a);
-    const ox = Math.cos(b * 2.4) * 0.16, oz = Math.sin(b * 2.4) * 0.16;
-    const w = 0.07, lean = 0.18 + 0.1 * (b % 3);
+    const ox = Math.cos(b * 2.4) * 0.2 * (0.4 + (b % 3) * 0.3), oz = Math.sin(b * 2.4) * 0.2 * (0.4 + (b % 3) * 0.3);
+    const w = 0.035, lean = 0.12 + 0.08 * (b % 3);
     const lx = Math.cos(b * 1.7) * lean, lz = Math.sin(b * 1.7) * lean;
     const P = [
       [ox - ca * w, 0, oz - sa * w], [ox + ca * w, 0, oz + sa * w],
       [ox - ca * w * 0.6 + lx * 0.4, 0.55, oz - sa * w * 0.6 + lz * 0.4], [ox + ca * w * 0.6 + lx * 0.4, 0.55, oz + sa * w * 0.6 + lz * 0.4],
       [ox + lx, 1.0 - 0.1 * (b % 2), oz + lz],
     ];
-    const C = [0.45, 0.45, 0.8, 0.8, 1.15];
+    const C = [0.4, 0.4, 0.75, 0.75, 1.05];
     for (const [i, j, k] of [[0, 1, 2], [1, 3, 2], [2, 3, 4]]) {
       for (const q of [i, j, k]) { pos.push(...P[q]); col.push(C[q], C[q], C[q]); nor.push(ca * 0.25, 0.95, sa * 0.25); }
     }
@@ -66,12 +66,12 @@ function grassMaterial(uniforms, name) {
 }
 
 export function createGrass(scene, land, heightAt, quality = 'high') {
-  const Qs = { low: { R: 14, sp: 1.6 }, medium: { R: 22, sp: 1.4 }, high: { R: 30, sp: 1.2 } };
+  const Qs = { low: { R: 13, sp: 1.3 }, medium: { R: 18, sp: 1.1 }, high: { R: 24, sp: 1.0 } };
   let cfg = Qs[quality] || Qs.medium;
   const uniforms = { uTime: { value: 0 }, uR: { value: cfg.R } };
   const per = Math.ceil(TILE / cfg.sp) ** 2;
   const maxTiles = Math.ceil(Math.PI * (cfg.R + TILE * 1.5) ** 2 / (TILE * TILE)) + 8;
-  const grass = new THREE.InstancedMesh(tuftGeometry(4), grassMaterial(uniforms, 'terrain-grass'), per * maxTiles);
+  const grass = new THREE.InstancedMesh(tuftGeometry(6), grassMaterial(uniforms, 'terrain-grass'), per * maxTiles);
   const flowers = new THREE.InstancedMesh(flowerGeometry(), grassMaterial(uniforms, 'terrain-flowers'), Math.ceil(per * 0.12) * maxTiles);
   for (const im of [grass, flowers]) {
     im.frustumCulled = false; im.castShadow = false; im.receiveShadow = true;

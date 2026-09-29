@@ -217,14 +217,14 @@ export function createBuilders(ctx) {
         if (!S.banded && s > 1) break;
         const y = storeyY(S, s);
         if (bands[s]?.ops.some((op) => op.kind === 'balc')) continue;
-        lbox(f, T.trim, 0, f.W, y - 0.14, y + 0.04, 0, 0.08, so);
+        lbox(f, T.trim, 0, f.W, y - 0.14, y + 0.04, 0, 0.08, { ...so, open: 'blr' });
       }
       // Eaves.
       const H = S.H;
       if (S.eave === 'cornice') {
-        lbox(f, T.trim, 0, f.W, H - 0.72, H - 0.58, 0, 0.1, { ...so, ao: 0.95 });
-        lbox(f, T.trim, 0, f.W, H - 0.58, H - 0.44, 0, 0.21, { ...so, ao: 0.9 });
-        lbox(f, T.trim, 0, f.W, H - 0.44, H - 0.3, 0, 0.32, { ...so, ao: 0.85 });
+        lbox(f, T.trim, 0, f.W, H - 0.72, H - 0.58, 0, 0.1, { ...so, ao: 0.95, open: 'blrt' });
+        lbox(f, T.trim, 0, f.W, H - 0.58, H - 0.44, 0, 0.21, { ...so, ao: 0.9, open: 'blrt' });
+        lbox(f, T.trim, 0, f.W, H - 0.44, H - 0.3, 0, 0.32, { ...so, ao: 0.85, open: 'blr' });
       } else if (S.eave === 'crenel') {
         // Brick corbel table under a crenellated parapet (Guelph merlons).
         for (let t = 0.35; t < f.W - 0.2; t += 0.9) lbox(f, S.upper, t - 0.14, t + 0.14, H - 0.55, H - 0.1, 0, 0.22, { gao: false, tint: S.upperTint, ao: 0.85, open: 'b' });
@@ -233,7 +233,7 @@ export function createBuilders(ctx) {
         setLod(LOD.FAR); lbox(f, S.upper, 0, f.W, H - 0.1, H + 1.1, -0.1, 0.25, { gao: false, tint: S.upperTint, open: 'b' }); setLod(LOD.BASE);
       } else {
         setLod(LOD.DETAIL);
-        for (let t = 0.3; t < f.W - 0.1; t += 0.6) lbox(f, T.wood, t - 0.05, t + 0.05, H - 0.5, H - 0.3, 0, 0.4, { ao: 0.75, gao: false, open: 'b' });
+        for (let t = 0.3; t < f.W - 0.1; t += 0.7) lbox(f, T.wood, t - 0.05, t + 0.05, H - 0.5, H - 0.3, 0, 0.4, { ao: 0.75, gao: false, open: 'bt' });
         setLod(LOD.BASE);
       }
       if (S.bench && !court) { // stone bench along the palazzo base (panca di via)
