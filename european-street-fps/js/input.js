@@ -1,9 +1,14 @@
-// Input: touch controls (floating joystick, drag-to-look, FIRE / RELOAD / JUMP buttons) and
-// desktop keyboard + pointer-lock mouse. See docs/CONTRACT.md → input.js.
+// Input: touch controls (floating joystick, drag-to-look, FIRE / AIM / RELOAD / JUMP, lean toggles,
+// contextual interact button) and desktop keyboard + pointer-lock mouse.
 //
 // Touch uses Pointer Events, tracked per pointerId, so any combination of fingers works
 // (move + look + fire at once). Touch controls are created inside #touch when the device is
 // touch-capable, or when the URL contains `?touch` (handy for testing with a mouse).
+//
+// Public state read by main.js every frame:
+//   move {x, y}, sprint, fireHeld, aim (0/1 target), lean (-1/0/1), sensitivity
+//   consumeLook(), consumeReload(), consumeJump(), consumeInteract()
+// Callbacks set by main.js: onPause(), onMap()  (M key; the touch map opens from the minimap).
 
 const SENS_KEY = 'sg-fps-sensitivity';
 const MOUSE_RAD_PER_PX = 0.0022;
@@ -26,6 +31,10 @@ const ICONS = {
   reload: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12a7 7 0 1 1-2.05-4.95" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M19.5 3.5v5h-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   jump: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V5M5.5 11.5 12 5l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   pause: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>',
+  aim: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+  leanL: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4.5 8.5 12 15 19.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  leanR: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4.5 15.5 12 9 19.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  climb: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21V4M17 21V4M7 8h10M7 13h10M7 18h10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
 };
 
 export class Input {
@@ -41,16 +50,22 @@ export class Input {
     this.move = { x: 0, y: 0 };
     this.sprint = false;
     this.sensitivity = readSens();
-    /** Optional: main can set `input.onPause = pause` so the on-screen pause button works. */
+    /** Optional: main sets `input.onPause = pause` so the on-screen pause button works. */
     this.onPause = null;
+    /** Optional: main sets `input.onMap` (M key while playing). */
+    this.onMap = null;
 
     this._enabled = false;
     this._lookX = 0; this._lookY = 0;
-    this._reload = false; this._jump = false;
+    this._reload = false; this._jump = false; this._interact = false;
     this._keys = new Set();
     this._keyMove = { x: 0, y: 0 };
     this._keySprint = false;
     this._mouseFire = false;
+    this._mouseAim = false;
+    this._aimToggle = false;         // touch AIM button (toggle)
+    this._leanToggle = 0;            // touch lean buttons (toggle: -1 / 0 / 1)
+    this._interactLabel = null;
     this._joy = { x: 0, y: 0, sprint: false };
     this._pointers = new Map(); // pointerId -> { role, x, y, el? }
 
@@ -77,9 +92,36 @@ export class Input {
   }
   set fireHeld(v) { if (!v) this._mouseFire = false; }
 
+  /** Aim-down-sights target: 1 while the right mouse button is held or the touch AIM toggle is on. */
+  get aim() { return this._enabled && (this._mouseAim || this._aimToggle) ? 1 : 0; }
+  /** Lean target: -1 left, 0 none, 1 right (Q / E held, or the touch lean toggles). */
+  get lean() {
+    if (!this._enabled) return 0;
+    const k = this._keys;
+    const kl = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
+    return kl || this._leanToggle;
+  }
+
+  /** Drop the touch toggles (e.g. when a round restarts or the player climbs a tower). */
+  clearToggles() {
+    this._aimToggle = false; this._leanToggle = 0;
+    this._syncToggleUI();
+  }
+
   setSensitivity(v) {
     this.sensitivity = clamp(+v || 1, 0.5, 2);
     try { localStorage.setItem(SENS_KEY, String(this.sensitivity)); } catch { /* ignore */ }
+  }
+
+  /** Show the contextual interact button (touch) with a label such as 「登る」, or hide it (null). */
+  setInteract(label) {
+    label = label || null;
+    if (label === this._interactLabel) return;
+    this._interactLabel = label;
+    if (!this._interactEl) return;
+    this._interactEl.classList.toggle('shown', !!label);
+    if (label) this._interactEl.querySelector('span').textContent = label;
+    this._interactEl.setAttribute('aria-hidden', label ? 'false' : 'true');
   }
 
   consumeLook() {
@@ -89,6 +131,7 @@ export class Input {
   }
   consumeReload() { const r = this._reload; this._reload = false; return r && this._enabled; }
   consumeJump() { const r = this._jump; this._jump = false; return r && this._enabled; }
+  consumeInteract() { const r = this._interact; this._interact = false; return r && this._enabled; }
 
   lockPointer() {
     if (this.isTouch) return;
@@ -97,8 +140,8 @@ export class Input {
 
   reset() {
     this._lookX = this._lookY = 0;
-    this._reload = this._jump = false;
-    this._mouseFire = false;
+    this._reload = this._jump = this._interact = false;
+    this._mouseFire = false; this._mouseAim = false;
     this._keys.clear();
     this._keyMove.x = this._keyMove.y = 0;
     this._keySprint = false;
@@ -136,14 +179,16 @@ export class Input {
 
   // ---------------------------------------------------------------- keyboard / mouse
   _initKeyboardMouse() {
-    const MOVE_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight']);
+    const GAME_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyF', 'KeyM', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'Tab']);
     addEventListener('keydown', (e) => {
       if (e.target instanceof Element && e.target.closest('input')) return;
-      if (MOVE_KEYS.has(e.code) && this._enabled) e.preventDefault();
+      if (GAME_KEYS.has(e.code) && this._enabled) e.preventDefault();
       this._keys.add(e.code);
       if (!e.repeat && this._enabled) {
         if (e.code === 'KeyR') this._reload = true;
         if (e.code === 'Space') this._jump = true;
+        if (e.code === 'KeyF') this._interact = true;
+        if (e.code === 'KeyM' || e.code === 'Tab') this.onMap?.();
       }
       this._updateKeys();
     });
@@ -159,11 +204,19 @@ export class Input {
     });
     if (!this.isTouch) {
       document.addEventListener('mousedown', (e) => {
-        if (e.button !== 0 || !this._enabled) return;
-        if (e.target instanceof Element && e.target.closest('#ui button, #ui input')) return;
-        this._mouseFire = true;
+        if (!this._enabled) return;
+        if (e.target instanceof Element && e.target.closest('#ui button, #ui input, #ui .clickable')) return;
+        // Playing without the pointer lock (e.g. it was refused after closing the map with Esc):
+        // the click only re-engages the lock, it does not shoot.
+        if (!document.pointerLockElement) { this.lockPointer(); return; }
+        if (e.button === 0) this._mouseFire = true;
+        if (e.button === 2) this._mouseAim = true;
       });
-      addEventListener('mouseup', (e) => { if (e.button === 0) this._mouseFire = false; });
+      addEventListener('mouseup', (e) => {
+        if (e.button === 0) this._mouseFire = false;
+        if (e.button === 2) this._mouseAim = false;
+      });
+      document.addEventListener('pointerlockchange', () => { if (!document.pointerLockElement) { this._mouseAim = false; this._mouseFire = false; } });
     }
   }
 
@@ -185,11 +238,21 @@ export class Input {
     root.innerHTML = `
       <div class="joy" aria-hidden="true"><div class="joy-ring"></div><div class="joy-knob"></div></div>
       <button type="button" class="tbtn tbtn-fire" data-role="fire" aria-label="射撃">${ICONS.fire}<span>射撃</span></button>
+      <button type="button" class="tbtn tbtn-aim" data-role="aim" aria-label="狙う（切り替え）" aria-pressed="false">${ICONS.aim}<span>狙う</span></button>
       <button type="button" class="tbtn tbtn-reload" data-role="reload" aria-label="リロード">${ICONS.reload}<span>リロード</span></button>
       <button type="button" class="tbtn tbtn-jump" data-role="jump" aria-label="ジャンプ">${ICONS.jump}<span>ジャンプ</span></button>
+      <div class="lean-pad" aria-label="覗き込み">
+        <button type="button" class="tbtn tbtn-lean" data-role="leanL" aria-label="左に覗く" aria-pressed="false">${ICONS.leanL}<span>左</span></button>
+        <button type="button" class="tbtn tbtn-lean" data-role="leanR" aria-label="右に覗く" aria-pressed="false">${ICONS.leanR}<span>右</span></button>
+        <em class="lean-cap">覗く</em>
+      </div>
+      <button type="button" class="tbtn tbtn-interact" data-role="interact" aria-hidden="true">${ICONS.climb}<span>登る</span></button>
       <button type="button" class="tbtn tbtn-pause" data-role="pause" aria-label="一時停止">${ICONS.pause}</button>`;
     this._joyEl = root.querySelector('.joy');
     this._knobEl = root.querySelector('.joy-knob');
+    this._interactEl = root.querySelector('.tbtn-interact');
+    this._aimEl = root.querySelector('.tbtn-aim');
+    this._leanEls = { '-1': root.querySelector('[data-role="leanL"]'), 1: root.querySelector('[data-role="leanR"]') };
     this._joyBase = { x: 0, y: 0, r: 60 };
     this._hideJoystick();
 
@@ -202,6 +265,17 @@ export class Input {
     addEventListener('resize', () => this._hideJoystick());
   }
 
+  _syncToggleUI() {
+    if (!this._aimEl) return;
+    this._aimEl.classList.toggle('on', this._aimToggle);
+    this._aimEl.setAttribute('aria-pressed', String(this._aimToggle));
+    for (const s of [-1, 1]) {
+      const el = this._leanEls[s];
+      el.classList.toggle('on', this._leanToggle === s);
+      el.setAttribute('aria-pressed', String(this._leanToggle === s));
+    }
+  }
+
   _joyRadius() { return clamp(Math.min(innerWidth, innerHeight) * 0.17, 48, 78); }
 
   _onDown(e) {
@@ -212,6 +286,7 @@ export class Input {
 
     const btn = e.target instanceof Element ? e.target.closest('[data-role]') : null;
     let role = btn?.dataset.role;
+    if (role === 'interact' && !this._interactLabel) role = null; // hidden button: treat as screen
     if (!role) {
       const hasRole = (r) => [...this._pointers.values()].some((p) => p.role === r);
       if (e.clientX < innerWidth / 2) role = hasRole('joy') ? null : 'joy';
@@ -219,13 +294,20 @@ export class Input {
     }
     if (!role) return;
     try { this.touchRoot.setPointerCapture(e.pointerId); } catch { /* ignore */ }
-    const p = { role, x: e.clientX, y: e.clientY, el: btn };
+    const el = role === 'joy' || role === 'look' ? null : btn;
+    const p = { role, x: e.clientX, y: e.clientY, el };
     this._pointers.set(e.pointerId, p);
-    btn?.classList.add('pressed');
+    el?.classList.add('pressed');
 
     if (role === 'reload') this._reload = true;
     else if (role === 'jump') this._jump = true;
-    else if (role === 'pause') { this._pause(); }
+    else if (role === 'interact') this._interact = true;
+    else if (role === 'aim') { this._aimToggle = !this._aimToggle; this._syncToggleUI(); }
+    else if (role === 'leanL' || role === 'leanR') {
+      const s = role === 'leanL' ? -1 : 1;
+      this._leanToggle = this._leanToggle === s ? 0 : s;
+      this._syncToggleUI();
+    } else if (role === 'pause') { this._pause(); }
     else if (role === 'joy') this._showJoystick(e.clientX, e.clientY);
   }
 
@@ -234,7 +316,8 @@ export class Input {
     if (!p || !this._enabled) return;
     if (e.cancelable) e.preventDefault();
     if (p.role === 'joy') { this._updateJoystick(e.clientX, e.clientY); return; }
-    if (p.role === 'look' || p.role === 'fire') {
+    // FIRE and AIM double as look pads: keep the thumb down and slide to adjust the aim.
+    if (p.role === 'look' || p.role === 'fire' || p.role === 'aim') {
       // Raw deltas, no smoothing: the camera follows the finger 1:1.
       const k = TOUCH_LOOK / Math.max(innerWidth, innerHeight) * this.sensitivity;
       this._lookX += (e.clientX - p.x) * k;
