@@ -79,7 +79,8 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff0d8, 3.2);
 sun.castShadow = true;
 const SHADOW_R = isTouch ? 34 : 45;
-sun.shadow.mapSize.setScalar(isTouch ? 2048 : 4096);
+// ?q=low: small shadow map (used by headless screenshot tooling, also handy on weak phones).
+sun.shadow.mapSize.setScalar(params.get('q') === 'low' ? 1024 : isTouch ? 2048 : 4096);
 Object.assign(sun.shadow.camera, { left: -SHADOW_R, right: SHADOW_R, top: SHADOW_R, bottom: -SHADOW_R, near: 1, far: 200 });
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.035;
@@ -313,8 +314,14 @@ addEventListener('orientationchange', () => setTimeout(applySize, 200));
 
 // ---------- loop ----------
 const clock = new THREE.Clock();
+let frozen = false;
 function frame() {
   const dt = Math.min(clock.getDelta(), 0.05);
+  if (!frozen) { update(dt); render(); }
+  requestAnimationFrame(frame);
+}
+
+function update(dt) {
   if (state === 'playing') {
     updatePlayer(dt);
     _eye.set(player.pos.x, player.pos.y + PLAYER.eye, player.pos.z);
@@ -338,14 +345,15 @@ function frame() {
   city.update?.(dt);
   updateSun(state === 'menu' ? _zero : player.pos);
   sky.position.copy(camera.position);
+}
 
+function render() {
   renderer.clear();
   renderer.render(scene, camera);
   if (state !== 'menu') {
     renderer.clearDepth();
     renderer.render(weapon.viewScene, weapon.viewCamera);
   }
-  requestAnimationFrame(frame);
 }
 const _far = new THREE.Vector3(0, -999, 0), _zero = new THREE.Vector3();
 
@@ -356,5 +364,12 @@ document.getElementById('boot')?.remove();
 ui.setHUDVisible(false);
 ui.showStart(() => startPlaying());
 if (params.has('autostart')) startPlaying(); // for automated screenshots
-window.__game = { scene, camera, player, enemies, weapon, city, physics, renderer, get state() { return state; }, startPlaying, endRound };
+// Debug/test hooks. freeze(true) stops the real-time loop; step(n, dt) advances the simulation
+// n fixed steps and renders one frame (headless software GL is far too slow for real time).
+window.__game = {
+  scene, camera, player, enemies, weapon, city, physics, renderer, input, ui, audio,
+  get state() { return state; }, startPlaying, endRound, shoot,
+  freeze(v = true) { frozen = v; clock.getDelta(); },
+  step(n = 1, dt = 1 / 30) { for (let i = 0; i < n; i++) update(dt); render(); },
+};
 requestAnimationFrame(frame);

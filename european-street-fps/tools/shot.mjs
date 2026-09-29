@@ -1,5 +1,6 @@
 // Dev helper: serve the game folder and take screenshots with headless Chromium.
 // Usage: node tools/shot.mjs <out.png> [--port 8123] [--query "autostart&..."] [--mobile] [--wait 3000] [--eval "js run before the shot"]
+// The page is loaded with ?q=low; the real-time loop is frozen before --eval runs (use __game.step(n, dt) to simulate).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -30,7 +31,7 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(f).pipe(res);
 }).listen(port);
 
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader'] });
 const ctx = await browser.newContext(mobile
   ? { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }
   : { viewport: { width: 1280, height: 720 } });
@@ -38,14 +39,18 @@ const page = await ctx.newPage();
 const logs = [];
 page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
-await page.goto(`http://localhost:${port}/index.html?${query}`);
+await page.goto(`http://localhost:${port}/index.html?q=low&${query}`);
 await page.waitForTimeout(wait);
+// Stop the real-time loop: software GL renders a frame in seconds. The eval script can drive the
+// simulation with __game.step(n, dt); one frame is rendered after it.
+await page.evaluate(() => window.__game?.freeze(true));
 if (evalJs) {
   const r = await page.evaluate(evalJs);
   if (r !== undefined) console.log('eval:', JSON.stringify(r));
-  await page.waitForTimeout(600);
 }
-await page.screenshot({ path: out });
+await page.evaluate(() => window.__game?.step(1, 1 / 60));
+await page.waitForTimeout(300);
+await page.screenshot({ path: out, timeout: 120000 });
 console.log(logs.join('\n'));
 await browser.close();
 server.close();
