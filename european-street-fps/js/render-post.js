@@ -159,7 +159,16 @@ export function createPost(renderer) {
       void main() {
         vec3 c = texture2D( tColor, vUv ).rgb;
         float z = -perspectiveDepthToViewZ( texture2D( tDepth, vUv ).x, cameraNear, cameraFar );
-        float ao = texture2D( tAO, vUv ).r;
+        // joint-bilateral upsample of the half-res AO (no halos / stair-steps on depth edges)
+        vec2 ht = 1.0 / vec2( textureSize( tAO, 0 ) );
+        float ao = 0.0, aw = 0.0;
+        for ( int k = 0; k < 4; k ++ ) {
+          vec2 o = vec2( k == 1 || k == 3 ? 0.5 : -0.5, k >= 2 ? 0.5 : -0.5 ) * ht;
+          float zt = -perspectiveDepthToViewZ( texture2D( tDepth, vUv + o ).x, cameraNear, cameraFar );
+          float w = 1.0 / ( 1e-3 + abs( zt - z ) / ( 0.02 * z + 0.02 ) );
+          ao += texture2D( tAO, vUv + o ).r * w; aw += w;
+        }
+        ao /= aw;
         // AO darkens mostly the ambient-lit (darker) pixels: brightly sunlit surfaces keep most of their light.
         float l = dot( c, vec3( 0.2126, 0.7152, 0.0722 ) );
         float w = aoStrength * ( 1.0 - 0.65 * smoothstep( 0.15, 1.1, l ) ) * ( 1.0 - smoothstep( 60.0, 160.0, z ) );

@@ -244,16 +244,17 @@ const skyFragment = /* glsl */`
       #else
       float det = 0.5;
       #endif
-      float n = base * 0.62 + puff * 0.28 + det * 0.10;
+      float n = base * 0.55 + puff * 0.33 + det * 0.12;
+      n = n + ( puff - 0.5 ) * 0.12 * smoothstep( 0.35, 0.7, base );
       float cover = cloudCover * ( 1.0 - 0.9 * smoothstep( 0.93, 0.992, cs ) );   // keep the sun clear
       float thr = 1.0 - cover;
-      float dens = smoothstep( thr, thr + 0.22, n );
+      float dens = smoothstep( thr, thr + 0.16, n );
       // self-shadowing: density a little towards the sun
       vec2 uvs = uv + sunH * 0.018;
       float ns = texture2D( tNoise, uvs ).r * 0.62 + texture2D( tNoise, uvs * 2.3 + vec2( 0.31, 0.17 ) ).g * 0.28 + det * 0.10;
       float occl = smoothstep( thr, thr + 0.35, ns );
       float core = smoothstep( thr + 0.08, thr + 0.45, n );
-      float lit = clamp( 1.0 - 0.55 * occl - 0.35 * core, 0.0, 1.0 );
+      float lit = clamp( 1.0 - 0.6 * occl - 0.45 * core, 0.0, 1.0 );
       vec3 cl = cloudAmbient + sunLight * ( 0.20 + 0.55 * lit ) + sunLight * hg( cs, 0.6 ) * 2.2 * ( 1.0 - core );
       // aerial perspective on far clouds + fade at the horizon
       float far = 1.0 - exp( -t / 38000.0 );
@@ -271,11 +272,23 @@ const skyFragment = /* glsl */`
     }
     #endif
 
+    #ifndef ENV
+    // Below the horizon only the world beyond the map edge shows: make it hazy distant land that melts
+    // into the horizon colour instead of the LUT's brown ground.
+    if ( d.y < 0.0 ) {
+      vec3 hz = skyLut( normalize( vec3( d.x, 0.012, d.z ) ) );
+      vec3 land = hz * vec3( 0.78, 0.84, 0.86 );
+      col = mix( hz, land, smoothstep( 0.0, -0.3, d.y ) );
+    }
+    #endif
     #ifdef ENV
     // Environment for image-based light: warm bounce from sunlit ground below, and a warm band at the
     // horizon for the sunlit façades / hills that surround every street and field.
-    float band = exp( -abs( d.y + 0.05 ) * 7.0 );
-    col = mix( col, groundBounce * 1.15, band * 0.45 );
+    // desaturate the sky dome for diffuse light: the blue is partly replaced by light bounced off the town
+    float sl = dot( col, vec3( 0.2126, 0.7152, 0.0722 ) );
+    col = mix( col, vec3( sl ) * vec3( 1.08, 1.0, 0.9 ), 0.35 );
+    float band = exp( -abs( d.y + 0.05 ) * 5.0 );
+    col = mix( col, groundBounce * 1.25, band * 0.55 );
     if ( d.y < 0.0 ) col = mix( col, groundBounce, smoothstep( 0.0, -0.18, d.y ) );
     #else
     // Sun disc (limb darkened) + a tight aureole the sky LUT is too coarse for.
@@ -358,7 +371,7 @@ export function createSky({ sunDir, sunIlluminance = 3.0, turbidity = 2.6, skyGa
     cloudAmbient: { value: zenith.clone().lerp(new THREE.Color(1, 1, 1).multiplyScalar(zenith.g), 0.45).multiplyScalar(1.6) },
     groundBounce: { value: groundBounce },
     skyGain: { value: 1.0 },          // extra runtime multiplier (1 = as computed)
-    cloudCover: { value: 0.46 },
+    cloudCover: { value: 0.40 },
     time: { value: 0 },
   };
   function material({ env = false, clouds = true, detail = true } = {}) {

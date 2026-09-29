@@ -382,14 +382,7 @@ function buildGun() {
     metal.add(g, C.barrel);
     for (let k = 0; k < 4; k++) { const a = PI / 4 + k * PI / 2; poly.add(box(0.0014, 0.0035, 0.024), C.void, M(Math.cos(a) * 0.0122, -0.002 + Math.sin(a) * 0.0122, -0.628, 0, 0, a)); }
   }
-  // Flip-up sights.
-  metal.add(ebox(0.024, 0.009, 0.028, 0.002, 0.0008), C.recvDark, M(0, 0.04, 0.066));
-  {
-    const s = chamferRect(0.024, 0.026, 0.006);
-    const hole = new THREE.Path(); hole.absarc(0, 0.004, 0.0032, 0, PI * 2, true); s.holes.push(hole);
-    const g = new THREE.ExtrudeGeometry(s, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.0008, bevelSize: 0.0008, bevelSegments: 1, curveSegments: 10 });
-    metal.add(g, C.recvDark, M(0, 0.047, 0.079, -1.45, 0, 0));
-  }
+  // Folded front sight (the red dot is the primary sight).
   metal.add(ebox(0.024, 0.01, 0.02, 0.002, 0.0008), C.recvDark, M(0, 0.041, -0.44));   // folded front sight
   metal.add(ebox(0.022, 0.005, 0.026, 0.0015, 0.0007), C.recvDark, M(0, 0.0475, -0.452));
   metal.add(ebox(0.004, 0.003, 0.02, 0.001, 0.0005), C.steel, M(0, 0.0505, -0.455));
@@ -429,15 +422,16 @@ function buildGun() {
     metal.add(ebox(0.03, 0.006, 0.032, 0.0015, 0.0008), C.recvDark, M(0, 0.0385, zc));                // clamp base
     metal.add(ebox(0.006, 0.011, 0.026, 0.0015, 0.0008), C.recvDark, M(0.0158, 0.0345, zc));          // clamp jaw (right)
     for (const dz of [-0.007, 0.008]) metal.add(zcyl(0.0042, 0.0042, 0.005, 10), C.steel, M(0.0196, 0.0345, zc + dz, 0, PI / 2, 0));
-    const pts = [[0.0118, 0.021], [0.0118, -0.024], [0.0132, -0.0265], [0.0176, -0.0265], [0.0185, -0.0225], [0.0185, 0.011], [0.0177, 0.0175],
-      [0.0171, 0.0205], [0.0136, 0.0215], [0.0118, 0.021]].map(([r, z]) => new THREE.Vector2(r, z));
-    const tube = new THREE.LatheGeometry(pts, 24);
+    const outer = [[0.0121, -0.0245], [0.0132, -0.0265], [0.0176, -0.0265], [0.0185, -0.0225], [0.0185, 0.011], [0.0177, 0.0175],
+      [0.0171, 0.0205], [0.0136, 0.0215], [0.0121, 0.021]].map(([r, z]) => new THREE.Vector2(r, z));
+    const tube = new THREE.LatheGeometry(outer, 24);
     tube.rotateX(PI / 2); tube.translate(0, sy, zc);
     metal.add(tube, C.recvDark);
+    const bore = new THREE.LatheGeometry([[0.0122, 0.0212], [0.0119, 0.015], [0.0119, -0.02], [0.0122, -0.0248]].map(([r, z]) => new THREE.Vector2(r, z)), 24);
+    bore.rotateX(PI / 2); bore.translate(0, sy, zc);
+    poly.add(bore, 0x141414);                                                                            // matte black bore
     metal.add(new THREE.CylinderGeometry(0.0066, 0.0072, 0.0075, 14), C.recvDark, M(0, sy + 0.0205, zc - 0.002));          // elevation cap
     metal.add(new THREE.CylinderGeometry(0.0066, 0.0072, 0.0075, 14), C.recvDark, M(0.0205, sy, zc - 0.002, 0, 0, -PI / 2)); // windage cap
-    for (const [x, rz] of [[0.0228, 0], [-0.0228, 0]]) metal.add(ebox(0.0035, 0.034, 0.02, 0.0012, 0.0006), C.recvDark, M(x, sy + 0.004, zc - 0.002, 0, 0, rz)); // protective wings
-    metal.add(ebox(0.05, 0.0035, 0.02, 0.0012, 0.0006), C.recvDark, M(0, sy + 0.0255, zc - 0.002));  // wing bridge
     metal.add(ebox(0.005, 0.012, 0.016, 0.002, 0.001), C.steel, M(-0.0195, sy - 0.008, zc - 0.002));   // brightness buttons
     const rear = new THREE.CircleGeometry(0.0119, 24); rear.translate(0, sy, zc + 0.017);
     const front = new THREE.CircleGeometry(0.0119, 24); front.translate(0, sy, zc - 0.021);
@@ -632,14 +626,14 @@ const V3 = (a) => new THREE.Vector3(...a);
 // Viewmodel layout (view space: camera at the origin looking down -z; gun space: bore along -z,
 // origin above the pistol grip). Exported for tuning.
 export const LAYOUT = {
-  hipPos: [0.112, -0.122, -0.345], hipRot: [0.018, 0.058, -0.04],
-  eyeZ: 0.168,                          // gun-space z of the eye at full aim (eye relief behind the optic)
+  hipPos: [0.122, -0.094, -0.44], hipRot: [0.035, 0.08, -0.05],
+  eyeZ: 0.132,                          // gun-space z of the eye at full aim (eye relief behind the optic)
   hipFov: 54, adsFovK: 0.78,            // view-model FOV (desktop landscape) and its ADS factor
   rShoulder: [0.2, -0.3, 0.13], rElbow: [0.36, -0.52, -0.05], rShoulderAds: [0.15, -0.28, 0.17], rElbowAds: [0.28, -0.5, 0.02],
-  lShoulder: [-0.2, -0.34, 0.06], lElbow: [-0.22, -0.56, -0.2], lShoulderAds: [-0.18, -0.32, 0.08], lElbowAds: [-0.2, -0.52, -0.12],
+  lShoulder: [-0.2, -0.36, 0.06], lElbow: [-0.16, -0.7, -0.32], lShoulderAds: [-0.18, -0.32, 0.08], lElbowAds: [-0.2, -0.52, -0.12],
   // hands: [palm normal, knuckle line toward the little finger, palm contact point] in gun space
   rGrip: [[-1, 0.05, -0.36], [0, -0.949, 0.316], [0.0185, -0.098, 0.1]],
-  lGuard: [[0.22, 1, 0.02], [0.45, 0.06, 1], [-0.004, -0.03, -0.33]],
+  lGuard: [[0.35, 1, 0.0], [0.5, -0.35, 1], [-0.004, -0.03, -0.365]],
   lMag: [[1, 0, 0.06], [0, -1, 0.35], [-0.014, -0.112, 0.0]],     // mag space
   lSlap: [[1, -0.1, 0.1], [0.1, -0.75, 0.66], [-0.027, -0.036, -0.015]],
 };
@@ -829,7 +823,12 @@ export class Weapon {
     this.rHand = rH;
     const rp = { fingers: [[0, 0.2, 0.3, 0.2], [0.03, 0.25, 0.1, 0.05], [-0.01, 0.25, 0.1, 0.05], [-0.06, 0.25, 0.1, 0.05]], thumb: [0.15, 0.35, 0.1, 0.05, 0.05] };
     for (let i = 1; i < 4; i++) rp.fingers[i] = grasp(rH, sdfLower, FINGERS[i], rp.fingers[i]);
-    rp.thumb = grasp(rH, sdfLower, null, rp.thumb, { thumb: true, vel: [0.7, 1, 1], max: [1.0, 0.9, 1.0] });
+    // thumb: around the back of the grip onto the left side, under the selector
+    const thT = new THREE.Vector3(-0.025, -0.071, 0.05), thM = new THREE.Vector3(-0.017, -0.06, 0.088);
+    const thPen = (W, r) => { let c = 0; for (let k = 0; k < 3; k++) for (let s = k ? 0 : 3; s <= 5; s++) { const d = sdfLower(_v1.lerpVectors(W[k], W[k + 1], s / 5)) - r[k] * 0.92; if (d < 0) c += d * d * 4e5; } return c; };
+    const sTh = solveDigit(rH, -1, [0.4, 0.3, 0.2, 0.2, 0.15], (W, pad, r, x) => W[3].distanceToSquared(thT) * 1e4 + W[2].distanceToSquared(thM) * 3e3 + thPen(W, r) + (x[3] ** 2 + x[4] ** 2) * 0.01,
+      { limits: [[-0.4, 1.4], [-0.8, 1.2], [-0.8, 0.8], [-0.1, 1.0], [-0.2, 1.1]], steps: 200 });
+    rp.thumb = sTh.angles;
     const trig = new THREE.Vector3(0, -0.071, -0.0092), rel = new THREE.Vector3(0.0305, -0.042, -0.02), frame = new THREE.Vector3(0.035, -0.041, -0.075);
     const pen = (W, r) => { // penetration of the finger into the gun (the trigger itself is not in the SDF)
       let c = 0;
@@ -840,7 +839,7 @@ export class Weapon {
     const sTrig = solveDigit(rH, 0, [0.05, 0.4, 0.9, 0.4], (W, pad, r, x) => pad.distanceToSquared(trig) * 1e4 + pen(W, r) + (x[3] - 0.6 * x[2]) ** 2 * 0.02, { limits: lim, steps: 120 });
     const sRel = solveDigit(rH, 0, [0.1, 0.3, 0.5, 0.3], (W, pad, r, x) => pad.distanceToSquared(rel) * 1e4 + pen(W, r) + (x[3] - 0.6 * x[2]) ** 2 * 0.02, { limits: lim, steps: 120 });
     const sFrame = solveDigit(rH, 0, [0.1, 0.1, 0.05, 0.05], (W, pad, r, x) => W[3].distanceToSquared(frame) * 1e4 + pen(W, r) + (x[2] ** 2 + x[3] ** 2) * 0.05, { limits: lim, steps: 120 });
-    this.solveInfo = { trig: sTrig.cost, rel: sRel.cost, frame: sFrame.cost };
+    this.solveInfo = { trig: sTrig.cost, rel: sRel.cost, frame: sFrame.cost, thumb: sTh.cost, thumbTip: sTh.joints[3].toArray().map((v) => +v.toFixed(3)) };
     const mk = (idx) => poseQuats({ fingers: [idx, ...rp.fingers.slice(1)], thumb: rp.thumb });
     const pull = sTrig.angles.slice(); pull[2] += 0.28; pull[3] += 0.14; pull[1] += 0.05;
     this.rPoses = { trigger: mk(sTrig.angles), pull: mk(pull), frame: mk(sFrame.angles), release: mk(sRel.angles) };
@@ -1168,7 +1167,7 @@ export class Weapon {
     _mA.multiplyMatrices(this.rig.matrixWorld, _mB);
     _v1.lerpVectors(S.l, S.lA, aim); _v2.lerpVectors(S.le, S.leA, aim);
     if (this.isReloading) _v2.y -= 0.12 * smooth(0.1, 0.4, this.reloadT) * (1 - smooth(0.9, 1.4, this.reloadT));
-    this.armL.update(_mA, _v1, _v2);
+    this.armL.update(_mA, _v1, _v2, { flex: [-0.6, 0.8], dev: [-0.5, 0.45] });
   }
 
   _animateReload(u) {

@@ -334,6 +334,7 @@ button { font-family: inherit; }
 }
 .start-side { width: min(470px, 52vw); text-align: left; display: flex; flex-direction: column; align-items: stretch; }
 .start-side .kicker, .start-side .title, .start-side .subtitle { text-align: left; }
+.start-side .title { font-size: clamp(24px, 2.4vmin + 16px, 38px); white-space: nowrap; }
 .start-side .brief { margin: 10px 0 12px; }
 .start-side .field { margin-bottom: 10px; }
 .start-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -361,8 +362,8 @@ button { font-family: inherit; }
 }
 
 /* Desktop key list */
-.keylist { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; font-size: clamp(13px, 0.5vmin + 10px, 15px); }
-.keylist li { display: grid; grid-template-columns: 8.2em 1fr; align-items: center; gap: 10px; text-align: left; }
+.keylist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: max-content 1fr; align-items: center; gap: 7px 12px; font-size: clamp(13px, 0.5vmin + 10px, 15px); text-align: left; }
+.keylist li { display: contents; }
 .keys { display: flex; gap: 4px; flex-wrap: wrap; }
 kbd {
   display: inline-block; min-width: 1.6em; padding: 2px 7px; text-align: center; box-sizing: border-box;

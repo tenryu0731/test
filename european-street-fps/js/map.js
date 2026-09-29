@@ -484,7 +484,7 @@ export class WorldMap {
     // Scale bar.
     const nice = [10, 20, 50, 100, 200, 500];
     const m = nice.find((n) => n * v.s >= 70) || 500;
-    const bx = 16 + (this._safeL || 0), by = H - 18;
+    const bx = W - 16 - m * v.s - (this._safeR || 0), by = H - 72;
     g.fillStyle = 'rgba(20,16,12,0.75)'; g.fillRect(bx - 8, by - 20, m * v.s + 16, 28);
     g.strokeStyle = C.ink; g.lineWidth = 2; g.beginPath(); g.moveTo(bx, by - 4); g.lineTo(bx, by); g.lineTo(bx + m * v.s, by); g.lineTo(bx + m * v.s, by - 4); g.stroke();
     halo(g, `${m} m`, bx + m * v.s / 2, by - 11, 12, { weight: 700 });

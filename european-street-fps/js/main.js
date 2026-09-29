@@ -25,7 +25,6 @@ if (!params.has('q') && settings.quality && settings.quality !== gfx.quality) {
 }
 const { renderer, scene, camera } = gfx;
 const BASE_FOV = camera.fov;
-const AIM_FOV = BASE_FOV * (50 / 72);
 
 // ---------- world ----------
 const t0 = performance.now();
@@ -38,6 +37,7 @@ const t1 = performance.now();
 const audio = new GameAudio();
 audio.setVolume(settings.volume);
 const weapon = new Weapon({ renderer, audio });
+const AIM_FOV = weapon.aimFov || BASE_FOV * (50 / 72);   // the weapon suggests the ADS zoom
 const t2 = performance.now();
 let preset = settings.preset();
 const enemies = new EnemyManager({
@@ -297,6 +297,7 @@ function pause() {
   input.setInteract(null);
   ui.setPrompt(null);
   if (document.pointerLockElement) document.exitPointerLock();
+  ui.hideTitleCard();
   showPauseMenu();
 }
 
@@ -309,6 +310,7 @@ function openMap() {
   ui.setHUDVisible(false);
   if (document.pointerLockElement) document.exitPointerLock();
   updateIntel(true);
+  ui.hideTitleCard();
   audio.resume();
   audio.play('mapOpen');
   worldMap.open();
@@ -327,6 +329,7 @@ function enterOverview() {
   ui.hideOverlays();
   ui.setHUDVisible(false);
   camera.fov = BASE_FOV; camera.updateProjectionMatrix();
+  ui.hideTitleCard();
   overviewCam.enter(player.pos, player.yaw);
   ui.showOverview({
     back: exitOverview,

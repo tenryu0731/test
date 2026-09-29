@@ -44,8 +44,8 @@ const TH_BIND = (() => { // thumb bind rotation: local -z along the thumb, local
 
 // ---------------------------------------------------------------- colours (sRGB)
 const COL = {
-  fabric: new THREE.Color(0x7b6a51), leather: new THREE.Color(0x4f4437), seam: new THREE.Color(0x3a3229),
-  pad: new THREE.Color(0x35302a), cuff: new THREE.Color(0x3e372e), strap: new THREE.Color(0x2c2823),
+  fabric: new THREE.Color(0x4a4a40), leather: new THREE.Color(0x302e2a), seam: new THREE.Color(0x262521),
+  pad: new THREE.Color(0x383833), cuff: new THREE.Color(0x3e372e), strap: new THREE.Color(0x2c2823),
   sleeve: new THREE.Color(0xeeeeee), sleeveHem: new THREE.Color(0xc8c8c8),
   watchCase: new THREE.Color(0x1d1e1f), watchFace: new THREE.Color(0x3a403a), watchStrap: new THREE.Color(0x252523), watchLcd: new THREE.Color(0x626b5f),
 };
@@ -274,22 +274,10 @@ function buildHand(b, { watch }) {
     const L = f.len[0] * 0.62, z0 = f.z - f.len[0] * 0.22;
     for (let k = 0; k <= 6; k++) {
       const u = k / 6, a = u * PI;
-      pr.push({ c: V(f.x, f.y + f.r[0] * 0.9 + 0.0006, z0 - u * L), X: AX, Y: AY, w: [[bones[1], 1]], fn: () => [Math.max(1e-5, Math.sin(a) ** 0.5) * f.r[0] * 0.78, Math.max(1e-5, Math.sin(a) ** 0.5) * 0.0026] });
+      pr.push({ c: V(f.x, f.y + f.r[0] * 0.86 + 0.0004, z0 - u * L), X: AX, Y: AY, w: [[bones[1], 1]], fn: () => [Math.max(1e-5, Math.sin(a) ** 0.5) * f.r[0] * 0.95, Math.max(1e-5, Math.sin(a) ** 0.5) * 0.0016] });
     }
     b.tube(pr, 8, () => COL.pad, { vScale: 60 });
   });
-  // knuckle guard across the metacarpal heads (rigid to the hand)
-  {
-    const rings = [];
-    for (let k = 0; k <= 10; k++) {
-      const u = k / 10, x = -0.034 + u * 0.064, a = u * PI;
-      const { bd } = palmHalf(0.86);
-      const yTop = bd * (1 - 0.16 * (x / 0.041) ** 2) + 0.0011;
-      const f = 0.25 + 0.75 * Math.sin(a) ** 0.35;
-      rings.push({ c: V(x, yTop + 0.0018, -0.0735 + 0.006 * (x / 0.035) ** 2), X: AY, Y: AZ, w: [[B.hand, 1]], fn: () => [0.0035 * f, 0.0082 * f] });
-    }
-    b.tube(rings, 10, (ri, th) => _c.copy(COL.pad).multiplyScalar(0.85 + 0.25 * Math.cos(th)), { vScale: 60, capStart: true, capEnd: true });
-  }
   // thumb
   {
     const bones = [B.hand, B.thumb(0), B.thumb(1), B.thumb(2)];
@@ -310,10 +298,10 @@ function buildHand(b, { watch }) {
   }
   // gauntlet cuff + velcro strap
   {
-    const zs = [-0.004, 0.004, 0.014, 0.03, 0.05, 0.062, 0.068, 0.071];
-    const rx = [0.030, 0.0335, 0.0352, 0.0356, 0.0362, 0.0368, 0.0372, 0.031], ry = [0.0175, 0.0232, 0.0262, 0.0268, 0.0274, 0.0279, 0.0282, 0.022];
+    const zs = [0.001, 0.006, 0.014, 0.03, 0.05, 0.062, 0.068, 0.071];
+    const rx = [0.0272, 0.0335, 0.0352, 0.0356, 0.0362, 0.0368, 0.0372, 0.031], ry = [0.0105, 0.0232, 0.0262, 0.0268, 0.0274, 0.0279, 0.0282, 0.022];
     const rings = zs.map((z, i) => ({ c: V(0, -0.0012, z), X: AX, Y: AY, w: z < 0.018 ? [[B.hand, 1 - smooth(-0.004, 0.018, z)], [B.fore2, smooth(-0.004, 0.018, z)]] : [[B.fore2, 1]], fn: () => [rx[i], ry[i]] }));
-    b.tube(rings, 20, (i) => (i >= 5 ? _c.copy(COL.cuff).multiplyScalar(0.8) : COL.cuff), { uScale: 4, vScale: 40 });
+    b.tube(rings, 20, (i) => (i >= 5 ? _c.copy(COL.cuff).multiplyScalar(0.8) : COL.cuff), { uScale: 4, vScale: 40, capStart: true });
     const sr = [];
     for (let k = 0; k <= 6; k++) {
       const u = k / 6, a = u * PI;
@@ -323,19 +311,19 @@ function buildHand(b, { watch }) {
   }
   if (watch) {
     // Worn on the inside of the wrist, over the sleeve cuff.
-    const z = 0.092, w = [[B.fore2, 1]];
+    const z = 0.043, w = [[B.fore2, 1]];
     const rs = [];
-    for (let k = 0; k <= 3; k++) rs.push({ c: V(0, -0.001, z - 0.0095 + k * 0.0063), X: AX, Y: AY, w, fn: () => [0.0478 + (k % 3 ? 0.0012 : 0), 0.0428 + (k % 3 ? 0.0012 : 0)] });
+    for (let k = 0; k <= 3; k++) rs.push({ c: V(0, -0.001, z - 0.0095 + k * 0.0063), X: AX, Y: AY, w, fn: () => [0.0376 + (k % 3 ? 0.0009 : 0), 0.0286 + (k % 3 ? 0.0009 : 0)] });
     b.tube(rs, 22, () => COL.watchStrap, { vScale: 60 });
-    const caseG = new THREE.CylinderGeometry(0.0172, 0.0182, 0.0085, 18, 1);
-    b.geometry(caseG, new THREE.Matrix4().compose(V(0, -0.0475, z), new THREE.Quaternion(), V(1, 1, 1.05)), COL.watchCase, w);
-    const face = new THREE.CylinderGeometry(0.0138, 0.0138, 0.001, 18, 1);
-    b.geometry(face, new THREE.Matrix4().makeTranslation(0, -0.0522, z), COL.watchFace, w);
-    const lcd = new THREE.BoxGeometry(0.014, 0.0008, 0.0065);
-    b.geometry(lcd, new THREE.Matrix4().makeTranslation(0, -0.0528, z + 0.0015), COL.watchLcd, w);
+    const caseG = new THREE.CylinderGeometry(0.0145, 0.0152, 0.0075, 18, 1);
+    b.geometry(caseG, new THREE.Matrix4().compose(V(0, -0.0318, z), new THREE.Quaternion(), V(1, 1, 1.05)), COL.watchCase, w);
+    const face = new THREE.CylinderGeometry(0.0115, 0.0115, 0.001, 18, 1);
+    b.geometry(face, new THREE.Matrix4().makeTranslation(0, -0.0358, z), COL.watchFace, w);
+    const lcd = new THREE.BoxGeometry(0.012, 0.0008, 0.0055);
+    b.geometry(lcd, new THREE.Matrix4().makeTranslation(0, -0.0364, z + 0.0012), COL.watchLcd, w);
     for (const sx of [-1, 1]) {
       const btn = new THREE.CylinderGeometry(0.0022, 0.0022, 0.004, 8, 1); btn.rotateZ(PI / 2);
-      b.geometry(btn, new THREE.Matrix4().makeTranslation(sx * 0.0195, -0.0478, z - 0.004), COL.watchCase, w);
+      b.geometry(btn, new THREE.Matrix4().makeTranslation(sx * 0.0162, -0.032, z - 0.003), COL.watchCase, w);
     }
   }
 }
@@ -343,21 +331,21 @@ function buildHand(b, { watch }) {
 function buildSleeve(b) {
   // Loose combat-shirt sleeve with a hemmed cuff, compression folds near the wrist and at the elbow.
   const zs = [];
-  for (let z = 0.036; z < 0.07; z += 0.0055) zs.push(z);
-  for (let z = 0.07; z < 0.18; z += 0.0085) zs.push(z);
+  for (let z = 0.062; z < 0.09; z += 0.0055) zs.push(z);
+  for (let z = 0.09; z < 0.18; z += 0.0085) zs.push(z);
   for (let z = 0.18; z < 0.33; z += 0.015) zs.push(z);
   zs.push(0.36, 0.42, 0.49, SHOULDER_Z + 0.02);
   const radius = (z) => {
-    const rx = z < 0.05 ? 0.0445 : z < 0.3 ? 0.0455 + 0.011 * smooth(0.05, 0.3, z) : 0.0565 + 0.008 * smooth(0.3, 0.55, z);
-    const ry = z < 0.05 ? 0.0395 : z < 0.3 ? 0.0405 + 0.012 * smooth(0.05, 0.3, z) : 0.0525 + 0.009 * smooth(0.3, 0.55, z);
+    const rx = z < 0.075 ? 0.0405 : z < 0.3 ? 0.0435 + 0.013 * smooth(0.075, 0.3, z) : 0.0565 + 0.008 * smooth(0.3, 0.55, z);
+    const ry = z < 0.075 ? 0.0322 : z < 0.3 ? 0.0365 + 0.016 * smooth(0.075, 0.3, z) : 0.0525 + 0.009 * smooth(0.3, 0.55, z);
     return [rx, ry];
   };
   const fold = (z, th) => {
-    const near = smooth(0.05, 0.075, z) * (1 - smooth(0.13, 0.19, z));
+    const near = smooth(0.075, 0.095, z) * (1 - smooth(0.15, 0.2, z));
     const rings = 0.055 * Math.sin(z * 118 + 1.1 * Math.sin(th * 2 + z * 30)) * near;
     const diag = 0.028 * Math.sin(th * 3 + z * 26) * Math.sin(z * 13 + 0.6) * smooth(0.06, 0.12, z) * (1 - smooth(0.3, 0.4, z));
     const elbow = 0.045 * Math.sin(z * 90 + th) * Math.exp(-(((z - 0.262) / 0.03) ** 2)) * smooth(-0.3, 0.4, -Math.sin(th));
-    const hem = 0.06 * Math.exp(-(((z - 0.041) / 0.004) ** 2));
+    const hem = 0.03 * Math.exp(-(((z - 0.066) / 0.004) ** 2));
     return rings + diag + elbow + hem + 0.012 * Math.sin(th * 5 - z * 40);
   };
   const rings = zs.map((z) => {
@@ -367,18 +355,18 @@ function buildSleeve(b) {
     return { c: V(0, 0.001, z), X: AX, Y: AY, w, z, fn: (th) => { const f = 1 + fold(z, th); return [rx * f, ry * f]; } };
   });
   // Turn the first ring inward so the hem has thickness.
-  const r0 = rings[0], inner = { ...r0, c: r0.c.clone().add(V(0, 0, 0.012)), fn: (th) => { const [a, bb] = r0.fn(th); return [a * 0.9, bb * 0.9]; } };
+  const r0 = rings[0], inner = { ...r0, c: r0.c.clone().add(V(0, -0.001, 0.007)), fn: () => [0.0376, 0.0287] };
   rings.unshift(inner);
   b.tube(rings, 24, (i, th) => {
     const z = rings[i].z ?? 0.04;
     const f = i === 0 ? -0.1 : fold(z, th);
     const ao = clamp(0.84 + f * 5, 0.62, 1.06);
-    _c.copy(z < 0.052 ? COL.sleeveHem : COL.sleeve).multiplyScalar(ao);
+    _c.copy(z < 0.075 ? COL.sleeveHem : COL.sleeve).multiplyScalar(ao * 0.9);
     return _c;
   }, { uScale: 3, vScale: 9 });
   // velcro tab on the cuff (outer side)
   const tr = [];
-  for (let k = 0; k <= 5; k++) { const u = k / 5, a = u * PI; tr.push({ c: V(0.0455, 0.004, 0.04 + u * 0.03), X: AY, Y: AX, w: [[B.fore2, 1]], fn: () => [Math.max(1e-5, Math.sin(a) ** 0.3) * 0.0105, Math.max(1e-5, Math.sin(a) ** 0.3) * 0.0022] }); }
+  for (let k = 0; k <= 5; k++) { const u = k / 5, a = u * PI; tr.push({ c: V(0.0445, 0.004, 0.066 + u * 0.03), X: AY, Y: AX, w: [[B.fore2, 1]], fn: () => [Math.max(1e-5, Math.sin(a) ** 0.3) * 0.0105, Math.max(1e-5, Math.sin(a) ** 0.3) * 0.0022] }); }
   b.tube(tr, 8, () => _c.copy(COL.sleeve).multiplyScalar(0.72), { vScale: 20 });
 }
 
@@ -456,34 +444,43 @@ export function grasp(H, sdf, digit, angles, { vel = [1, 1.15, 0.9], max = [1.6,
   return a;
 }
 
-/** Small numeric optimiser (coordinate descent) for targeted finger poses. */
+/**
+ * Small numeric optimiser (coordinate descent) for targeted digit poses. digitIndex 0..3 = finger
+ * (x = [abd, f1, f2, f3]); -1 = thumb (x = [cmcFlex, cmcAbd, twist, mcp, ip]).
+ * cost(W joints in object space, pad point, radii, x).
+ */
 export function solveDigit(H, digitIndex, init, cost, { steps = 60, limits } = {}) {
-  const f = FINGERS[digitIndex];
-  const J = [V(), V(), V(), V()], a = init.slice();
+  const thumb = digitIndex < 0, f = thumb ? null : FINGERS[digitIndex];
+  const base = thumb ? THUMB.base : V(f.x, f.y, f.z), lens = thumb ? THUMB.len : f.len, rads = thumb ? THUMB.r : f.r;
+  const J = [V(), V(), V(), V()], a = init.slice(), n = a.length;
   const q = [new THREE.Quaternion(), new THREE.Quaternion(), new THREE.Quaternion()];
   const evalA = (x) => {
-    q[0].setFromAxisAngle(AY, x[0]).multiply(_qa.setFromAxisAngle(AX, -x[1]));
-    q[1].setFromAxisAngle(AX, -x[2]); q[2].setFromAxisAngle(AX, -x[3]);
-    digitJoints(V(f.x, f.y, f.z), q[0], q[1], q[2], f.len, J);
+    if (thumb) {
+      q[0].copy(TH_BIND).multiply(_qa.setFromEuler(_eu.set(-x[0], x[1], x[2], 'YXZ')));
+      q[1].setFromAxisAngle(AX, -x[3]); q[2].setFromAxisAngle(AX, -x[4]);
+    } else {
+      q[0].setFromAxisAngle(AY, x[0]).multiply(_qa.setFromAxisAngle(AX, -x[1]));
+      q[1].setFromAxisAngle(AX, -x[2]); q[2].setFromAxisAngle(AX, -x[3]);
+    }
+    digitJoints(base, q[0], q[1], q[2], lens, J);
     const W = J.map((p) => p.clone().applyMatrix4(H));
-    // distal pad: 55 % along the distal phalanx, on the palmar side
     const padDir = V(0, -1, 0).applyQuaternion(q[0].clone().multiply(q[1]).multiply(q[2])).transformDirection(H);
-    const pad = W[2].clone().lerp(W[3], 0.55).addScaledVector(padDir, f.r[2] * 0.85);
-    return cost(W, pad, f.r, x);
+    const pad = W[2].clone().lerp(W[3], 0.55).addScaledVector(padDir, rads[2] * 0.85);
+    return cost(W, pad, rads, x);
   };
   let best = evalA(a), step = 0.25;
   for (let it = 0; it < steps; it++) {
     let improved = false;
-    for (let k = 0; k < 4; k++) for (const sgn of [1, -1]) {
+    for (let k = 0; k < n; k++) for (const sgn of [1, -1]) {
       const x = a.slice(); x[k] += sgn * step;
       if (limits) x[k] = clamp(x[k], limits[k][0], limits[k][1]);
       const c = evalA(x);
-      if (c < best) { best = c; a.splice(0, 4, ...x); improved = true; }
+      if (c < best) { best = c; a.splice(0, n, ...x); improved = true; }
     }
     if (!improved) step *= 0.6;
     if (step < 0.002) break;
   }
-  return { angles: a, cost: best };
+  return { angles: a, cost: best, joints: J.map((p) => p.clone().applyMatrix4(H)) };
 }
 
 // ---------------------------------------------------------------- signed distance helpers

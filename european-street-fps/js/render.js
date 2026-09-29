@@ -35,7 +35,7 @@ const QUALITY = {
   },
   medium: {
     pixelRatio: 1.5, minPixelRatio: 0.75, post: false, cloudDetail: true, vignette: 1,
-    near: { size: 2048, radius: 46, kernel: 1, bias: -0.0002, normalBias: 0.05, lift: 150, depth: 320 },
+    near: { size: 2048, radius: 46, kernel: 2, bias: -0.0002, normalBias: 0.05, lift: 150, depth: 320 },
   },
   high: {
     pixelRatio: 2, minPixelRatio: 0.85, post: true, cloudDetail: true, vignette: 1,
@@ -69,7 +69,7 @@ export function createGraphics(canvas, { isTouch = false, params = new URLSearch
   scene.environment = sky.makeEnvironment(renderer);
   scene.environmentIntensity = 1.0;
   // Extra warm fill: light bounced from sunlit façades and ground into shaded streets.
-  const hemi = new THREE.HemisphereLight(new THREE.Color(0.95, 0.86, 0.74), new THREE.Color(0.9, 0.7, 0.48), 0.32);
+  const hemi = new THREE.HemisphereLight(new THREE.Color(0.95, 0.86, 0.74), new THREE.Color(0.9, 0.7, 0.48), 0.5);
   scene.add(hemi);
   // Aerial perspective (see render-chunks.js): fogNear = clear radius, fogFar = extinction length at y=0.
   scene.fog = new THREE.Fog(0xffffff, 60, 5200);

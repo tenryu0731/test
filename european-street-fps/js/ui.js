@@ -131,8 +131,6 @@ export class UI {
     ov.innerHTML = raw ? html : `<div class="panel scrollable">${html}</div>`;
     ov.hidden = false;
     this.el.toasts.classList.add('behind');
-    const first = ov.querySelector('.btn-primary');
-    if (!this.isTouch && first) setTimeout(() => { try { first.focus({ preventScroll: true }); } catch { /* ignore */ } }, 0);
     return ov;
   }
 

@@ -70,7 +70,8 @@ export function buildLand(hf, noise) {
     if (i < 0 || j < 0 || i >= n || j >= n) return 1e9;
     return chan[j * n + i];
   };
-  const lakeE = (x, z) => { const dx = x - LAKE.x, dz = z - LAKE.z; return Math.hypot(dx, dz) - lakeRadiusAt(Math.atan2(dz, dx)); };
+  const LR2 = (LAKE.r + 30) * (LAKE.r + 30);
+  const lakeE = (x, z) => { const dx = x - LAKE.x, dz = z - LAKE.z, d2 = dx * dx + dz * dz; if (d2 > LR2) return 25; return Math.sqrt(d2) - lakeRadiusAt(Math.atan2(dz, dx)); };
   const slopeAt = (x, z) => { const e = 3; return Math.hypot(heightAt(x + e, z) - heightAt(x - e, z), heightAt(x, z + e) - heightAt(x, z - e)) / (2 * e); };
 
   // ---------------------------------------------------------------- field seeds
@@ -151,11 +152,13 @@ export function buildLand(hf, noise) {
         if (em > 0.5) c = CLS.EDGE;
       }
       // town plateau and pads: mown grass
-      const dR = distToRect(x, z, TOWN.rect);
+      const dR = x > -170 && x < 170 && z > -200 && z < 200 ? distToRect(x, z, TOWN.rect) : 99;
       let padW = dR < TOWN.plateauMargin + 4 ? 1 - smooth(TOWN.plateauMargin, TOWN.plateauMargin + 4, dR) : 0;
       if (dR <= 0) c = CLS.TOWN; else if (padW > 0.5) c = CLS.PAD;
       for (const si of SITES) {
-        const d = Math.hypot(x - si.x, z - si.z);
+        const ddx = x - si.x, ddz = z - si.z, rr8 = si.r + 8;
+        if (ddx > rr8 || ddx < -rr8 || ddz > rr8 || ddz < -rr8) continue;
+        const d = Math.sqrt(ddx * ddx + ddz * ddz);
         if (d < si.r + 8) { const w = 1 - smooth(si.r, si.r + 8, d); if (w > padW) padW = w; if (d < si.r) c = CLS.PAD; }
       }
       if (padW > 0) {
@@ -215,7 +218,7 @@ function placeAll(ctx) {
     T[type].push(x, y, z, rot, s, sy, v, extra);
   };
   const inMap = (x, z, m = 2) => Math.abs(x) < FINE.half - m && Math.abs(z) < FINE.half - m;
-  const padClear = (x, z, extra) => { for (const s of SITES) if (Math.hypot(x - s.x, z - s.z) < s.r + extra) return false; return true; };
+  const padClear = (x, z, extra) => { for (const s of SITES) { const dx = x - s.x, dz = z - s.z, r = s.r + extra; if (dx * dx + dz * dz < r * r) return false; } return true; };
   const free = (x, z, road = 2.5, pad = 3) => inMap(x, z) && roadSD(x, z) > road && riverD(x, z) > RIVER_HALF_W + 3 && lakeE(x, z) > 3 &&
     distToRect(x, z, TOWN.rect) > 4 && padClear(x, z, pad);
   const nearRoadOrSite = (x, z, d) => roadSD(x, z) < d || !padClear(x, z, d + 10) || distToRect(x, z, TOWN.rect) < d + 30;
@@ -253,8 +256,8 @@ function placeAll(ctx) {
       // a few cypresses or an olive at the vineyard corners
       if (s.walls > 0.6) add('cypress', s.x + sa * 20, s.z - ca * 20, rng() * 6, 1, 1, rng());
     } else if (s.cls === CLS.WOOD) {
-      for (let a = -R; a <= R; a += 8.5) for (let b = -R; b <= R; b += 8.5) {
-        const x = s.x + a + (rng() - 0.5) * 6, z = s.z + b + (rng() - 0.5) * 6;
+      for (let a = -R; a <= R; a += 10) for (let b = -R; b <= R; b += 10) {
+        const x = s.x + a + (rng() - 0.5) * 7, z = s.z + b + (rng() - 0.5) * 7;
         if (!inField(x, z, 1) || !free(x, z, 4) || rng() < 0.12) continue;
         const r = rng();
         const type = r < 0.58 ? 'oak' : r < 0.84 ? 'pine' : 'cypress';
@@ -294,7 +297,8 @@ function placeAll(ctx) {
   }
 
   // ---- hedgerows along some field margins (bushes, the odd oak or cypress)
-  for (let x = -760; x <= 760; x += 3.2) for (let z = -760; z <= 760; z += 3.2) {
+  for (let x = -760; x <= 760; x += 3.6) for (let z = -760; z <= 760; z += 3.6) {
+    if (classAt(x, z) !== CLS.EDGE) continue;
     const jx = x + (rand2(x | 0, z | 0, 5) - 0.5) * 2.4, jz = z + (rand2(x | 0, z | 0, 6) - 0.5) * 2.4;
     ctx.nearestSeeds(jx, jz, seedTmp);
     if (seedTmp.e > 1.4) continue;

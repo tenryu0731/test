@@ -19,10 +19,10 @@ export const SOLID = 0, WALK = 1, RES = 2, COURT = 3;
 // gar (garden: grass + gravel paths), orch (orchard: grass), clo (cloister garth).
 export const SPACES = [
   // Gates and the little squares inside them.
-  [-2.8, 2.8, IZ1, TZ1, 'gate'], [-10, 10, 127, IZ1, 'sq'],                // Porta San Giovanni (S)
-  [-2.8, 2.8, TZ0, IZ0, 'gate'], [-10, 10, IZ0, -127, 'sq'],               // Porta San Matteo (N)
-  [IX1, TX1, -2.8, 2.8, 'gate'], [98, IX1, -9, 9, 'sq'],                   // Porta alle Fonti (E)
-  [TX0, IX0, -2.8, 2.8, 'gate'], [IX0, -98, -9, 9, 'sq'],                  // Porta Quercecchio (W)
+  [-2.8, 2.8, 139, TZ1, 'gate'], [-12, 12, 127, 139, 'sq'],                // Porta San Giovanni (S)
+  [-2.8, 2.8, TZ0, -139, 'gate'], [-12, 12, -139, -127, 'sq'],               // Porta San Matteo (N)
+  [109, TX1, -2.8, 2.8, 'gate'], [98, 109, -11, 11, 'sq'],                   // Porta alle Fonti (E)
+  [TX0, -109, -2.8, 2.8, 'gate'], [-109, -98, -11, 11, 'sq'],                  // Porta Quercecchio (W)
 
   // Piazza della Cisterna, the link to Piazza del Duomo, Piazza del Duomo (with the collegiata stair).
   [-18, 20, -15, 15, 'sqH'],
@@ -113,10 +113,11 @@ export const MON = {
   popolo: [-44, -17.5, -24, -1], torreGrossa: [-17.5, -8.5, -24, -15],
   podesta: [4, 26, -60, -34], loggia: [0, 4, -54, -38], rognosa: [4, 11, -41, -34],
   agostino: [58, 96, -136, -116], campAgostino: [89, 96, -116, -109],
-  convent: [58, 100, -108, -72],
+  convent: [57, 100, -108, -72],
   francesco: [-44, -14, 90, 104], campFrancesco: [-44, -38.5, 84.5, 90],
   jacopo: [72, 100, 116, 132], campJacopo: [94, 100, 110, 116],
   rocca: [TX0, -70, 96, TZ1],
+  gateN: [-9, 9, TZ0, -139], gateS: [-9, 9, 139, TZ1], gateE: [109, TX1, -9, 9], gateW: [TX0, -109, -9, 9],
 };
 
 // Tower houses. top: parapet | flat | roof | ruin | belfry. vp: exposed as a climbable viewpoint.

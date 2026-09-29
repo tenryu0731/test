@@ -67,8 +67,8 @@ const CFG = {
   lodSleep: 200,         // beyond: squads sleep (rare tick only)
   hideDist: 330,         // robots are not drawn beyond this distance from the camera
   animFull: 45, animHalf: 110, shadowDist: 70, detailDist: 40,
-  walkBudget: 70,        // uncached nav walk tests per frame
-  plansPerFrame: 2,
+  walkBudget: 45,        // uncached nav walk tests per frame
+  plansPerFrame: 1,
   baseCount: 20,         // robots on "normal" (enemyCount = 1)
 };
 // Kind of countryside site → squad composition preferences.
@@ -701,12 +701,12 @@ export class EnemyManager {
     const dx = goal.x - r.pos.x, dz = goal.z - r.pos.z, d = Math.hypot(dx, dz);
     if (d < 0.05) { out.set(0, 0, 0); return d; }
     if (r.directOK && r.forcePathT <= 0) { out.set(dx / d, 0, dz / d); return d; }
-    if (!r.path || r.pathGoal.distanceToSquared(goal) > 4) {
+    if (!r.path || r.pathGoal.distanceToSquared(goal) > Math.max(4, d * d * 0.06)) {
       if (this._plansLeft > 0 && r.planWait <= 0) {
         this._plansLeft--;
-        const p = this.nav.plan(r.pos, goal);
+        const p = this.nav.plan(r.pos, goal, 700);
         if (p === undefined) { r.path = null; r.planWait = 0.1; } // budget spent: retry soon
-        else { r.path = p || []; r.pathI = 0; r.pathGoal.copy(goal); if (!p) r.planWait = 1.5; }
+        else { r.path = p || []; r.pathI = 0; r.pathGoal.copy(goal); r.planWait = p ? 0.3 : 1.5; }
       }
       if (!r.path) { out.set(dx / d, 0, dz / d); return d; }
     }
@@ -794,11 +794,11 @@ export class EnemyManager {
       const u = _v3.set(rand(-1, 1), rand(-1, 0.6), rand(-1, 1));
       u.addScaledVector(dir, -u.dot(dir)).normalize();
       dir.addScaledVector(u, rand(0.55, 1.6) / Math.max(d, 1)).normalize();
-      const w = P.raycast(muzzle, dir, 90);
+      const w = P.raycast(muzzle, dir, 60);
       if (w) {
         end.copy(w.point);
         if (w.distance < 70) this.streaks.sparks(_v4.copy(w.point).addScaledVector(w.normal, 0.03), 3, w.normal, 2.2, 0.6);
-      } else end.copy(muzzle).addScaledVector(dir, 90);
+      } else end.copy(muzzle).addScaledVector(dir, 60);
     }
     this.streaks.tracer(muzzle, end);
     r.sprite.position.copy(muzzle);
