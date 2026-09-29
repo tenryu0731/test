@@ -423,6 +423,27 @@ class Streaks {
 }
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
+// Two-bone IK: shoulder quaternion (in its parent's space) so the chain (upper a, lower b, bone
+// axis -Y, elbow bending toward local +Z) reaches `t`; the elbow points toward `pole`. Returns bend.
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _mb = new THREE.Matrix4();
+const _ik1 = new THREE.Vector3(), _ik2 = new THREE.Vector3(), _ik3 = new THREE.Vector3(), _ik4 = new THREE.Vector3();
+const SUPPORT_R = new THREE.Vector3(0.03, -0.3, -0.04); // under the blaster, in the right forearm's space
+const POLE_L = new THREE.Vector3(1, -1.2, -0.5).normalize();
+function armIK(t, a, b, pole, outQ) {
+  const d = clamp(t.length(), Math.abs(a - b) + 1e-3, a + b - 1e-3);
+  const th = _ik1.copy(t).normalize();
+  const bend = Math.PI - Math.acos(clamp((a * a + b * b - d * d) / (2 * a * b), -1, 1));
+  const alpha = Math.acos(clamp((a * a + d * d - b * b) / (2 * a * d), -1, 1));
+  const ph = _ik2.copy(pole).addScaledVector(th, -pole.dot(th)).normalize();
+  const u = _ik3.copy(th).multiplyScalar(Math.cos(alpha)).addScaledVector(ph, Math.sin(alpha)).normalize();
+  const yAxis = u.negate();
+  const zAxis = _ik4.copy(ph).addScaledVector(yAxis, -ph.dot(yAxis)).negate().normalize();
+  const xAxis = _ik2.crossVectors(yAxis, zAxis).normalize();
+  _mb.makeBasis(xAxis, yAxis, zAxis);
+  outQ.setFromRotationMatrix(_mb);
+  return bend;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Tiny binary heap for A*.
 class Heap {
@@ -834,7 +855,7 @@ export class EnemyManager {
     if (e) return e;
     e = this.navEdges[i] = [];
     const p = this.navPoints[i];
-    for (const j of this._navQuery(p.x, p.z, 4.6, [])) {
+    for (const j of this._navQuery(p.x, p.z, 7, [])) {
       if (j === i) continue;
       const q = this.navPoints[j];
       const known = this.navEdges[j];
@@ -1087,7 +1108,6 @@ export class EnemyManager {
     leg(b.hipR, b.kneeR, b.ankleR, -s, -c);
     const legDrop = 0.8 * (1 - Math.cos(Math.abs(s) * A * Math.max(Math.abs(fN), Math.abs(sN)))) + 0.8 * (1 - Math.cos(crouch)) * 0.9;
     b.pelvis.position.y = BONES[BI.pelvis][3] - legDrop + 0.012 * move * Math.abs(c) - fl * 0.03;
-    b.pelvis.position.x = -side * 0.0;
     b.pelvis.rotation.y = s * 0.08 * gait * (1 - aim * 0.7);
     b.pelvis.rotation.z = s * 0.03 * gait;
 
@@ -1128,11 +1148,20 @@ export class EnemyManager {
     b.shoulderR.rotation.y = (conv + yawRest) * aim;
     b.shoulderR.rotation.z = lerp(-0.1, 0.05, aim);
     b.elbowR.rotation.x = lerp(rIdleEl, -0.14, aim) - r.recoil * 0.12;
-    // left arm: swing → support grip under the blaster
-    b.shoulderL.rotation.x = lerp(s * A * 0.9 + 0.05, -1.2 - pitchArm * 0.9, aim) - fl * 0.15;
-    b.shoulderL.rotation.y = lerp(0, -0.55, aim);
-    b.shoulderL.rotation.z = lerp(0.1, -0.2, aim);
-    b.elbowL.rotation.x = lerp(-0.25 - Math.max(0, -s) * A * 0.6, -1.05, aim);
+    // left arm: swing → support grip under the blaster (analytic two-bone IK in spine space)
+    const idleElL = -0.25 - Math.max(0, -s) * A * 0.6;
+    _e.set(s * A * 0.9 + 0.05 - fl * 0.15, 0, 0.1, 'YXZ');
+    _qa.setFromEuler(_e);
+    if (aim > 0.001) {
+      b.shoulderR.updateMatrix(); b.elbowR.updateMatrix();
+      _v1.copy(SUPPORT_R).applyMatrix4(b.elbowR.matrix).applyMatrix4(b.shoulderR.matrix).sub(b.shoulderL.position);
+      const bend = armIK(_v1, 0.281, 0.3, POLE_L, _qb);
+      b.shoulderL.quaternion.copy(_qa).slerp(_qb, aim);
+      b.elbowL.rotation.x = lerp(idleElL, -bend, aim);
+    } else {
+      b.shoulderL.quaternion.copy(_qa);
+      b.elbowL.rotation.x = idleElL;
+    }
 
     r.group.position.copy(r.pos);
     r.group.rotation.set(0, r.heading, 0);
@@ -1142,7 +1171,7 @@ export class EnemyManager {
     // visor: teal on patrol, amber when alerted, soft (≤0.6)
     const vm = r.visorMat;
     vm.emissive.setRGB(lerp(0.2, 1.0, r.alertLevel), lerp(0.72, 0.52, r.alertLevel), lerp(0.66, 0.16, r.alertLevel)).convertSRGBToLinear();
-    vm.emissiveIntensity = 0.5 + (r.sees ? 0.08 : 0);
+    vm.emissiveIntensity = lerp(0.5, 0.4, r.alertLevel) + (r.sees ? 0.06 : 0);
   }
 
   _animateDeath(r, dt) {
