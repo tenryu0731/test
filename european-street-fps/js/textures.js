@@ -92,6 +92,13 @@ function field(n, p, oct, seed, py = p) {
   return F;
 }
 
+// Drop single-use fields once a material is baked (keeps peak memory low on phones);
+// the few fields shared between materials stay cached.
+const SHARED = new Set([7064, 7128, 4242]);
+function releaseFields() {
+  for (const k of fieldCache.keys()) if (!SHARED.has(+k.slice(k.lastIndexOf(',') + 1))) fieldCache.delete(k);
+}
+
 // Value below which a fraction q of the field lies (sampled), so masks have a known coverage
 // whatever the noise statistics.
 function quantile(F, q) {
@@ -230,6 +237,7 @@ function normalTex(H, n, strength) {
 }
 
 function material(b, { tile, normal = 4, metal = 0, colorTex = null, normalMap = null, ormTex = null, extra = {} }) {
+  releaseFields();
   const orm = ormTex || tex(b.M, b.n, false);
   const m = new THREE.MeshStandardMaterial({
     map: colorTex || tex(b.C, b.n, true),
@@ -419,7 +427,7 @@ function genPlasterStructure(n, seed) {
       const patch = smooth(pq, pq + 0.008, pr);
       const rim = smooth(pq - 0.03, pq, pr) * (1 - patch);
       // Hairline cracks: thin ridges of a noise field, only in some areas.
-      const crack = (1 - smooth(0.0, 0.006, Math.abs(CR[i] - 0.5))) * smooth(cq, cq + 0.05, CM[i]) * (1 - patch);
+      const crack = (1 - smooth(0.0, 0.009, Math.abs(CR[i] - 0.5))) * smooth(cq, cq + 0.05, CM[i]) * (1 - patch) * 0.7;
       const streak = smooth(0.56, 0.85, SA[i]) * smooth(0.45, 0.75, SB[i]);
       const damp = smooth(dq, dq + 0.12, DA[i]);
       let bm = 0, br = 0.62, bg = 0.59, bb = 0.53;
@@ -452,7 +460,7 @@ function plasterColour(S, base, seed) {
     const i = y * n + x;
     const mott = MO[mrow + (x < xs ? x + ox : x - xs)], fine = FI[i];
     const st = ST[i], dm = DM[i];
-    const k = (0.9 + 0.16 * mott) * (0.96 + 0.06 * fine) * (1 - st * 0.06) * (1 - dm * 0.07) * (1 - CK[i] * 0.18);
+    const k = (0.9 + 0.16 * mott) * (0.96 + 0.06 * fine) * (1 - st * 0.06) * (1 - dm * 0.07) * (1 - CK[i] * 0.14);
     // Streaks and damp shift slightly toward grey-green.
     const g = (st * 0.25 + dm * 0.35) * 0.3;
     let r = (b0 + (0.5 - b0) * g) * k, gg = (b1 + (0.5 - b1) * g) * k, b = (b2 + (0.46 - b2) * g) * k;

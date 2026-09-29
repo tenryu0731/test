@@ -291,7 +291,7 @@ export function buildCity(scene, M) {
       lbox(f, trim, t0 - 0.28, t1 + 0.28, y1, y1 + 0.26, 0, 0.07, {});
     }
     lbox(f, trim, t0 - 0.1, t1 + 0.1, 0, 0.1, -FAC, 0.22, { gao: false }); // threshold step
-    if (R() < 0.5 && walkOut(f, (t0 + t1) / 2, 3.2)) { // potted plants beside the door (not in narrow alleys)
+    if (!L.noPots && R() < 0.5 && walkOut(f, (t0 + t1) / 2, 3.2)) { // potted plants beside the door (not in narrow alleys)
       for (const t of [t0 - 0.55, t1 + 0.55]) {
         const x = fx(f, t, 0.35), z = fz(f, t, 0.35);
         const g = new THREE.CylinderGeometry(0.24, 0.17, 0.42, 10);
@@ -319,7 +319,7 @@ export function buildCity(scene, M) {
     if (R() < 0.45) {
       const t = t1 + 0.55;
       lbox(f, M.iron, t - 0.02, t + 0.02, 3.0, 3.04, 0, 0.9, { gao: false });
-      lbox(f, M.wood, t - 0.03, t + 0.03, 2.35, 2.95, 0.25, 0.85, { gao: false });
+      lbox(f, M.wood, t - 0.03, t + 0.03, 2.4, 3.0, 0.25, 0.85, { gao: false });
     }
   }
 
@@ -670,7 +670,7 @@ export function buildCity(scene, M) {
     const side2 = { kind: 'door', t0: c + 5.0, t1: c + 6.2, y0: 0, y1: 2.5, arch: true };
     const bands = [{ y0: 0, y1: 6.5, ops: [side1, portal, side2] }, { y0: 6.5, y1: H, ops: [] }];
     slab(f, bands, L, 0, W);
-    for (const op of [portal, side1, side2]) doorFill(f, op, { ...L, lantern: false });
+    for (const op of [portal, side1, side2]) doorFill(f, op, { ...L, lantern: false, noPots: true }); // steps in front
     // Rose window.
     const rw = new THREE.Shape(); rw.absarc(c, 10, 1.9, 0, Math.PI * 2, false);
     const hole = new THREE.Path(); hole.absarc(c, 10, 1.4, 0, Math.PI * 2, true); rw.holes.push(hole);
@@ -785,7 +785,7 @@ export function buildCity(scene, M) {
       const t0 = (Math.PI * k) / segs, t1 = (Math.PI * (k + 1)) / segs, tm = (t0 + t1) / 2;
       const p = (t, a) => (along === 'z' ? [c + r * Math.cos(t), spring + r * Math.sin(t), a] : [a, spring + r * Math.sin(t), c + r * Math.cos(t)]);
       const n = along === 'z' ? [-Math.cos(tm), -Math.sin(tm), 0] : [0, -Math.sin(tm), -Math.cos(tm)];
-      geo.quad(M.stone, p(t0, a0), p(t0, a1), p(t1, a1), p(t1, a0), n, { gao: false, ao: 0.7 });
+      geo.quad(M.stone, p(t0, a0), p(t0, a1), p(t1, a1), p(t1, a0), n, { gao: false, ao: 0.58 });
     }
     collide(x0, spring, z0, x1, H, z1);
     buildRoof(x0, x1, z0, z1, H, L, 0.3);
@@ -882,14 +882,14 @@ export function buildCity(scene, M) {
     geo.geom(M.waterJet || M.water, g, null, { gao: false, cast: false }); g.dispose();
   }
   // Octagonal rim (flats facing the axes and diagonals): 0.42 m, low enough to step onto and over
-  // into the shallow basin. Axis flats are exact boxes, diagonal flats are covered by three boxes.
+  // into the shallow basin. Axis flats are exact boxes, diagonal flats are covered by small boxes.
   for (const s of [-1, 1]) {
     collide(s > 0 ? 2.63 : -3.03, 0, -1.26, s > 0 ? 3.03 : -2.63, 0.42, 1.26);
     collide(-1.26, 0, s > 0 ? 2.63 : -3.03, 1.26, 0.42, s > 0 ? 3.03 : -2.63);
   }
-  for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) for (const tau of [-0.78, 0, 0.78]) {
+  for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) for (const tau of [-1, -0.6, -0.2, 0.2, 0.6, 1]) {
     const cx = sx * (2.0 - 0.707 * tau), cz = sz * (2.0 + 0.707 * tau);
-    collide(cx - 0.28, 0, cz - 0.28, cx + 0.28, 0.42, cz + 0.28);
+    collide(cx - 0.2, 0, cz - 0.2, cx + 0.2, 0.42, cz + 0.2);
   }
   collide(-0.5, 0, -0.5, 0.5, 2.9, 0.5);
   collide(-1.3, 1.45, -1.3, 1.3, 1.9, 1.3);
@@ -941,21 +941,27 @@ export function buildCity(scene, M) {
   }
   cafe(-9.8, 4.2); cafe(-6.8, 2.2); cafe(-10.2, 0.2); cafe(9.5, -2.8);
 
-  function crates(x, z, n = 2) {
+  // Crate stacks. Placed against a wall so they never block the only walkable nav row of a
+  // street or alley; alongZ lines them up along a north-south alley instead of across it.
+  function crates(x, z, n = 2, alongZ = false) {
+    const hs = [];
     for (let k = 0; k < n; k++) {
-      const s = rr(0.75, 0.95), ox = x + (k % 2) * 0.95, oz = z + (k > 1 ? 0.95 : 0), rot = rr(-0.2, 0.2);
+      const s = rr(0.75, 0.95), rot = rr(-0.2, 0.2);
+      const ox = alongZ ? x : x + (k % 2) * 0.95, oz = alongZ ? z + k * 0.95 : z + (k > 1 ? 0.95 : 0);
       const g = new THREE.BoxGeometry(s, s, s); g.rotateY(rot); g.translate(ox, s / 2, oz);
       geo.geom(M.wood, g, null, { gao: true }); g.dispose();
       collide(ox - s / 2, 0, oz - s / 2, ox + s / 2, s, oz + s / 2);
       decalsRound(ox, oz, s * 0.9, 0.35);
+      hs.push(s);
     }
-    if (n >= 2 && R() < 0.7) {
-      const s = 0.7; const g = new THREE.BoxGeometry(s, s, s); g.rotateY(rr(0, 1)); g.translate(x + 0.45, 0.85 + s / 2, z);
+    if (n >= 2 && R() < 0.7) { // a smaller crate resting on the first two
+      const s = 0.7, g = new THREE.BoxGeometry(s, s, s); g.rotateY(rr(0, 1));
+      g.translate(alongZ ? x : x + 0.45, Math.max(hs[0], hs[1]) + s / 2, alongZ ? z + 0.45 : z);
       geo.geom(M.wood, g, null, { gao: false }); g.dispose();
     }
   }
-  crates(-23.8, -8, 2); crates(21.4, 6, 3); crates(-30, 1.8, 2); crates(30, -1.6, 2); crates(-1.9, 30, 2);
-  crates(12, 24.4, 2); crates(-18, -25.3, 2); crates(1.8, -20, 1); crates(-40, -2, 1);
+  crates(-24.0, -8, 2, true); crates(23.0, 6, 3, true); crates(-30, 2.45, 2); crates(30, -1.95, 2); crates(-2.45, 30, 2, true);
+  crates(12, 24.45, 2); crates(-18, -25.45, 2); crates(2.95, -20, 1); crates(-40, -2.45, 1);
 
   // Well in the cathedral square.
   {
@@ -1049,6 +1055,9 @@ export function buildCity(scene, M) {
   // Alleys are narrower than the sampling grid; add their centre lines explicitly.
   for (let z = -24; z <= 25; z += 3) { if (clear(-23.25, z, 0.6)) navPoints.push(V3(-23.25, 0, z)); if (clear(22.25, z, 0.6)) navPoints.push(V3(22.25, 0, z)); }
   for (let x = -22; x <= 21; x += 3) { if (clear(x, 25.25, 0.6)) navPoints.push(V3(x, 0, 25.25)); if (clear(x, -24.75, 0.6)) navPoints.push(V3(x, 0, -24.75)); }
+  // Street centre lines, so props against the walls (crates, pots) never cut a street's graph.
+  for (let x = -44.5; x <= 44.5; x += 3) if (Math.abs(x) > 14 && clear(x, 0, 0.6)) navPoints.push(V3(x, 0, 0));
+  for (let z = -28.5; z <= 44.5; z += 3) if ((z < -12 || z > 12) && clear(0.5, z, 0.6)) navPoints.push(V3(0.5, 0, z));
 
   const pick = (x, z) => { let best = null, bd = 1e9; for (const p of navPoints) { const d = (p.x - x) ** 2 + (p.z - z) ** 2; if (d < bd) { bd = d; best = p; } } return best.clone(); };
   const enemySpawns = [pick(-23.25, -16), pick(22.25, 14), pick(0, -37), pick(-38, 0), pick(38, 0), pick(-10, 25.25), pick(9, -24.75)];

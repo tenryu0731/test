@@ -373,6 +373,6 @@ window.__game = {
   scene, camera, player, enemies, weapon, city, physics, renderer, input, ui, audio,
   get state() { return state; }, startPlaying, endRound, shoot,
   freeze(v = true) { frozen = v; clock.getDelta(); },
-  step(n = 1, dt = 1 / 30) { for (let i = 0; i < n; i++) update(dt); render(); },
+  step(n = 1, dt = 1 / 30, draw = true) { for (let i = 0; i < n; i++) update(dt); if (draw) render(); },
 };
 requestAnimationFrame(frame);
