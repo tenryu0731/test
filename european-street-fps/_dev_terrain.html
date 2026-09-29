@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><title>terrain dev</title>
+<style>html,body{margin:0;overflow:hidden;background:#000}canvas{display:block;width:100vw;height:100vh}</style>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","three/addons/":"./vendor/addons/"}}</script></head>
+<body><canvas id="c"></canvas><script type="module">
+import * as THREE from 'three';
+import { createGraphics } from './js/render.js';
+import { createTerrain } from './js/terrain.js';
+const params = new URLSearchParams(location.search);
+const gfx = createGraphics(document.getElementById('c'), { params });
+let materials = {};
+if (params.has('mats')) { const { createMaterials } = await import('./js/textures.js'); materials = createMaterials(gfx.renderer); }
+const terrain = createTerrain(gfx.scene, { materials, renderer: gfx.renderer, camera: gfx.camera });
+window.__t = {
+  THREE, gfx, terrain,
+  view(px, py, pz, tx, ty, tz, agl = true) {
+    const c = gfx.camera;
+    if (agl) { py += terrain.heightAt(px, pz); ty += terrain.heightAt(tx, tz); }
+    c.position.set(px, py, pz); c.lookAt(tx, ty, tz); c.updateMatrixWorld();
+    terrain.update(0.5, c); terrain.update(0.0, c);
+    gfx.updateSun(new THREE.Vector3(px, py - 1.6, pz));
+    gfx.update?.(0.016, {});
+    gfx.renderer.info.reset?.();
+    gfx.renderer.info.autoReset = false;
+    gfx.render();
+    const i = gfx.renderer.info.render; const r = { calls: i.calls, tris: i.triangles };
+    gfx.renderer.info.reset(); gfx.renderer.info.autoReset = true;
+    return r;
+  },
+};
+window.__ready = true;
+</script></body></html>
