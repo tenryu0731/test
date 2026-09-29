@@ -8,6 +8,7 @@ const MAX_VOICES = 12;
 const LEVEL = {
   shot: 2.4, empty: 1.6, reload: 0.55, hitRobot: 1.8, hitWorld: 1.6, robotShot: 1.4, robotHurt: 1.8, robotDie: 0.6,
   robotAlert: 1.6, playerHurt: 1.5, step: 2.2, win: 1, lose: 1, uiClick: 2.5, servo: 6,
+  pickupAmmo: 1.6, pickupHealth: 1.2, mapOpen: 1.4, mapClose: 1.2, whoosh: 1.1, discover: 1, objective: 1,
 };
 
 export class GameAudio {
@@ -274,5 +275,44 @@ const SOUNDS = {
   uiClick(s) {
     s.tone(0, 0.03, { f0: 1500, gain: 0.18 });
     s.noise(0, 0.008, { type: 'bandpass', freq: 3000, q: 1, gain: 0.2 });
+  },
+  // Ammo crate: latch clack, rounds rattling into the pouch, lid thump.
+  pickupAmmo(s) {
+    s.noise(0, 0.012, { type: 'bandpass', freq: 2800, q: 2, gain: 0.6 });
+    for (let i = 0; i < 4; i++) s.noise(0.06 + i * r(0.03, 0.05), 0.02, { type: 'bandpass', freq: r(3200, 4600), q: 3, gain: r(0.2, 0.35) });
+    s.tone(0.05, 0.08, { type: 'triangle', f0: 1900, f1: 1500, gain: 0.05 });
+    s.noise(0.26, 0.06, { type: 'lowpass', freq: 700, gain: 0.35, brown: true });
+  },
+  // Medkit: velcro rip + a soft two-note chime (warm, not arcade).
+  pickupHealth(s) {
+    s.noise(0, 0.12, { type: 'bandpass', freq: 2200, q: 0.8, gain: 0.25, sweepTo: 3600 });
+    s.tone(0.1, 0.5, { type: 'sine', f0: 659.25, gain: 0.12, a: 0.01 });
+    s.tone(0.2, 0.7, { type: 'sine', f0: 987.77, gain: 0.1, a: 0.01 });
+  },
+  // Paper map unfolding / folding.
+  mapOpen(s) {
+    s.noise(0, 0.16, { type: 'bandpass', freq: 2400, q: 0.7, gain: 0.35, a: 0.02, sweepTo: 1500 });
+    s.noise(0.12, 0.1, { type: 'bandpass', freq: 3200, q: 0.9, gain: 0.25, a: 0.01 });
+  },
+  mapClose(s) {
+    s.noise(0, 0.12, { type: 'bandpass', freq: 1800, q: 0.7, gain: 0.3, a: 0.02, sweepTo: 2600 });
+  },
+  // Quick climb / transition: filtered air rush.
+  whoosh(s) {
+    s.noise(0, 0.45, { type: 'bandpass', freq: 500, q: 0.6, gain: 0.45, a: 0.15, sweepTo: 1600 });
+    s.noise(0.05, 0.4, { type: 'lowpass', freq: 400, gain: 0.3, brown: true, a: 0.12 });
+  },
+  // Viewpoint reached: gentle open fifth with wind.
+  discover(s) {
+    s.send(0.35);
+    s.tone(0, 1.4, { type: 'sine', f0: 392, gain: 0.1, a: 0.08 });
+    s.tone(0.12, 1.3, { type: 'sine', f0: 587.33, gain: 0.08, a: 0.08 });
+    s.tone(0.24, 1.2, { type: 'triangle', f0: 783.99, gain: 0.05, a: 0.06 });
+    s.noise(0, 1.2, { type: 'bandpass', freq: 700, q: 0.5, gain: 0.08, a: 0.3 });
+  },
+  // Squad area cleared.
+  objective(s) {
+    s.send(0.3);
+    [523.25, 783.99].forEach((f, i) => s.tone(i * 0.11, 0.6, { type: 'triangle', f0: f, gain: 0.13, a: 0.01 }));
   },
 };

@@ -196,10 +196,13 @@ export function createPost(renderer) {
     quad.render(renderer);
   }
 
-  function render(scene, camera) {
+  function render(scene, camera, timer = null) {
+    timer?.begin('world');
     renderer.setRenderTarget(sceneRT);
     renderer.clear();
     renderer.render(scene, camera);
+    timer?.end();
+    timer?.begin('post');
 
     const near = camera.near, far = camera.far;
     if (options.ao) {
@@ -228,6 +231,7 @@ export function createPost(renderer) {
     composite.uniforms.bloomStrength.value = options.bloom ? 0.07 : 0;
     composite.uniforms.cameraNear.value = near; composite.uniforms.cameraFar.value = far;
     pass(composite, null);
+    timer?.end();
   }
 
   // For compile(): a scene holding one quad per material, so every program is built up front.
@@ -242,5 +246,5 @@ export function createPost(renderer) {
     depthTexture.dispose();
   }
 
-  return { setSize, render, options, samples, compileTargets, dispose, get size() { return [W, H]; } };
+  return { setSize, render, options, samples, compileTargets, dispose, target: sceneRT, get size() { return [W, H]; } };
 }

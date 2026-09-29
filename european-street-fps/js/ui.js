@@ -3,9 +3,8 @@
 // The full-screen map is built by map.js inside the same root; the minimap / compass canvases
 // live here and are drawn by map.js.
 import { Input } from './input.js';
-import { DIFFICULTY, DIFFICULTY_ORDER } from './difficulty.js';
+import { DIFFICULTY, makeCustomDifficulty } from './difficulty.js';
 import { CUSTOM_ASPECTS, DIFFICULTY_CHOICES, QUALITY_CHOICES } from './settings.js';
-import { makeCustomDifficulty } from './difficulty.js';
 
 const TITLE = 'サン・ジミニャーノ市街戦';
 const SUBTITLE = 'San Gimignano · Toscana';

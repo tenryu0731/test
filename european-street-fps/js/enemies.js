@@ -172,20 +172,24 @@ export class EnemyManager {
     return n;
   }
 
-  // Robot types for a squad of n at a site.
-  _mix(site, n) {
-    const pickOne = () => {
-      const x = Math.random();
-      if (FORTIFIED.has(site.kind)) return x < 0.45 ? 'heavy' : x < 0.8 ? 'trooper' : 'scout';
-      return x < 0.5 ? 'trooper' : x < 0.8 ? 'scout' : 'heavy';
+  // Robot types for every site: global quotas (≈ 20 % heavy, ≈ 28 % scout, rest troopers) handed to
+  // squad slots by preference — heavies lead fortified sites and back up bigger town squads, scouts
+  // roam farms / chapels and flank in the town.
+  _mixAll(counts) {
+    const T = counts.reduce((a, b) => a + b, 0);
+    const quota = { heavy: Math.round(T * 0.2), scout: Math.round(T * 0.28) };
+    const slots = [];
+    this.sites.forEach((site, si) => { for (let k = 0; k < counts[si]; k++) slots.push({ site, si, k, type: null }); });
+    const score = {
+      heavy: ({ site, k }) => (FORTIFIED.has(site.kind) ? (k === 0 ? 3 : 1) : site.town ? (k === 2 ? 2.5 : k >= 3 ? 1.5 : 0.3) : (k === 1 ? 2 : 1)) + Math.random() * 0.8,
+      scout: ({ site, k }) => (site.town ? (k === 1 ? 3 : 0.5) : FORTIFIED.has(site.kind) ? (k === 2 ? 2.5 : k === 1 ? 1.5 : 0.2) : (k === 1 ? 2.5 : 2)) + Math.random(),
     };
-    if (n === 1) return [pickOne()];
-    const seq = site.town ? ['trooper', 'scout', 'heavy', 'trooper', 'scout', 'trooper', 'heavy', 'trooper']
-      : FORTIFIED.has(site.kind) ? ['heavy', 'trooper', 'scout', 'trooper', 'heavy', 'scout', 'trooper', 'trooper']
-        : [Math.random() < 0.5 ? 'trooper' : 'scout', 'heavy', 'trooper', 'scout', 'trooper', 'heavy', 'trooper', 'scout'];
-    const out = [];
-    for (let k = 0; k < n; k++) out.push(seq[k % seq.length]);
-    if (!site.town && n === 2 && Math.random() < 0.35) out[1] = out[0] === 'scout' ? 'trooper' : 'scout';
+    for (const type of ['heavy', 'scout']) {
+      const free = slots.filter((sl) => !sl.type).map((sl) => [score[type](sl), sl]).sort((a, b) => b[0] - a[0]);
+      for (let n = 0; n < quota[type] && n < free.length; n++) free[n][1].type = type;
+    }
+    const out = this.sites.map(() => []);
+    for (const sl of slots) out[sl.si][sl.k] = sl.type || 'trooper';
     return out;
   }
 
@@ -231,9 +235,10 @@ export class EnemyManager {
     this.time = 0; this.shooters = 0; this.lastBurstStart = -10; this.frame = 0;
     this.streaks.clear();
     const counts = this._allocate(c);
+    const mix = this._mixAll(counts);
     this.sites.forEach((site, si) => {
       site.robots = [];
-      const types = this._mix(site, counts[si]);
+      const types = mix[si];
       const spawns = site.spawns.slice().sort(() => Math.random() - 0.5);
       types.forEach((type, k) => {
         const r = this._acquire(type);

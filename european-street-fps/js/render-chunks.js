@@ -158,7 +158,7 @@ export function installChunks({ sunDir, haze, sunColor, sunInscatter = 0.35, fal
 #else
 ${original}
 #endif
-`;
+` + s.slice(b);
     } else console.warn('[render] lights chunk layout changed; cascades disabled');
   }
 

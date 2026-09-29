@@ -71,6 +71,7 @@ class SkinBuilder {
       const row = [];
       for (let j = 0; j < seg; j++) {
         const th = (j / seg) * PI * 2;
+        if (r.pt) { const [x, y] = r.pt(th); row.push(r.c.clone().addScaledVector(r.X, x).addScaledVector(r.Y, y)); continue; }
         let rx, ry; const f = r.fn(th); if (Array.isArray(f)) { rx = f[0]; ry = f[1]; } else rx = ry = f;
         row.push(r.c.clone().addScaledVector(r.X, Math.cos(th) * rx).addScaledVector(r.Y, Math.sin(th) * ry));
       }
@@ -155,18 +156,9 @@ function palmHalf(t) {
   const bp = 0.0150 + 0.0012 * smooth(0.0, 0.25, t) - 0.0038 * smooth(0.35, 1.0, t);
   return { a, bd, bp };
 }
-export function palmPalmarY(x, t) {
-  const { a, bp } = palmHalf(t);
-  const u = clamp(x / a, -1, 1);
-  const thenar = 0.0042 * Math.exp(-(((u + 0.52) / 0.36) ** 2)) * (1 - smooth(0.45, 0.8, t)) * smooth(-0.1, 0.12, t);
-  const hypo = 0.0032 * Math.exp(-(((u - 0.62) / 0.3) ** 2)) * (1 - smooth(0.55, 0.85, t));
-  const hollow = 0.0024 * Math.exp(-((u / 0.42) ** 2)) * smooth(0.25, 0.45, t) * (1 - smooth(0.75, 0.92, t));
-  const pads = 0.0016 * smooth(0.78, 0.95, t);
-  return -(bp * Math.sqrt(Math.max(0, 1 - u ** 6)) + thenar + hypo - hollow + pads);
-}
 
 function palmRings() {
-  const L = 0.0862, rings = [];
+  const L = 0.0862, rings = [], E = 2.7;
   const ts = [-0.2, -0.12, -0.04, 0.04, 0.14, 0.26, 0.38, 0.5, 0.62, 0.74, 0.84, 0.92, 0.98, 1.03, 1.065, 1.085];
   for (const t0 of ts) {
     const t = Math.min(t0, 1);
@@ -176,18 +168,31 @@ function palmRings() {
     const w = z > -0.004 ? [[B.hand, 1 - smooth(-0.004, 0.016, z)], [B.fore2, smooth(-0.004, 0.016, z)]] : [[B.hand, 1]];
     rings.push({
       c: V(0, 0, z), X: AX, Y: AY, w, t,
-      fn: (th) => {
+      pt: (th) => { // rounded-rectangle section: domed back, padded palm
         const cs = Math.cos(th), sn = Math.sin(th);
-        const e = 2 / 2.7, px = Math.sign(cs) * Math.abs(cs) ** e, py = Math.sign(sn) * Math.abs(sn) ** e;
-        const x = a * px * shrink;
-        const y = sn >= 0 ? bd * (1 - 0.16 * px * px) * py : -palmPalmarY(x / shrink, t) * py;
-        return [x / (cs || 1e-6) , (y * shrink) / (sn || 1e-6)];
+        const px = Math.sign(cs) * Math.abs(cs) ** (2 / E), py = Math.sign(sn) * Math.abs(sn) ** (2 / E);
+        const x = a * px;
+        const y = sn >= 0 ? bd * (1 - 0.16 * px * px) * py : palmPalmarMag(x, t) * py;
+        return [x * shrink, y * shrink];
       },
     });
   }
-  // fn returns radii such that X*cos*rx = x, Y*sin*ry = y
-  for (const r of rings) { const f = r.fn; r.fn = (th) => { const cs = Math.cos(th), sn = Math.sin(th); const [rx, ry] = f(th); return [Math.abs(cs) < 1e-5 ? 0 : rx, Math.abs(sn) < 1e-5 ? 0 : ry]; }; }
   return rings;
+}
+function palmPalmarMag(x, t) {
+  const { a, bp } = palmHalf(t);
+  const u = clamp(x / a, -1, 1);
+  const thenar = 0.0042 * Math.exp(-(((u + 0.52) / 0.36) ** 2)) * (1 - smooth(0.45, 0.8, t)) * smooth(-0.1, 0.12, t);
+  const hypo = 0.0032 * Math.exp(-(((u - 0.62) / 0.3) ** 2)) * (1 - smooth(0.55, 0.85, t));
+  const hollow = 0.0024 * Math.exp(-((u / 0.42) ** 2)) * smooth(0.25, 0.45, t) * (1 - smooth(0.75, 0.92, t));
+  const pads = 0.0016 * smooth(0.78, 0.95, t);
+  return bp + thenar + hypo - hollow + pads;
+}
+/** Palmar surface height (negative y) of the palm at x, t. */
+export function palmPalmarY(x, t) {
+  const { a } = palmHalf(t);
+  const u = Math.min(1, Math.abs(x / a));
+  return -palmPalmarMag(x, t) * (1 - u ** 2.7) ** (1 / 2.7);
 }
 
 // ---------------------------------------------------------------- hand + arm geometry
@@ -283,7 +288,7 @@ function buildHand(b, { watch }) {
       const f = 0.25 + 0.75 * Math.sin(a) ** 0.35;
       rings.push({ c: V(x, yTop + 0.0018, -0.0735 + 0.006 * (x / 0.035) ** 2), X: AY, Y: AZ, w: [[B.hand, 1]], fn: () => [0.0035 * f, 0.0082 * f] });
     }
-    b.tube(rings, 10, (ri, th) => _c.copy(COL.pad).multiplyScalar(0.85 + 0.25 * Math.cos(th)), { vScale: 60 });
+    b.tube(rings, 10, (ri, th) => _c.copy(COL.pad).multiplyScalar(0.85 + 0.25 * Math.cos(th)), { vScale: 60, capStart: true, capEnd: true });
   }
   // thumb
   {
@@ -501,7 +506,7 @@ export function sdBox(p, c, h, r = 0) {
 }
 /** Extruded 2D profile ([z, y] points) of half-width hw along x, rounded by r. */
 export function sdProfile(p, pts, hw, r) {
-  const d2 = sdPolygon(p.z, p.y, pts) + r * 0.3, dx = Math.abs(p.x) - hw + r;
+  const d2 = sdPolygon(p.z, p.y, pts), dx = Math.abs(p.x) - hw + r;
   return Math.hypot(Math.max(d2, 0), Math.max(dx, 0)) + Math.min(Math.max(d2, dx), 0) - r;
 }
 
