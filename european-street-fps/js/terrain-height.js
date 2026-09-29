@@ -24,8 +24,27 @@ export const rand2 = (ix, iz, seed) => hash2i(ix, iz, seed) / 4294967296;
 const GX = new Float32Array(16), GZ = new Float32Array(16);
 for (let i = 0; i < 16; i++) { GX[i] = Math.cos(i * Math.PI / 8 + 0.2); GZ[i] = Math.sin(i * Math.PI / 8 + 0.2); }
 
-// 2D gradient noise, range ≈ [-1, 1].
+const PERM = new Uint8Array(512);
+{
+  const a = Array.from({ length: 256 }, (_, i) => i);
+  for (let i = 255; i > 0; i--) { const j = hash2i(i, 7, 1234) % (i + 1); [a[i], a[j]] = [a[j], a[i]]; }
+  for (let i = 0; i < 512; i++) PERM[i] = a[i & 255];
+}
+// 2D gradient noise (permutation table, period 256), range ≈ [-1, 1].
 export function perlin(x, z, seed) {
+  const ix = Math.floor(x), iz = Math.floor(z);
+  const fx = x - ix, fz = z - iz;
+  const u = fx * fx * fx * (fx * (fx * 6 - 15) + 10), v = fz * fz * fz * (fz * (fz * 6 - 15) + 10);
+  const X = (ix + seed * 37) & 255, Z = (iz + seed * 11) & 255, X1 = (X + 1) & 255;
+  const pa = PERM[X], pb = PERM[X1];
+  const a = PERM[pa + Z] & 15, b = PERM[pb + Z] & 15, c = PERM[pa + Z + 1] & 15, d = PERM[pb + Z + 1] & 15;
+  const na = GX[a] * fx + GZ[a] * fz, nb = GX[b] * (fx - 1) + GZ[b] * fz;
+  const nc = GX[c] * fx + GZ[c] * (fz - 1), nd = GX[d] * (fx - 1) + GZ[d] * (fz - 1);
+  const x1 = na + (nb - na) * u, x2 = nc + (nd - nc) * u;
+  return (x1 + (x2 - x1) * v) * 1.45;
+}
+// hashed variant (no period), used for rare lookups
+export function perlinH(x, z, seed) {
   const ix = Math.floor(x), iz = Math.floor(z);
   const fx = x - ix, fz = z - iz;
   const u = fx * fx * fx * (fx * (fx * 6 - 15) + 10), v = fz * fz * fz * (fz * (fz * 6 - 15) + 10);
