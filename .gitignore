@@ -1,0 +1,4 @@
+# Common to all works. Work-specific ignores live in each work's own .gitignore.
+__pycache__/
+node_modules/
+.DS_Store
