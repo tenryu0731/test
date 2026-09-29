@@ -435,6 +435,7 @@ const _end = new THREE.Vector3(), _e = new THREE.Euler(0, 0, 0, 'YXZ');
 function shoot(shot) {
   stats.shots++;
   camera.getWorldPosition(_origin);
+  enemies.noise?.(_origin, 45);   // nearby robots come to investigate gunfire
   const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * shot.spread;
   _e.set(player.pitch + player.kickPitch + Math.sin(a) * r, player.yaw + player.kickYaw + Math.cos(a) * r, 0);
   _dir.set(0, 0, -1).applyEuler(_e).normalize();
