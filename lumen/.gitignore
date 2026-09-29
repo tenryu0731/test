@@ -1,0 +1,4 @@
+audio/stems/
+audio/mix.wav
+output/*_silent.mp4
+__pycache__/
