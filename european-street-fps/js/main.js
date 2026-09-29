@@ -235,7 +235,7 @@ function endRound(won) {
   input.enabled = false;
   input.setInteract(null);
   ui.setPrompt(null);
-  climb = null; ui.fade(false, 0.2);
+  climb = null; ui.fade(false, 0.2); ui.hideTitleCard();
   if (document.pointerLockElement) document.exitPointerLock();
   const s = {
     time: stats.time,

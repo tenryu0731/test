@@ -118,11 +118,11 @@ function aia(K, x0, z0, x1, z1) {
 
 const FARMS = {
   // Pieve side: stone house with the dovecote rising from its roof, barn to the east, pergola.
-  'farm-w': { rot: 2, mir: false, house: { x: -4, z: -14, wall: 'stone', roofDovecote: true, quoins: true }, barn: { x: 16, z: -12, rot: 0 }, tower: null, aia: [-12, -5, 6, 4], stacks: [[16, 6], [22, 4], [21, 11]], cart: [8, 6, 1], well: [-14, 8], pergola: [-16, -24, -4, -20.5], olive: [[-26, 10], [-28, 20], [-20, 22], [26, -20]], cyp: [[-10, -26], [2, -27], [30, 0]] },
+  'farm-w': { rot: 2, mir: false, house: { x: -4, z: -14, wall: 'stone', roofDovecote: true, quoins: true }, barn: { x: 16, z: -12, rot: 0 }, tower: null, aia: [-12, -5, 6, 4], stacks: [[16, 6], [22, 4], [21, 11]], cart: [10, -2, 1], well: [-14, 8], pergola: [-16, -24, -4, -20.5], olive: [[-26, 10], [-28, 20], [-20, 22], [26, -20]], cyp: [[-10, -26], [2, -27], [30, 0]] },
   // East road: ochre plastered house north of the road, separate dovecote tower, barn west.
-  'farm-e': { rot: 0, mir: false, house: { x: 14, z: -20, wall: 'plaster', plaster: 0, quoins: false, plinth: true }, barn: { x: 31, z: -17, rot: 3 }, tower: [-0.5, -30, 4.2, 11.5], aia: [6, -13, 22, -7], stacks: [[16, 18], [22, 22], [12, 26]], cart: [3, -12, 0], well: [24, -9], pergola: [8, -31, 20, -27.5], olive: [[-12, 20], [-20, 26], [-4, 30], [30, 30]], cyp: [[-4, -12], [34, -6], [40, -2]] },
+  'farm-e': { rot: 0, mir: false, house: { x: 14, z: -20, wall: 'plaster', plaster: 0, quoins: false, plinth: true }, barn: { x: 31, z: -17, rot: 3 }, tower: [-0.5, -30, 4.2, 11.5], aia: [6, -13, 22, -7], stacks: [[16, 18], [22, 22], [18, 28]], cart: [3, -12, 0], well: [24, -9], pergola: [8, -31, 20, -27.5], olive: [[-12, 20], [-20, 26], [-4, 30], [30, 30]], cyp: [[-4, -12], [34, -6], [40, -2]] },
   // North road end: stone-and-brick house, barn across the aia, corner dovecote tower.
-  'farm-n': { rot: 0, mir: true, house: { x: -6, z: -16, wall: 'stone', quoins: true, hip: true }, barn: { x: 17, z: -3, rot: 1 }, tower: [-17, -25, 3.8, 12], aia: [-10, -7, 6, 3], stacks: [[-20, 6], [-24, 12], [-18, 14]], cart: [-2, 8, 2], well: [8, 6], pergola: [-12, -27, 0, -23.5], olive: [[20, 22], [26, 16], [-28, -6], [30, -18]], cyp: [[-14, 20], [10, 22], [-30, 6]] },
+  'farm-n': { rot: 0, mir: true, house: { x: -6, z: -16, wall: 'stone', quoins: true, hip: true }, barn: { x: 17, z: -3, rot: 1 }, tower: [-17, -25, 3.8, 12], aia: [-10, -7, 6, 3], stacks: [[-20, 6], [-24, 12], [-18, 14]], cart: [8, 10, 2], well: [8, 6], pergola: [-12, -27, 0, -23.5], olive: [[20, 22], [26, 16], [-28, -6], [30, -18]], cyp: [[-14, 20], [10, 22], [-30, 6]] },
 };
 
 export function buildFarm(K0, ctx) {
@@ -172,7 +172,7 @@ export function buildQuarry(K, ctx) {
     // Solid block of this bench: east part and north part (L-shape), top = y1.
     const parts = [[ex, -ext, ext, ez + 38 - b * 2], [-44 + b * 3, -ext, ex, ez]];
     for (const [x0, z0, x1, z1] of parts) {
-      K.box(T, x0, y0 - (b === 0 ? 3 : 0.01), z0, x1, y1, z1, { tint: trav.map((v) => v * (0.93 + R() * 0.1)), uvOff: [R() * 2, R() * 2], col: true, gy: y0 });
+      K.box(T, x0, y0 - (b === 0 ? 10 : 0.01), z0, x1, y1, z1, { tint: trav.map((v) => v * (0.93 + R() * 0.1)), uvOff: [R() * 2, R() * 2], col: true, gy: y0 });
       // Rough weathered top with scrub.
       K.box(S, x0 + 0.3, y1, z0, x1, y1 + 0.25, z1 - 0.3, { tint: rough, gao: false });
     }
@@ -194,11 +194,11 @@ export function buildQuarry(K, ctx) {
   // Skirt: the back of the top bench drops to the terrain so the cut reads as a hillside.
   const top = benches * bh;
   for (const [x0, z0, x1, z1] of [[fx + benches * step, -ext - 6, ext + 6, 40], [-50, -ext - 6, fx + benches * step, -ext]]) {
-    K.box(S, x0, -3, z0, x1, top - 1.5, z1, { tint: [0.85, 0.82, 0.72] });
+    K.box(S, x0, -12, z0, x1, top - 1.5, z1, { tint: [0.85, 0.82, 0.72] });
   }
   // Haul ramp from the quarry floor up to the first bench along the east face (walkable).
   {
-    const x = fx - 2, n = 16;
+    const x = fx, n = 16;
     for (let i = 0; i < n; i++) {
       const z = 20 - i * 1.25, yt = ((i + 1) * bh) / n;
       K.box(S, x - 2, -0.5, z - 1.25, x + 0.02, yt, z, { tint: rough, col: true });
