@@ -401,14 +401,14 @@ function placeAll(ctx) {
 
   // ---- far woods on the hills beyond the map (low-poly only)
   const farTrees = [];
-  for (let x = -1500; x <= 1500; x += 24) for (let z = -1500; z <= 1500; z += 24) {
-    const jx = x + (rand2(x, z, 11) - 0.5) * 20, jz = z + (rand2(x, z, 12) - 0.5) * 20;
+  for (let x = -1500; x <= 1500; x += 30) for (let z = -1500; z <= 1500; z += 30) {
+    const jx = x + (rand2(x, z, 11) - 0.5) * 26, jz = z + (rand2(x, z, 12) - 0.5) * 26;
     const r = Math.max(Math.abs(jx), Math.abs(jz));
     if (r < FINE.half + 6 || r > 1500) continue;
     const F = farLand(ns, jx, jz);
     if (rand2(x, z, 13) > F.woods * 0.9 + 0.03) continue;
     const t = rand2(x, z, 14);
-    farTrees.push(jx, heightAt(jx, jz), jz, t * 6.28, 1.6 + t * 0.8, 1, t, t < 0.2 ? 1 : 0);
+    farTrees.push(jx, heightAt(jx, jz), jz, t * 6.28, 1.9 + t * 0.9, 1, t, t < 0.2 ? 1 : 0);
   }
 
   // ---- dry-stone walls: along roads near the town and the farms, terraces under the walls

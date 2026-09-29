@@ -115,7 +115,11 @@ export function createBuilders(ctx) {
     S.shop = onMain && type !== 'palazzo' ? 0.75 : type === 'mista' ? 0.45 : 0.08;
     S.pitch = rr(0.3, 0.4); S.roofTint = rr(0.85, 1.08);
     S.fanlight = R() < 0.5;
-    if (force) Object.assign(S, force.S || {});
+    if (force?.S) {
+      Object.assign(S, force.S);
+      S.H = S.G + (S.storeys - 1) * S.F + 0.55;
+      S.wall = S.upper; S.tint = S.upperTint;
+    }
     return S;
   }
 

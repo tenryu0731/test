@@ -470,16 +470,24 @@ export class Kit {
     this.tpl(M.plant, T_dome(), tx + r * 0.35, y + h * 0.66, tz - r * 0.2, r * 0.6, h * 0.22, r * 0.55, R() * 6, { tint: [0.58, 0.7, 0.48], gao: false });
     if (o.col !== false) this.col(x - 0.3, y - 0.5, z - 0.3, x + 0.3, y + h * 0.6, z + 0.3);
   }
-  // Round-crowned tree (olive, lemon, fruit, holm oak).
+  // Round-crowned tree (olive, lemon, fruit, holm oak): forked trunk, clustered canopy lobes.
   tree(x, z, h = 5, r = 2.2, y = 0, o = {}) {
     const R = this.ctx.R, M = this.M, tint = o.tint || [0.75, 0.85, 0.62];
-    const trunkH = h - r * 1.1;
-    this.beam(M.wood, [x, y - 0.2, z], [x + (R() - 0.5) * 0.4, y + trunkH + r * 0.3, z + (R() - 0.5) * 0.4], o.trunk ?? 0.26, o.trunk ?? 0.26, { tint: [0.6, 0.52, 0.45], d: o.d });
-    this.blob(M.plant, x, y + trunkH + r * 0.75, z, r, r * 0.82, r * 0.95, { tint, rot: R() * 6, d: o.d });
-    if (r > 1.4) {
-      this.blob(M.plant, x + r * 0.45, y + trunkH + r * 0.55, z + r * 0.2, r * 0.62, r * 0.55, r * 0.6, { tint: tint.map((v) => v * 0.94), rot: R() * 6, d: o.d });
-      this.blob(M.plant, x - r * 0.4, y + trunkH + r * 0.6, z - r * 0.3, r * 0.58, r * 0.5, r * 0.6, { tint: tint.map((v) => v * 1.05), rot: R() * 6, d: o.d });
+    const trunkH = h - r * 1.1, tw = o.trunk ?? Math.max(0.16, r * 0.11), bark = { tint: [0.55, 0.48, 0.42], d: o.d };
+    const cx = x + (R() - 0.5) * 0.5, cz = z + (R() - 0.5) * 0.5, cy = y + trunkH + r * 0.7;
+    this.beam(M.wood, [x, y - 0.2, z], [cx, y + trunkH, cz], tw, tw, bark);
+    for (let k = 0; k < 3; k++) {
+      const a = R() * 6.28 + k * 2.1;
+      this.beam(M.wood, [cx, y + trunkH - 0.1, cz], [cx + Math.cos(a) * r * 0.55, cy + r * 0.1, cz + Math.sin(a) * r * 0.55], tw * 0.6, tw * 0.6, bark);
     }
+    this.blob(M.plant, cx, cy, cz, r * 0.78, r * 0.62, r * 0.75, { tint: tint.map((v) => v * 0.9), rot: R() * 6, d: o.d });
+    const n = r > 1.2 ? 6 : 3;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * 6.28 + R() * 0.8, rr = r * (0.45 + R() * 0.2), ly = (R() - 0.35) * r * 0.55;
+      const s = r * (0.42 + R() * 0.18);
+      this.blob(M.plant, cx + Math.cos(a) * rr, cy + ly, cz + Math.sin(a) * rr, s, s * 0.8, s, { tint: tint.map((v) => v * (0.95 + R() * 0.15)), rot: R() * 6, detail: 0, d: o.d });
+    }
+    this.blob(M.plant, cx, cy + r * 0.45, cz, r * 0.5, r * 0.4, r * 0.5, { tint: tint.map((v) => v * 1.1), rot: R() * 6, detail: 0, d: o.d });
     if (o.col) this.col(x - 0.25, y - 0.5, z - 0.25, x + 0.25, y + trunkH, z + 0.25);
   }
   // Clipped hedge (rounded by a narrower cap).

@@ -345,9 +345,13 @@ export class UI {
       this.showCustom(opts.custom, (lv) => { if (lv) pickDiff('custom', lv); else again({}); });
     });
     ov.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => {
-      opts.onQuality(b.dataset.q);
+      if (b.dataset.q === opts.quality) return;
       opts.quality = b.dataset.q;
       ov.querySelectorAll('[data-q]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+      // The first switch to a preset recompiles shaders (brief hitch): say so, then apply.
+      const note = ov.querySelector('.field-note');
+      if (note) note.textContent = '適用中…';
+      setTimeout(() => { opts.onQuality(b.dataset.q); setTimeout(() => { if (note) note.textContent = '低くすると動作が軽くなります'; }, 50); }, 40);
     }));
     const sr = ov.querySelector('[data-set="sens"]'), so = ov.querySelector('[data-out="sens"]');
     sr.addEventListener('input', () => {

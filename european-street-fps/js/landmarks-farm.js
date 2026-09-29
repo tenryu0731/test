@@ -164,37 +164,49 @@ export function buildQuarry(K, ctx) {
   const M = K.M, R = ctx.R, T = M.stoneTrim, S = M.stone;
   const trav = [1.1, 1.05, 0.9], rough = [0.95, 0.9, 0.8];
   // Terraced cut faces wrap the north and east sides of the quarry floor (road arrives from SW).
-  // Each bench: a vertical travertine face 4 m high, stepped 5 m back.
-  const benches = 4, bh = 4, step = 5.5, fx = 14, fz = -16;          // first face at x = fx (east) and z = fz (north)
-  const ext = 58;
+  // Each bench: a vertical travertine face `bh` high, set back `step`; bench ends step down too.
+  const benches = 3, bh = 3.6, step = 5.5, fx = 14, fz = -16, OX = 40, OZ = -40;
   for (let b = 0; b < benches; b++) {
     const y0 = b * bh, y1 = (b + 1) * bh, ex = fx + b * step, ez = fz - b * step;
-    // Solid block of this bench: east part and north part (L-shape), top = y1.
-    const parts = [[ex, -ext, ext, ez + 38 - b * 2], [-44 + b * 3, -ext, ex, ez]];
+    const zEnd = 24 - b * 7, xStart = -38 + b * 7;
+    const parts = [[ex, OZ, OX, zEnd], [xStart, OZ, ex, ez]];
     for (const [x0, z0, x1, z1] of parts) {
-      K.box(T, x0, y0 - (b === 0 ? 10 : 0.01), z0, x1, y1, z1, { tint: trav.map((v) => v * (0.93 + R() * 0.1)), uvOff: [R() * 2, R() * 2], col: true, gy: y0 });
-      // Rough weathered top with scrub.
-      K.box(S, x0 + 0.3, y1, z0, x1, y1 + 0.25, z1 - 0.3, { tint: rough, gao: false });
+      K.box(T, x0, y0 - (b === 0 ? 6 : 0.01), z0, x1, y1, z1, { tint: trav.map((v) => v * (0.93 + R() * 0.1)), uvOff: [R() * 2, R() * 2], col: true, gy: y0 });
+      K.box(S, x0 + 0.3, y1, z0, x1, y1 + 0.2, z1 - 0.3, { tint: rough, gao: false });
     }
-    // Saw-cut grooves and block joints on the faces (detail).
-    for (let k = 0; k < 16; k++) {
-      const onEast = R() < 0.5, t = R();
-      const yj = y0 + 0.5 + R() * (bh - 1);
-      if (onEast) { const z = -ext + 10 + t * (ez + 38 - b * 2 + ext - 12); K.box(S, ex - 0.03, yj, z, ex + 0.01, yj + 0.06, z + 3 + R() * 4, { tint: 0.35, gao: false, d: true }); }
-      else { const x = -40 + b * 3 + t * (ex + 40 - b * 3 - 4); K.box(S, x, yj, ez - 0.01, x + 3 + R() * 4, yj + 0.06, ez + 0.03, { tint: 0.35, gao: false, d: true }); }
+    // Saw-cut grooves on the faces (detail).
+    for (let k = 0; k < 14; k++) {
+      const onEast = R() < 0.5, t = R(), yj = y0 + 0.5 + R() * (bh - 1);
+      if (onEast) { const z = OZ + 4 + t * (zEnd - OZ - 8); K.box(S, ex - 0.03, yj, z, ex + 0.01, yj + 0.06, z + 3 + R() * 3, { tint: 0.35, gao: false, d: true }); }
+      else { const x = xStart + 2 + t * (ex - xStart - 7); K.box(S, x, yj, ez - 0.01, x + 3 + R() * 3, yj + 0.06, ez + 0.03, { tint: 0.35, gao: false, d: true }); }
     }
-    // Scrub and small trees on the bench tops.
     for (let k = 0; k < 5; k++) {
       const onEast = k % 2 === 0;
-      const x = onEast ? ex + 1.5 + R() * (step - 2) : -36 + R() * (ex + 30), z = onEast ? -ext + 8 + R() * 40 : ez - 1.5 - R() * (step - 2);
+      const x = onEast ? ex + 1.5 + R() * (step - 2) : xStart + 3 + R() * (ex - xStart - 6), z = onEast ? OZ + 6 + R() * (zEnd - OZ - 10) : ez - 1.5 - R() * (step - 2);
       if (b === benches - 1) K.tree(x, z, 3.5, 1.6, y1 + 0.2, { tint: [0.66, 0.74, 0.52] });
       else K.blob(M.plant, x, y1 + 0.4, z, 0.8 + R() * 0.6, 0.5, 0.8, { tint: [0.7, 0.78, 0.55], d: true });
     }
   }
-  // Skirt: the back of the top bench drops to the terrain so the cut reads as a hillside.
-  const top = benches * bh;
-  for (const [x0, z0, x1, z1] of [[fx + benches * step, -ext - 6, ext + 6, 40], [-50, -ext - 6, fx + benches * step, -ext]]) {
-    K.box(S, x0, -12, z0, x1, top - 1.5, z1, { tint: [0.85, 0.82, 0.72] });
+  // Skirt: the hill the quarry is cut into falls from the top bench edge to the real terrain.
+  {
+    const top = benches * bh + 0.2, zE = 24 - (benches - 1) * 7, xS = -38 + (benches - 1) * 7;
+    const edge = [];
+    void zE; void xS;
+    for (let z = 24; z > OZ; z -= 3.5) edge.push([OX, z, 1, 0]);
+    edge.push([OX, OZ, 0.7071, -0.7071]);
+    for (let x = OX - 3.5; x >= -38; x -= 3.5) edge.push([x, OZ, 0, -1]);
+    const topAt = (x, z) => { let t = 0; for (let b = 0; b < benches; b++) if (z <= 24 - b * 7 + 0.01 && x >= -38 + b * 7 - 0.01) t = (b + 1) * bh + 0.2; return t; };
+    const skirt = edge.map(([x, z, nx, nz]) => {
+      const top = topAt(x, z);
+      let L = 6, gx = 0, gz = 0, g = 0;
+      for (let k = 0; k < 6; k++) { gx = x + nx * L; gz = z + nz * L; g = ctx.groundLocal(gx, gz); L = Math.max(4, Math.min(40, (top - g) * 1.3)); }
+      return [[x, top, z], [x + nx * L, Math.min(top, g) - 0.8, z + nz * L]];
+    });
+    for (let i = 0; i < skirt.length - 1; i++) {
+      const [a0, a1] = skirt[i], [b0, b1] = skirt[i + 1];
+      K.quad(S, a0, b0, b1, a1, [skirt[i][1][0] - a0[0], 1, skirt[i][1][2] - a0[2]], { tint: [0.72, 0.74, 0.58], gao: false });
+      if (i % 2 === 0) K.blob(M.plant, (a0[0] + a1[0]) / 2, (a0[1] + a1[1]) / 2 + 0.3, (a0[2] + a1[2]) / 2, 1.4, 0.7, 1.4, { tint: [0.62, 0.72, 0.5], d: false, detail: 0 });
+    }
   }
   // Haul ramp from the quarry floor up to the first bench along the east face (walkable).
   {

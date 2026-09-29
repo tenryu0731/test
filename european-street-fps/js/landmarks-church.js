@@ -297,9 +297,13 @@ export function buildChapel(K, ctx) {
   K.bench(16, -5, 2.4, 0, 1, { stone: true }); K.bench(16, 5, 2.4, 0, 1, { stone: true });
   K.box(T, -8.3, 0, 6.8, -7.7, 0.4, 7.4, {});
   K.box(T, -8.1, 0.4, 7.0, -7.9, 3.0, 7.2, {}); K.box(T, -8.1, 2.1, 6.6, -7.9, 2.3, 7.6, {});
-  for (let i = 0; i < 7; i++) {
-    const a = -0.75 + i * 0.25, x = 4 + Math.cos(a) * 21, z = Math.sin(a) * 21;
-    K.box(S, x - 1.6, -1.2, z - 1.6, x + 1.6, 0.55 + R() * 0.3, z + 1.6, { tint: st, col: true });
+  // Low dry-stone wall along the east brow (arc), capped with rough coping.
+  for (let i = 0; i < 18; i++) {
+    const a0 = -0.8 + i * 0.09, a1 = a0 + 0.09;
+    const p0 = [4 + Math.cos(a0) * 21, 0.45, Math.sin(a0) * 21], p1 = [4 + Math.cos(a1) * 21, 0.45, Math.sin(a1) * 21];
+    K.beam(S, [p0[0], -0.6, p0[2]], [p1[0], -0.6, p1[2]], 0.6, 1.0 + R() * 0.3, { tint: st.map((v) => v * (0.9 + R() * 0.1)) });
+    K.beam(S, [p0[0], 0.52, p0[2]], [p1[0], 0.52, p1[2]], 0.72, 0.18, { tint: 0.85, gao: false });
+    K.col((p0[0] + p1[0]) / 2 - 0.5, -0.6, (p0[2] + p1[2]) / 2 - 0.5, (p0[0] + p1[0]) / 2 + 0.5, 0.65, (p0[2] + p1[2]) / 2 + 0.5);
   }
   K.tree(-6, -12, 5, 2.3, 0, { tint: [0.68, 0.76, 0.6] });
   ctx.spawnsLocal([[-6, -4], [-5, 6], [18, 0], [6, -9], [6, 9], [-12, 1]]);

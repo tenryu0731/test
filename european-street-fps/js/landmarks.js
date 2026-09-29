@@ -51,8 +51,17 @@ export function riverAt(x, z) {
 }
 
 // A nav/spawn point is free when no collider blocks a body standing there (step-up boxes are fine).
-function clear(cols, x, y, z, rad = 0.7) {
-  for (const b of cols) {
+function colGrid(cols) {
+  const g = new Map(), C = 8;
+  cols.forEach((b) => {
+    for (let i = Math.floor(b.min.x / C); i <= Math.floor(b.max.x / C); i++) for (let j = Math.floor(b.min.z / C); j <= Math.floor(b.max.z / C); j++) {
+      const k = i * 100003 + j; let l = g.get(k); if (!l) g.set(k, (l = [])); l.push(b);
+    }
+  });
+  return (x, z) => g.get(Math.floor(x / C) * 100003 + Math.floor(z / C)) || [];
+}
+function clear(grid, x, y, z, rad = 0.7) {
+  for (const b of grid(x, z)) {
     if (b.max.y <= y + 0.45 || b.min.y >= y + 1.7) continue;
     const dx = Math.max(b.min.x - x, 0, x - b.max.x), dz = Math.max(b.min.z - z, 0, z - b.max.z);
     if (dx * dx + dz * dz < rad * rad) return false;
@@ -103,6 +112,7 @@ export function buildLandmarks(scene, M, { heightAt } = {}) {
 
     // --- gameplay data
     colliders.push(...ctx.col);
+    const grid = colGrid(ctx.col);
     const navs = [];
     const areas = ctx.navAreas.length ? ctx.navAreas : [];
     // Default: grid over the pad.
@@ -112,13 +122,13 @@ export function buildLandmarks(scene, M, { heightAt } = {}) {
         if (a.disc && x * x + z * z > a.disc * a.disc) continue;
         if (ctx.navExclude && ctx.navExclude(x, z, a.y)) continue;
         const p = K.V(x, a.y, z);
-        if (!clear(ctx.col, p.x, p.y, p.z)) continue;
+        if (!clear(grid, p.x, p.y, p.z)) continue;
         navs.push(p);
       }
     }
-    for (const p of ctx.navLocal) if (clear(ctx.col, p.x, p.y, p.z, 0.5)) navs.push(p);
+    for (const p of ctx.navLocal) if (clear(grid, p.x, p.y, p.z, 0.5)) navs.push(p);
     navPoints.push(...navs);
-    const spawns = ctx.spawns.filter((p) => clear(ctx.col, p.x, p.y, p.z, 0.6));
+    const spawns = ctx.spawns.filter((p) => clear(grid, p.x, p.y, p.z, 0.6));
     if (spawns.length < ctx.spawns.length) console.warn(`[landmarks] ${s.id}: ${ctx.spawns.length - spawns.length} blocked spawn(s) dropped`);
     while (spawns.length < 4 && navs.length) spawns.push(navs[Math.floor(ctx.R() * navs.length)].clone());
     const e = ctx.enemy || { x: 0, z: 0, r: s.r * 0.6 };

@@ -31,9 +31,9 @@ function tuftGeometry(blades = 4) {
 }
 function flowerGeometry() {
   const g = new THREE.BufferGeometry(), pos = [], col = [], nor = [];
-  const head = new THREE.OctahedronGeometry(0.045, 0).toNonIndexed();
+  const head = new THREE.OctahedronGeometry(0.045, 0);
   const P = head.attributes.position.array, N = head.attributes.normal.array;
-  for (const [x, y, z] of [[0, 0.42, 0], [0.09, 0.33, 0.05], [-0.07, 0.37, -0.06]]) {
+  for (const [x, y, z] of [[0, 0.42, 0], [0.09, 0.33, 0.05]]) {
     for (let i = 0; i < P.length; i += 3) { pos.push(P[i] + x, P[i + 1] * 0.6 + y, P[i + 2] + z); col.push(1, 1, 1); nor.push(N[i], N[i + 1] + 0.5, N[i + 2]); }
     // stem
     pos.push(x - 0.01, 0, z, x + 0.01, 0, z, x, y, z); col.push(0.25, 0.4, 0.2, 0.25, 0.4, 0.2, 0.3, 0.45, 0.2); nor.push(0, 1, 0, 0, 1, 0, 0, 1, 0);
@@ -66,13 +66,13 @@ function grassMaterial(uniforms, name) {
 }
 
 export function createGrass(scene, land, heightAt, quality = 'high') {
-  const Qs = { low: { R: 16, sp: 1.6 }, medium: { R: 26, sp: 1.3 }, high: { R: 36, sp: 1.1 } };
+  const Qs = { low: { R: 14, sp: 1.6 }, medium: { R: 22, sp: 1.4 }, high: { R: 30, sp: 1.2 } };
   let cfg = Qs[quality] || Qs.medium;
   const uniforms = { uTime: { value: 0 }, uR: { value: cfg.R } };
   const per = Math.ceil(TILE / cfg.sp) ** 2;
   const maxTiles = Math.ceil(Math.PI * (cfg.R + TILE * 1.5) ** 2 / (TILE * TILE)) + 8;
   const grass = new THREE.InstancedMesh(tuftGeometry(4), grassMaterial(uniforms, 'terrain-grass'), per * maxTiles);
-  const flowers = new THREE.InstancedMesh(flowerGeometry(), grassMaterial(uniforms, 'terrain-flowers'), Math.ceil(per * 0.25) * maxTiles);
+  const flowers = new THREE.InstancedMesh(flowerGeometry(), grassMaterial(uniforms, 'terrain-flowers'), Math.ceil(per * 0.12) * maxTiles);
   for (const im of [grass, flowers]) {
     im.frustumCulled = false; im.castShadow = false; im.receiveShadow = true;
     im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -83,7 +83,7 @@ export function createGrass(scene, land, heightAt, quality = 'high') {
   for (let i = 0; i < grass.instanceMatrix.count; i++) grass.instanceMatrix.array[i * 16 + 15] = 1, grass.instanceMatrix.array.fill(0, i * 16, i * 16 + 15);
   for (let i = 0; i < flowers.instanceMatrix.count; i++) flowers.instanceMatrix.array.fill(0, i * 16, i * 16 + 15);
   grass.setColorAt(0, new THREE.Color(1, 1, 1)); flowers.setColorAt(0, new THREE.Color(1, 1, 1));
-  const fPer = Math.ceil(per * 0.25);
+  const fPer = Math.ceil(per * 0.12);
   const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), pv = new THREE.Vector3(), sv = new THREE.Vector3(), c = new THREE.Color();
   const tiles = new Map();           // key -> slot

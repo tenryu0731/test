@@ -23,7 +23,7 @@ const FACES = [
 class Bucket {
   constructor(mat, cast, receive) {
     this.mat = mat; this.cast = cast; this.receive = receive;
-    this.cap = 4096; this.n = 0; this.ni = 0;
+    this.cap = 2048; this.n = 0; this.ni = 0;
     this.P = new Float32Array(this.cap * 3); this.N = new Float32Array(this.cap * 3);
     this.U = new Float32Array(this.cap * 2); this.C = new Float32Array(this.cap * 3);
     this.I = new Uint32Array(this.cap * 2);
@@ -146,25 +146,36 @@ export class LGeo {
 
   // Triangle with explicit world positions; winding fixed to face `desired`.
   // uvFn(p) -> [u, v] in texture repeats; default: world box projection. o.smoothN: per-vertex normals.
-  tri(mat, a, b, c, desired, o = {}, uvFn = null, na = null) {
+  tri(mat, a, b, c, desired, o = {}, uvFn = null) {
     const e1x = b[0] - a[0], e1y = b[1] - a[1], e1z = b[2] - a[2];
     const e2x = c[0] - a[0], e2y = c[1] - a[1], e2z = c[2] - a[2];
     let nx = e1y * e2z - e1z * e2y, ny = e1z * e2x - e1x * e2z, nz = e1x * e2y - e1y * e2x;
     const l = Math.hypot(nx, ny, nz);
     if (l < 1e-10) return;
-    let swap = false;
-    if (desired && nx * desired[0] + ny * desired[1] + nz * desired[2] < 0) { swap = true; nx = -nx; ny = -ny; nz = -nz; }
+    if (desired && nx * desired[0] + ny * desired[1] + nz * desired[2] < 0) { const t = b; b = c; c = t; nx = -nx; ny = -ny; nz = -nz; }
     nx /= l; ny /= l; nz /= l;
     const bk = this._bucket(mat, o), tint = this._tint(o), gao = o.gao !== false, top = o.top || 0, gy = o.gy ?? this.gy;
-    const tile = mat.userData.tile || 2;
-    const f = uvFn || worldUV(nx, ny, nz, tile, o.uvOff);
+    const tile = mat.userData.tile || 2, ou = o.uvOff ? o.uvOff[0] : 0, ov = o.uvOff ? o.uvOff[1] : 0;
+    const ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
+    const plane = ay >= ax && ay >= az ? (ny > 0 ? 0 : 1) : ax >= az ? (nx > 0 ? 2 : 3) : (nz > 0 ? 4 : 5);
     bk.reserve(3, 3);
-    const pts = swap ? [a, c, b] : [a, b, c];
-    const ns = na ? (swap ? [na[0], na[2], na[1]] : na) : null;
     for (let k = 0; k < 3; k++) {
-      const p = pts[k], [u, v] = f(p);
-      const n = ns ? ns[k] : null;
-      bk.I[bk.ni++] = this._vert(bk, p[0], p[1], p[2], n ? n[0] : nx, n ? n[1] : ny, n ? n[2] : nz, u, v, tint, gao, top, gy);
+      const p = k === 0 ? a : k === 1 ? b : c;
+      let u, v;
+      if (uvFn) { const w = uvFn(p); u = w[0]; v = w[1]; }
+      else {
+        const x = p[0], y = p[1], z = p[2];
+        switch (plane) {
+          case 0: u = x; v = -z; break;
+          case 1: u = x; v = z; break;
+          case 2: u = -z; v = y; break;
+          case 3: u = z; v = y; break;
+          case 4: u = x; v = y; break;
+          default: u = -x; v = y;
+        }
+        u = u / tile + ou; v = v / tile + ov;
+      }
+      bk.I[bk.ni++] = this._vert(bk, p[0], p[1], p[2], nx, ny, nz, u, v, tint, gao, top, gy);
     }
   }
 

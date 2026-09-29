@@ -88,7 +88,8 @@ export function createTerrainSurface(scene, { heightAt, fieldTex, ground, noiseT
     return m;
   }
 
-  let K = { low: 0.8, medium: 1.0, high: 1.25 }[quality] || 1;
+  const KQ = { low: 0.5, medium: 0.6, high: 0.72 };
+  let K = KQ[quality] || 0.6;
   const active = new Set(), next = new Set();
   const last = new THREE.Vector3(1e9, 0, 0);
   function select(cam) {
@@ -115,7 +116,7 @@ export function createTerrainSurface(scene, { heightAt, fieldTex, ground, noiseT
     const p = camera.position;
     if (p.distanceToSquared(last) > 4) { last.copy(p); select(p); }
   }
-  function setQuality(q) { K = { low: 0.8, medium: 1.0, high: 1.25 }[q] || 1; last.set(1e9, 0, 0); }
+  function setQuality(q) { K = KQ[q] || 0.6; last.set(1e9, 0, 0); }
   // Selecting all nodes around a point up front (so the first frame and the map render have ground).
   select(new THREE.Vector3(0, 60, 150));
   return { group, material, update, setQuality, get activeCount() { return active.size; } };

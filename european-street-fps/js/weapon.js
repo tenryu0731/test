@@ -212,9 +212,9 @@ void main() {
   float c = dot(ray, vAxis);
   vec3 off = ray / max(c, 0.05) - vAxis;
   float r = length(off) / pxAngle;                      // CSS pixels from the collimated aim point
-  float dotA = 1.0 - smoothstep(1.2, 2.5, r);
+  float dotA = 1.0 - smoothstep(1.5, 2.9, r);
   float halo = exp(-r * 0.45) * 0.18;
-  float ring = (1.0 - smoothstep(0.3, 1.05, abs(r - 13.0))) * 0.42;
+  float ring = (1.0 - smoothstep(0.35, 1.1, abs(r - 13.0))) * 0.5;
   float ret = clamp((dotA + halo + ring) * vRet * step(0.5, c), 0.0, 1.0);
   float fres = pow(1.0 - clamp(abs(dot(normalize(vN), -ray)), 0.0, 1.0), 2.5);
   float glassA = mix(0.05, 0.5, fres) * (vRet > 0.5 ? 1.0 : 0.6);
@@ -715,7 +715,7 @@ export class Weapon {
       g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
       g.setIndex(idx);
       this.flash = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
-        map: flashTexture(), color: 0xf2c89a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0,
+        map: flashTexture(), color: 0xf2c89a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0, forceSinglePass: true,
       }));
       this.flash.visible = false;
       this.flash.renderOrder = 3;
@@ -1407,7 +1407,7 @@ export class Weapon {
     // Keep the gun at a natural place on screen for wide phones, narrow windows and portrait.
     this.xScale = clamp(0.62 + 0.22 * aspect, 0.72, 1.12);
     this.yOff = aspect < 1 ? -0.012 : 0;
-    this.hipFov = aspect < 1 ? LAYOUT.hipFov + 16 * clamp((1 - aspect) / 0.55, 0, 1) : LAYOUT.hipFov;
+    this.hipFov = aspect < 1 ? LAYOUT.hipFov + 24 * clamp((1 - aspect) / 0.55, 0, 1) : LAYOUT.hipFov;
     this.viewCamera.updateProjectionMatrix();
     if (this.lens) this._applyFov();
   }

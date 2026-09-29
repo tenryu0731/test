@@ -263,7 +263,7 @@ export class WorldMap {
       this._zoomAt(Math.exp(-e.deltaY * (e.deltaMode ? 0.06 : 0.0015)), e.offsetX, e.offsetY);
     }, { passive: false });
     addEventListener('keydown', (e) => {
-      if (!this.isOpen) return;
+      if (!this.isOpen || performance.now() - this._openT < 250) return; // same key press that opened it
       if (e.code === 'KeyM' || e.code === 'Escape' || e.code === 'Tab') { e.preventDefault(); if (!e.repeat) this.close(); }
       else if (e.code === 'Equal' || e.code === 'NumpadAdd') this._zoomAt(1.4, this._W / 2, this._H / 2, true);
       else if (e.code === 'Minus' || e.code === 'NumpadSubtract') this._zoomAt(1 / 1.4, this._W / 2, this._H / 2, true);
@@ -274,6 +274,7 @@ export class WorldMap {
   open() {
     if (this.isOpen) return;
     this.isOpen = true;
+    this._openT = performance.now();
     this.el.hidden = false;
     this._resize();
     const st = this.getState();
