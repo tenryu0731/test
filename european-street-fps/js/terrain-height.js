@@ -142,16 +142,17 @@ function edgeRise(x, z) {
 
 // Base natural ground (no roads/pads/water), identical for fine and coarse grids.
 function makeBase() {
-  const base0 = (x, z, detail) => {
-    let h = -32 + edgeRise(x, z);
-    h += 13 * fbm(x / 430 + 3.1, z / 430 - 1.7, 3, 11);
-    h += 5.5 * fbm(x / 160, z / 160, 3, 29);
-    // far hills get extra relief
+  const base0 = (x, z) => {
+    // gentle domain warp keeps the hills from looking like blobs
+    const wx = x + 60 * perlin(x / 700 + 5.2, z / 700, 3), wz = z + 60 * perlin(x / 700, z / 700 + 9.1, 4);
+    let h = -34 + edgeRise(x, z);
+    h += 12 * fbm(wx / 430 + 3.1, wz / 430 - 1.7, 3, 11);
+    h += 6 * fbm(wx / 170, wz / 170, 3, 29);
     const far = smooth(650, 1200, Math.max(Math.abs(x), Math.abs(z)));
-    if (far > 0) h += far * 28 * fbm(x / 520 + 7, z / 520 + 3, 4, 51);
-    if (detail) h += 1.3 * fbm(x / 42, z / 42, 3, 37) * (1 - far);
+    if (far > 0) h += far * 30 * fbm(x / 520 + 7, z / 520 + 3, 4, 51);
     return h;
   };
+  const detail = (x, z) => 1.4 * fbm(x / 46, z / 46, 3, 37);
   // Solve Gaussian amplitudes: H(c_j) = target_j.
   const C = [[0, 0, PLATEAU_Y, TOWN_R, true], ...CONTROLS];
   const g = (ci, x, z) => {
@@ -162,12 +163,59 @@ function makeBase() {
   const n = C.length, M = [], rhs = [];
   for (let j = 0; j < n; j++) {
     M.push(C.map((_, i) => g(i, C[j][0], C[j][1])));
-    rhs.push(C[j][2] - base0(C[j][0], C[j][1], false));
+    rhs.push(C[j][2] - base0(C[j][0], C[j][1]) - detail(C[j][0], C[j][1]));
   }
   const amp = solve(M, rhs);
   const bumps = C.map((c, i) => ({ c, a: amp[i], rr: c[3] * 3 }));
-  return { base0, bumps, g, C };
+  return { base0, detail, bumps, g, C };
 }
+
+function fillDirect(H, n, o, st, B) {
+  for (let j = 0; j < n; j++) {
+    const z = o + j * st;
+    for (let i = 0; i < n; i++) H[j * n + i] = B.base0(o + i * st, z);
+  }
+  B.bumps.forEach((bp, ci) => {
+    const c = bp.c;
+    let x0, x1, z0, z1;
+    if (c[4]) { x0 = TOWN.rect[0] - bp.rr; x1 = TOWN.rect[1] + bp.rr; z0 = TOWN.rect[2] - bp.rr; z1 = TOWN.rect[3] + bp.rr; }
+    else { x0 = c[0] - bp.rr; x1 = c[0] + bp.rr; z0 = c[1] - bp.rr; z1 = c[1] + bp.rr; }
+    const i0 = Math.max(0, Math.floor((x0 - o) / st)), i1 = Math.min(n - 1, Math.ceil((x1 - o) / st));
+    const j0 = Math.max(0, Math.floor((z0 - o) / st)), j1 = Math.min(n - 1, Math.ceil((z1 - o) / st));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) H[j * n + i] += bp.a * B.g(ci, o + i * st, o + j * st);
+  });
+}
+
+// Fill grid H (n×n, origin o, spacing st) with base + bumps (+ detail on fine grids). Fine grids
+// evaluate the smooth part on an 8 m helper grid and upsample it bicubically (C1, no creases).
+function fillBase(H, n, o, st, B, detail) {
+  if (!detail) { fillDirect(H, n, o, st, B); return; }
+  const hs = 8, ho = o - 2 * hs, hn = Math.ceil(((n - 1) * st + 4 * hs) / hs) + 1;
+  const G = new Float32Array(hn * hn);
+  fillDirect(G, hn, ho, hs, B);
+  const r = st / hs;
+  for (let j = 0; j < n; j++) {
+    const fz = (o + j * st - ho) / hs, jz = Math.floor(fz), tz = fz - jz;
+    const wz0 = cr0(tz), wz1 = cr1(tz), wz2 = cr2(tz), wz3 = cr3(tz);
+    const z = o + j * st;
+    for (let i = 0; i < n; i++) {
+      const fx = (o + i * st - ho) / hs, ix = Math.floor(fx), tx = fx - ix;
+      const wx0 = cr0(tx), wx1 = cr1(tx), wx2 = cr2(tx), wx3 = cr3(tx);
+      let v = 0;
+      for (let q = -1; q <= 2; q++) {
+        const k = (jz + q) * hn + ix;
+        const row = G[k - 1] * wx0 + G[k] * wx1 + G[k + 1] * wx2 + G[k + 2] * wx3;
+        v += row * (q === -1 ? wz0 : q === 0 ? wz1 : q === 1 ? wz2 : wz3);
+      }
+      H[j * n + i] = v + B.detail(o + i * st, z);
+    }
+  }
+  void r;
+}
+const cr0 = (t) => ((-t + 2) * t - 1) * t * 0.5;
+const cr1 = (t) => ((3 * t - 5) * t * t + 2) * 0.5;
+const cr2 = (t) => ((-3 * t + 4) * t + 1) * t * 0.5;
+const cr3 = (t) => ((t - 1) * t * t) * 0.5;
 
 function solve(A, b) {
   const n = b.length, M = A.map((r, i) => [...r, b[i]]);
@@ -187,23 +235,6 @@ function solve(A, b) {
     x[i] = s / M[i][i];
   }
   return x;
-}
-
-// Fill grid H (n×n, origin o, spacing st) with base + bumps.
-function fillBase(H, n, o, st, B, detail) {
-  for (let j = 0; j < n; j++) {
-    const z = o + j * st;
-    for (let i = 0; i < n; i++) H[j * n + i] = B.base0(o + i * st, z, detail);
-  }
-  B.bumps.forEach((bp, ci) => {
-    const c = bp.c;
-    let x0, x1, z0, z1;
-    if (c[4]) { x0 = TOWN.rect[0] - bp.rr; x1 = TOWN.rect[1] + bp.rr; z0 = TOWN.rect[2] - bp.rr; z1 = TOWN.rect[3] + bp.rr; }
-    else { x0 = c[0] - bp.rr; x1 = c[0] + bp.rr; z0 = c[1] - bp.rr; z1 = c[1] + bp.rr; }
-    const i0 = Math.max(0, Math.floor((x0 - o) / st)), i1 = Math.min(n - 1, Math.ceil((x1 - o) / st));
-    const j0 = Math.max(0, Math.floor((z0 - o) / st)), j1 = Math.min(n - 1, Math.ceil((z1 - o) / st));
-    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) H[j * n + i] += bp.a * B.g(ci, o + i * st, o + j * st);
-  });
 }
 
 // ------------------------------------------------------------------ river geometry

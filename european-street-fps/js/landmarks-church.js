@@ -46,7 +46,6 @@ export function rose(K, f, tc, yc, r, d1, o = {}) {
     const a = (k / 8) * Math.PI * 2;
     K.beam(T, K.fp(f, tc, yc, d1 + 0.06), P(a, r, d1 + 0.06), 0.07, 0.07, { d: true });
   }
-  K.cyl(T, ...K.fp(f, tc, yc, d1).map((v, i) => (i === 1 ? v - 0.001 : v)).slice(0, 1), 0, 0, 0, 0, 3, { d: true });
 }
 // Lombard band: small blind arches hanging under a cornice along a face (relief).
 export function lombardBand(K, f, t0, t1, y, d1, o = {}) {
@@ -334,13 +333,14 @@ export function buildWatchtower(K, ctx) {
   K.box(M.paving, x0, H + 0.9, z0, x1, H + 1.0, z1, { tint: 0.85, gao: false });
   K.box(S, x0 + 2.2, H + 1.0, z0 + 2.2, x0 + 3.4, H + 1.9, z0 + 3.4, { tint: 0.8 }); // stair hatch
   K.box(M.wood, x0 + 2.25, H + 1.9, z0 + 2.25, x0 + 3.35, H + 1.95, z0 + 3.35, { d: true });
-  // External wooden stair to the raised door (east face).
-  const dx = x1 + 0.1, top = 5.4;
-  K.stair(dx + 1.4, 3.6 + 2.8, 1.1, 'N', 11, top / 11 * 0.7, 0.28, M.wood, 0, { solid: false, d: false });
-  K.box(M.wood, dx, top * 0.7 - 0.12, -0.9, dx + 2.0, top * 0.7, 0.9, { col: true });
-  K.stair(dx + 1.0, -0.9, 1.1, 'W', 1, top * 0.3, 0.4, M.wood, top * 0.7, { solid: false });
-  for (const [px, pz] of [[dx + 0.3, 1.0], [dx + 1.9, 1.0], [dx + 1.9, -0.9], [dx + 1.9, 6.4]]) K.box(M.wood, px - 0.08, -0.3, pz - 0.08, px + 0.08, top * 0.7, pz + 0.08, { d: true });
-  K.box(M.wood, dx + 1.95, top * 0.7, 0.9, dx + 2.0, top * 0.7 + 1.0, 6.4, { d: true, gao: false });
+  // External wooden stair to the raised door (east face): one flight north, then a landing.
+  const dx = x1, top = 5.4, ns = 16, run = 0.36, zs = 1.3 + ns * run;
+  K.stair(dx + 1.0, zs, 1.1, 'N', ns, top / ns, run, M.wood, 0, { solid: false });
+  K.box(M.wood, dx, top - 0.16, -0.9, dx + 2.0, top, 1.3, { col: true, gao: false });
+  for (const [px, pz] of [[dx + 1.9, -0.8], [dx + 1.9, 1.2], [dx + 1.5, 3.2], [dx + 1.5, 5.2]]) K.box(M.wood, px - 0.09, -0.3, pz - 0.09, px + 0.09, pz > 2 ? top * (zs - pz) / (ns * run) : top, pz + 0.09, { d: true });
+  K.beam(M.wood, [dx + 1.55, 1.0, zs], [dx + 1.55, top + 1.0, 1.3], 0.07, 0.07, { d: true });
+  K.box(M.wood, dx + 1.95, top, -0.9, dx + 2.0, top + 1.0, 1.3, { d: true, gao: false, col: true });
+  K.box(M.wood, dx, top, -0.95, dx + 2.0, top + 1.0, -0.9, { d: true, gao: false, col: true });
   // Colliders: shaft + scarp, walkable top with parapets.
   K.col(x0 - sb, -4, z0 - sb, x1 + sb, 0.6, z1 + sb);
   K.col(x0, 0, z0, x1, H + 1.0, z1);
@@ -349,7 +349,7 @@ export function buildWatchtower(K, ctx) {
   K.col(x0 - 0.55, py, z0 - 0.55, x0 + 0.05, ph, z1 + 0.55); K.col(x1 - 0.05, py, z0 - 0.55, x1 + 0.55, ph, z1 + 0.55);
   K.col(x0 + 2.2, py, z0 + 2.2, x0 + 3.4, py + 0.9, z0 + 3.4);
   void p;
-  ctx.viewpoints.push({ id: 'watchtower', name: '見張りの塔', base: K.V(x1 + 3.2, 0, 4.0), top: K.V(x0 + 5.3, py, z0 + 5.3), yaw: K.yaw(-Math.PI / 2) });
+  ctx.viewpoints.push({ id: 'watchtower', name: '見張りの塔', base: K.V(x1 + 1.0, 0, zs + 0.8), top: K.V(x0 + 5.3, py, z0 + 5.3), yaw: K.yaw(-Math.PI / 2) });
   // Ruined enclosure wall with a broken gate toward the road (east).
   const rw = [[-17, -13, 14, -12.2], [-17, 13, 14, 13.8], [-17.8, -13, -17, 13.8], [13.2, -13, 14, -2.6], [13.2, 2.6, 14, 13.8]];
   for (const [ax0, az0, ax1, az1] of rw) {

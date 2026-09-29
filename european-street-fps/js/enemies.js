@@ -253,7 +253,7 @@ export class EnemyManager {
     const tryAt = (x, z, y0) => {
       const g = this.groundAt(x, z);
       const feet = Number.isFinite(y0) ? Math.max(y0, g) : g;
-      const h = this.nav.probe(x, z, rad, feet + 0.3);
+      const h = this.nav.probe(x, z, rad, feet + 0.05);
       if (h !== h) return false;
       r.pos.set(x, h, z);
       return true;
@@ -277,7 +277,7 @@ export class EnemyManager {
     // Push out of any overlapping collider, then settle on the ground.
     _v1.set(0, 0, 0);
     this.physics.moveCircle(r.pos, _v1, rad, r.cfg.height);
-    r.pos.y = this.physics.groundHeight(r.pos.x, r.pos.z, rad * 0.8, r.pos.y + 0.3);
+    r.pos.y = this.physics.groundHeight(r.pos.x, r.pos.z, rad * 0.8, r.pos.y + 0.05);
   }
 
   _initRobot(r) {
@@ -346,8 +346,7 @@ export class EnemyManager {
       const dx = r.pos.x - fx, dz = r.pos.z - fz, d2 = dx * dx + dz * dz;
       if (d2 < near2 || (r.state !== 'patrol' && d2 < sleep2)) {
         r.tier = 0; st.near++;
-        if (r.midAcc > 0) { dt += 0; }
-        this._think(r, dt + r.midAcc, ctx, valid, d2 < near2);
+        this._think(r, Math.min(dt + r.midAcc, 0.2), ctx, valid, d2 < near2);
         r.midAcc = 0;
       } else if (d2 < sleep2) {
         r.tier = 1; st.mid++;
@@ -457,11 +456,14 @@ export class EnemyManager {
         if (r.sees || sinceSeen < 0.6) {
           faceTarget = r.lastKnown;
           r.searchT = 0; r.flankStage = 0;
-          if ((r.strafeT -= dt) <= 0) { r.strafeT = rand(1.3, 3.0); if (Math.random() < 0.65) r.strafeDir *= -1; }
+          if ((r.strafeT -= dt) <= 0) {
+            r.strafeT = rand(1.3, 3.0);
+            if (Math.random() < 0.65) r.strafeDir *= -1;
+            if (cfg.flank && Math.random() < 0.3) r.flankSide *= -1;
+          }
           const dir = _v1.divideScalar(d || 1);
           if (cfg.flank && d < r.prefRange + 10) {
             // Scouts orbit the player at their preferred range, swinging round the flank.
-            if ((r.strafeT < 0.1) && Math.random() < 0.3) r.flankSide *= -1;
             const a = Math.atan2(-dir.x, -dir.z) + r.flankSide * 0.75;
             const tx = r.lastKnown.x + Math.sin(a) * r.prefRange, tz = r.lastKnown.z + Math.cos(a) * r.prefRange;
             want.set(tx - r.pos.x, 0, tz - r.pos.z);
@@ -637,7 +639,7 @@ export class EnemyManager {
       else if (!wasSeeing) r.reactT = Math.max(r.reactT, 0.25 * this.reactMul);
       r.lastSeen = this.time;
       r.lastKnown.set(ctx.playerPos.x, ctx.playerPos.y, ctx.playerPos.z);
-      if (!hunting) this._enterHunt(r, true);
+      if (r.state === 'patrol' || (r.state === 'return' && Math.hypot(r.pos.x - r.site.x, r.pos.z - r.site.z) < CFG.leash - 12)) this._enterHunt(r, true);
     } else {
       // direct-walk check toward the current goal (cheap: only when not following LOS to the player)
       const goal = hunting ? r.lastKnown : r.target;
@@ -650,8 +652,8 @@ export class EnemyManager {
     const was = r.state;
     r.state = 'hunt'; r.path = null; r.searchT = 0; r.alertIn = -1; r.waitT = 0; r.flankStage = 0;
     r.prefRange = rand(...r.cfg.prefRange);
-    if (was !== 'hunt') {
-      r.firstBurst = true;
+    if (was !== 'hunt') r.firstBurst = true;
+    if (was === 'patrol') {
       this._sound('robotAlert', r.pos, sighted ? 0.9 : 0.6, r.cfg.pitch);
       // alert squadmates (and robots of other squads close by), staggered so they do not all engage at once
       let k = 0;
@@ -835,7 +837,6 @@ export class EnemyManager {
   raycast(origin, dir, maxDist) {
     let best = null;
     for (const r of this.list) {
-      if (!r.alive || !r.group.visible && r.stale && false) continue;
       if (!r.alive) continue;
       // broad phase: sphere around the robot
       const s = r.cfg.scale, R = 1.3 * s;

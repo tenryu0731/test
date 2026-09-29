@@ -58,7 +58,6 @@ export class Geo {
     this.special = new Map();   // THREE.Material -> Bucket
     this.lod = LOD.BASE;
     this.locked = -1;
-    this.stats = { tris: [0, 0, 0] };
   }
 
   chunkOf(x, z) {
@@ -111,8 +110,14 @@ export class Geo {
   box(mat, x0, y0, z0, x1, y1, z1, o = {}) {
     if (x1 - x0 < 1e-4 || y1 - y0 < 1e-4 || z1 - z0 < 1e-4) return;
     const gao = o.gao !== false;
+    // Foundations below the town floor: no contact AO there.
+    if (gao && y0 < -0.05 && y1 > 0.05) {
+      this.box(mat, x0, y0, z0, x1, 0, z1, { ...o, gao: false, skip: (o.skip || 0) | 4 });
+      this.box(mat, x0, 0, z0, x1, y1, z1, { ...o, skip: (o.skip || 0) | 8 });
+      return;
+    }
     // Split tall boxes so the AO gradients have vertices where they start.
-    if (gao && y0 < 0.8 && y1 > 1.4 && y0 > -2) {
+    if (gao && y0 < 0.8 && y1 > 1.4) {
       this.box(mat, x0, y0, z0, x1, 0.8, z1, { ...o, skip: (o.skip || 0) | 4 });
       this.box(mat, x0, 0.8, z0, x1, y1, z1, { ...o, skip: (o.skip || 0) | 8 });
       return;
@@ -143,7 +148,6 @@ export class Geo {
       I[j] = base; I[j + 1] = base + 1; I[j + 2] = base + 2; I[j + 3] = base; I[j + 4] = base + 2; I[j + 5] = base + 3;
       b.ni += 6;
     }
-    this.stats.tris[this.lod] += 0;
   }
 
   // Axis-aligned rectangle facing +/-x, +/-y or +/-z. axis: 'x'|'y'|'z', sgn ±1, c = plane coordinate,
@@ -155,10 +159,11 @@ export class Geo {
     if (axis !== 'y') {
       // Vertical faces: the second extent pair is y for 'z' and first pair is y for 'x'.
       const ylo = axis === 'x' ? a0 : b0, yhi = axis === 'x' ? a1 : b1;
-      const split = (gao && ylo < 0.8 && yhi > 1.4 && ylo > -2) ? 0.8 : (o.top && ylo < o.top - EAVE_BAND - 0.3 && yhi > o.top - EAVE_BAND + 0.05) ? o.top - EAVE_BAND : null;
+      const split = (gao && ylo < -0.05 && yhi > 0.05) ? 0 : (gao && ylo < 0.8 && yhi > 1.4) ? 0.8 : (o.top && ylo < o.top - EAVE_BAND - 0.3 && yhi > o.top - EAVE_BAND + 0.05) ? o.top - EAVE_BAND : null;
       if (split !== null) {
-        if (axis === 'x') { this.rect(mat, axis, sgn, c, a0, split, b0, b1, o); this.rect(mat, axis, sgn, c, split, a1, b0, b1, o); }
-        else { this.rect(mat, axis, sgn, c, a0, a1, b0, split, o); this.rect(mat, axis, sgn, c, a0, a1, split, b1, o); }
+        const lo = split === 0 ? { ...o, gao: false } : o;
+        if (axis === 'x') { this.rect(mat, axis, sgn, c, a0, split, b0, b1, lo); this.rect(mat, axis, sgn, c, split, a1, b0, b1, o); }
+        else { this.rect(mat, axis, sgn, c, a0, a1, b0, split, lo); this.rect(mat, axis, sgn, c, a0, a1, split, b1, o); }
         return;
       }
     }
