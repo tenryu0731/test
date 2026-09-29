@@ -39,7 +39,8 @@ Target: "AAA-looking" town, map, systems and graphics — while staying playable
 | `js/city.js`, `js/city-geo.js`, `js/textures.js` (+ new `js/city-*.js`) | **town agent** |
 | `js/landmarks.js` (+ new `js/landmarks-*.js`) | **landmarks agent** |
 | `js/enemies.js` (+ new `js/enemies-*.js`) | **enemy agent** |
-| `js/main.js` (game logic), `js/ui.js`, `js/input.js`, `css/style.css`, new `js/map.js`, `js/viewpoints.js`, `js/pickups.js`, `js/settings.js`, `js/weapon.js` (only to add ammo pickup support) | **systems agent** |
+| `js/main.js` (game logic), `js/ui.js`, `js/input.js`, `css/style.css`, new `js/map.js`, `js/viewpoints.js`, `js/pickups.js`, `js/settings.js` | **systems agent** |
+| `js/weapon.js` (+ new `js/weapon-*.js`) | **weapon agent** (hands/grip, aim down sights, lean) |
 | `js/audio.js` | systems agent (add sounds if needed) |
 
 ## Performance budget
@@ -151,6 +152,14 @@ viewpoint base, a 「登る」 button appears, the player is taken to the top (s
 around/shoot and 「降りる」; **俯瞰モード** (overview/drone camera in the pause menu: orbit & zoom over the
 town/world with touch drag/pinch or mouse); supply pickups (ammo/health) at sites; a cinematic menu
 flyover over the town. Keep the existing weapon/HUD quality.
+
+## Aim down sights and lean
+- Input (systems): right mouse / touch AIM toggle → `input.aim`; Q/E / touch peek buttons → `input.lean` (-1/0/1).
+- main.js (systems): FOV zoom toward `weapon.aimFov`, slower movement and look while aiming, camera lean
+  (~0.45 m sideways, ~12° roll, collision-checked), hitscan from the camera, `ctx.playerEye` = camera position.
+- weapon.js (weapon agent): `update(dt, { moving, speed01, grounded, lookDX, lookDY, aim, lean })`,
+  sights aligned at screen centre at aim = 1, `currentSpread` smaller when aiming, `aimFov`.
+- Difficulty: `DIFFICULTY_ORDER` (story, easy, normal, hard, expert) + `makeCustomDifficulty()` for カスタム.
 
 ## Testing
 `node tools/shot.mjs <out.png> --port <yours> --wait 12000 --query "autostart" --eval "<js>" [--mobile] [--raw]`
