@@ -270,3 +270,36 @@ export function makeBarkTextures(n = 128) {
   };
   return { map: mk(cd, true), normal: mk(nd, false) };
 }
+
+// Dry-stone rubble (irregular limestone blocks, dark joints): colour + normal, 1 texture = 3 m.
+export function makeRubbleTextures(n = 256) {
+  const w = worley(n, 14, 1001, 0.9), f = fbmField(n, 8, 4, 1003), g = fbmField(n, 48, 2, 1005);
+  const H = new Float32Array(n * n);
+  const cd = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const k = y * n + x;
+    // stones stretched horizontally: sample the cell field with squashed y
+    const k2 = ((Math.floor(y * 0.62) % n) * n + x);
+    const edge = smooth(0.02, 0.16, w.F2[k2] - w.F1[k2]);
+    const id = w.ID[k2];
+    H[k] = edge * (0.6 + 0.3 * f[k] + 0.1 * g[k]);
+    const l = (0.55 + 0.35 * id + 0.2 * (f[k] - 0.5) + 0.08 * (g[k] - 0.5)) * (0.25 + 0.75 * edge);
+    const warm = 0.9 + 0.2 * w.ID[(k2 + 7) % (n * n)];
+    cd[k * 4] = Math.min(255, 200 * l * warm); cd[k * 4 + 1] = Math.min(255, 188 * l); cd[k * 4 + 2] = Math.min(255, 164 * l / warm); cd[k * 4 + 3] = 255;
+  }
+  const nd = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const k = y * n + x;
+    const gx = (H[y * n + (x + 1) % n] - H[y * n + (x + n - 1) % n]) * 5, gz = (H[((y + 1) % n) * n + x] - H[((y + n - 1) % n) * n + x]) * 5;
+    const ln = Math.hypot(gx, gz, 1);
+    nd[k * 4] = (-gx / ln * 0.5 + 0.5) * 255; nd[k * 4 + 1] = (-gz / ln * 0.5 + 0.5) * 255; nd[k * 4 + 2] = (1 / ln * 0.5 + 0.5) * 255; nd[k * 4 + 3] = 255;
+  }
+  const mk = (d, srgb) => {
+    const t = new THREE.DataTexture(d, n, n, THREE.RGBAFormat);
+    if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+    t.anisotropy = 4; t.needsUpdate = true;
+    return t;
+  };
+  return { map: mk(cd, true), normal: mk(nd, false) };
+}

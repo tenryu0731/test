@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { TOWN, SITES, PLAY_HALF } from './layout.js';
 import { buildHeightfield, RIVER_HALF_W, distToRect } from './terrain-height.js';
 import { buildLand } from './terrain-land.js';
-import { makeGroundTextures, makeNoiseTexture } from './terrain-tex.js';
+import { makeGroundTextures, makeNoiseTexture, makeRubbleTextures } from './terrain-tex.js';
 import { createTerrainSurface } from './terrain-mesh.js';
 import { createVegetation } from './terrain-veg.js';
 import { createGrass } from './terrain-grass.js';
@@ -156,9 +156,9 @@ function buildWalls(scene, list, heightAt, stoneMat) {
     }
   }
   const meshes = [];
-  let mat;
-  if (stoneMat) { mat = stoneMat.clone(); mat.vertexColors = true; mat.color = new THREE.Color(0xcfc3ad); }
-  else mat = new THREE.MeshStandardMaterial({ color: 0xb3a58d, roughness: 0.95, vertexColors: true });
+  const rub = makeRubbleTextures(256);
+  const mat = new THREE.MeshStandardMaterial({ map: rub.map, normalMap: rub.normal, roughness: 0.93, vertexColors: true });
+  void stoneMat;
   mat.name = 'terrain-walls';
   for (const { pos, nor, uv, col } of chunks.values()) {
     if (!pos.length) continue;
