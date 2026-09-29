@@ -86,10 +86,11 @@ export class OverviewCam {
     const h = this.el.clientHeight || innerHeight;
     const worldPerPx = (2 * this.dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2)) / h;
     const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
-    const k = worldPerPx / Math.max(0.35, Math.sin(this.pitch)) ** 0.5;
-    // screen right = (cos, -sin), screen up (forward on ground) = (-sin, -cos)
-    this.goal.target.x -= (dxPx * c + dyPx * s) * worldPerPx - 0 * k;
-    this.goal.target.z -= (-dxPx * s + dyPx * c) * worldPerPx;
+    // Vertical drags cover more ground when the view is shallow (foreshortening).
+    const dy = dyPx / Math.max(0.3, Math.sin(this.pitch));
+    // screen right on the ground = (cos, -sin), screen up = forward = (-sin, -cos)
+    this.goal.target.x -= (dxPx * c + dy * s) * worldPerPx;
+    this.goal.target.z -= (-dxPx * s + dy * c) * worldPerPx;
   }
 
   _down(e) {
@@ -135,7 +136,7 @@ export class OverviewCam {
     const k = this._keys;
     const kx = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
     const ky = (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) - (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0);
-    if (kx || ky) this._pan(-kx * 900 * dt, -ky * 900 * dt);
+    if (kx || ky) this._pan(-kx * 600 * dt, -ky * 600 * dt);
     const kr = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
     if (kr) this.goal.yaw += kr * 1.4 * dt;
     if (k.has('Equal') || k.has('NumpadAdd')) this.zoom(Math.exp(-1.5 * dt));
