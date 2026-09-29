@@ -236,28 +236,33 @@ const pick = (arr, r) => arr[Math.min(arr.length - 1, Math.floor(r * arr.length)
 function setRGB(o, c, k = 1) { o.r = c[0] * k; o.g = c[1] * k; o.b = c[2] * k; }
 
 // ---------------------------------------------------------------- generators
-// Street setts: small rounded stones in slightly wavy rows, bedded in sand.
+// Street setts: small, irregular, rounded stones in slightly wavy rows, bedded in sandy mortar.
 function genCobble(n, seed) {
-  const heights = []; for (let i = 0; i < 15; i++) heights.push(0.9 + hash1(i, seed) * 0.25);
-  const rows = makeRows(seed, heights, 0.06, 0.1);
-  const pal = [[0.56, 0.53, 0.48], [0.61, 0.57, 0.5], [0.52, 0.5, 0.47], [0.62, 0.56, 0.47], [0.57, 0.51, 0.44], [0.55, 0.53, 0.5]];
-  const WU = field(n, 3, 3, seed + 1), WV = field(n, 3, 3, seed + 2), EN = field(n, 40, 3, seed + 3);
+  const heights = []; for (let i = 0; i < 16; i++) heights.push(0.85 + hash1(i, seed) * 0.3);
+  const rows = makeRows(seed, heights, 0.055, 0.085);
+  const pal = [[0.6, 0.56, 0.5], [0.64, 0.59, 0.51], [0.56, 0.53, 0.49], [0.65, 0.58, 0.48], [0.61, 0.54, 0.46], [0.58, 0.55, 0.51], [0.62, 0.53, 0.44]];
+  const WU = field(n, 3, 3, seed + 1), WV = field(n, 3, 3, seed + 2), EN = field(n, 24, 3, seed + 3);
   const FI = field(n, 64, 2, 7064), GR = field(n, 128, 2, 7128), DI = field(n, 5, 4, seed + 6);
   return bake(n, (u, v, o, i) => {
-    blockAt(rows, frac(u + (WU[i] - 0.5) * 0.05), frac(v + (WV[i] - 0.5) * 0.03));
-    const r1 = hash1(B.id, seed + 3), r2 = hash1(B.id, seed + 9), r3 = hash1(B.id, seed + 12);
-    const e = roundEdge(B.dx, B.dy, 0.016) + (EN[i] - 0.5) * 0.009;
-    const gap = 0.0035 + r3 * 0.003;
-    const stone = smooth(gap, gap + 0.003, e);
-    const dome = smooth(gap, gap + 0.022, e);
+    blockAt(rows, frac(u + (WU[i] - 0.5) * 0.06), frac(v + (WV[i] - 0.5) * 0.04));
+    const id = B.id;
+    const r1 = hash1(id, seed + 3), r2 = hash1(id, seed + 9);
+    // Each stone is an irregular rounded quad: random inset on every side.
+    const hw = B.w * 0.5, hh = B.h * 0.5;
+    const sx = B.lx < 0.5 ? hash1(id, seed + 21) : hash1(id, seed + 22);
+    const sy = B.ly < 0.5 ? hash1(id, seed + 23) : hash1(id, seed + 24);
+    const dx = B.dx - sx * 0.006, dy = B.dy - sy * 0.005;
+    const e = roundEdge(dx, dy, Math.min(hw, hh) * 0.55) + (EN[i] - 0.5) * 0.012;
+    const stone = smooth(0.002, 0.0045, e);
+    const dome = smooth(0.002, 0.02, e);
     const fine = FI[i], grit = GR[i], dirt = DI[i];
-    o.h = stone * (0.42 + 0.38 * Math.sqrt(dome) + fine * 0.08 + (r2 - 0.5) * 0.08) + (1 - stone) * (0.08 + grit * 0.1);
+    o.h = stone * (0.4 + 0.4 * Math.sqrt(dome) + fine * 0.07 + (r2 - 0.5) * 0.08) + (1 - stone) * (0.1 + grit * 0.1);
     const c = pick(pal, r1);
-    const k = (0.9 + 0.16 * r2) * (0.92 + 0.14 * fine) * (0.86 + 0.14 * dome) * (1 - smooth(0.55, 0.8, dirt) * 0.12);
-    const sk = 0.8 + 0.35 * grit;
-    o.r = mix(0.36 * sk, c[0] * k, stone); o.g = mix(0.33 * sk, c[1] * k, stone); o.b = mix(0.28 * sk, c[2] * k, stone);
-    o.rough = mix(0.97, 0.84 - 0.16 * dome * (0.5 + fine), stone);
-    o.ao = mix(0.45, 0.72 + 0.28 * dome, stone);
+    const k = (0.9 + 0.14 * r2) * (0.93 + 0.12 * fine) * (0.88 + 0.12 * dome) * (1 - smooth(0.55, 0.8, dirt) * 0.1);
+    const sk = (0.85 + 0.3 * grit) * (1 - smooth(0.55, 0.8, dirt) * 0.1);
+    o.r = mix(0.48 * sk, c[0] * k, stone); o.g = mix(0.43 * sk, c[1] * k, stone); o.b = mix(0.36 * sk, c[2] * k, stone);
+    o.rough = mix(0.97, 0.84 - 0.18 * dome * (0.4 + fine), stone);
+    o.ao = mix(0.5, 0.72 + 0.28 * dome, stone);
   });
 }
 
@@ -266,7 +271,7 @@ function genPaving(n, seed) {
   const heights = []; for (let i = 0; i < 4; i++) heights.push(0.2 + hash1(i, seed) * 0.1);
   const rows = makeRows(seed, heights, 0.24, 0.44);
   const CH = field(n, 48, 3, seed + 2), WE = field(n, 8, 4, seed + 6), FI = field(n, 64, 2, 7064);
-  const PO = field(n, 96, 2, seed + 9, 48), pq = quantile(PO, 0.93);
+  const PO = field(n, 128, 1, seed + 9), pq = quantile(PO, 0.95);
   return bake(n, (u, v, o, i) => {
     blockAt(rows, u, v);
     const edge = Math.min(B.dx, B.dy) + (CH[i] - 0.5) * 0.006;
@@ -277,7 +282,7 @@ function genPaving(n, seed) {
     const wear = WE[i], fine = FI[i], pore = smooth(pq, pq + 0.04, PO[i]);
     o.h = stone * (0.6 + 0.2 * bevel + tilt + fine * 0.1 - pore * 0.12 - smooth(0.6, 0.8, wear) * 0.06) + (1 - stone) * 0.2;
     const k = (0.9 + 0.14 * r1) * (0.93 + 0.12 * fine) * (1 - smooth(0.55, 0.85, wear) * 0.1) * (1 - pore * 0.12);
-    const base = [0.66 + 0.03 * r2, 0.62 + 0.01 * r2, 0.55 - 0.02 * r2];
+    const base = [0.67 + 0.03 * r2, 0.62 + 0.01 * r2, 0.54 - 0.02 * r2];
     const g = 0.4 + 0.08 * fine;
     o.r = mix(g, base[0] * k, stone); o.g = mix(g * 0.95, base[1] * k, stone); o.b = mix(g * 0.86, base[2] * k, stone);
     o.rough = mix(0.95, 0.82 - smooth(0.4, 0.7, wear) * 0.12, stone);
@@ -385,7 +390,7 @@ function genPlasterStructure(n, seed) {
   const bpal = [[0.6, 0.38, 0.27], [0.64, 0.43, 0.31], [0.68, 0.6, 0.5], [0.56, 0.36, 0.26], [0.66, 0.5, 0.38]];
   const BL = field(n, 8, 5, seed), TR = field(n, 48, 3, seed + 1), FI = field(n, 128, 2, 7128);
   const PR = field(n, 3, 5, seed + 2), pq = quantile(PR, 0.94);
-  const CR = field(n, 5, 4, seed + 4), CM = field(n, 2, 2, seed + 10), cq = quantile(CM, 0.8);
+  const CR = field(n, 7, 4, seed + 4), CM = field(n, 6, 3, seed + 10), cq = quantile(CM, 0.88);
   const SA = field(n, 40, 3, seed + 5, 2), SB = field(n, 3, 2, seed + 9), DA = field(n, 3, 4, seed + 6), dq = quantile(DA, 0.8);
   S.fine = FI;
   for (let y = 0; y < n; y++) {
@@ -397,8 +402,8 @@ function genPlasterStructure(n, seed) {
       const patch = smooth(pq, pq + 0.008, pr);
       const rim = smooth(pq - 0.03, pq, pr) * (1 - patch);
       // Hairline cracks: thin ridges of a noise field, only in some areas.
-      const crack = (1 - smooth(0.0, 0.007, Math.abs(CR[i] - 0.5))) * smooth(cq, cq + 0.08, CM[i]) * (1 - patch);
-      const streak = smooth(0.52, 0.8, SA[i]) * smooth(0.4, 0.7, SB[i]);
+      const crack = (1 - smooth(0.0, 0.006, Math.abs(CR[i] - 0.5))) * smooth(cq, cq + 0.05, CM[i]) * (1 - patch);
+      const streak = smooth(0.56, 0.85, SA[i]) * smooth(0.45, 0.75, SB[i]);
       const damp = smooth(dq, dq + 0.12, DA[i]);
       let bm = 0, br = 0.62, bg = 0.59, bb = 0.53;
       if (patch > 0.001) {
@@ -422,12 +427,15 @@ function genPlasterStructure(n, seed) {
 }
 function plasterColour(S, base, seed) {
   const n = S.n, C = new Uint8Array(n * n * 4);
-  const MO = field(n, 6, 4, seed), FI = S.fine;
-  for (let i = 0; i < n * n; i++) {
-    const mott = MO[i], fine = FI[i];
-    const k = (0.9 + 0.16 * mott) * (0.96 + 0.06 * fine) * (1 - S.streak[i] * 0.12) * (1 - S.damp[i] * 0.12) * (1 - S.crack[i] * 0.3);
+  // One shared mottling field, shifted per colour variant.
+  const MO = field(n, 6, 4, 4242), FI = S.fine;
+  const ox = Math.floor(hash1(seed, 5) * n), oy = Math.floor(hash1(seed, 6) * n);
+  for (let y = 0; y < n; y++) for (let x = 0, mrow = ((y + oy) % n) * n, xs = n - ox; x < n; x++) {
+    const i = y * n + x;
+    const mott = MO[mrow + (x < xs ? x + ox : x - xs)], fine = FI[i];
+    const k = (0.9 + 0.16 * mott) * (0.96 + 0.06 * fine) * (1 - S.streak[i] * 0.08) * (1 - S.damp[i] * 0.07) * (1 - S.crack[i] * 0.3);
     // Streaks and damp shift slightly toward grey-green.
-    const g = (S.streak[i] * 0.3 + S.damp[i] * 0.4) * 0.3;
+    const g = (S.streak[i] * 0.25 + S.damp[i] * 0.35) * 0.3;
     let r = mix(base[0], 0.5, g) * k, gg = mix(base[1], 0.5, g) * k, b = mix(base[2], 0.46, g) * k;
     const p = S.patch[i];
     r = mix(r, S.brickC[i * 3], p); gg = mix(gg, S.brickC[i * 3 + 1], p); b = mix(b, S.brickC[i * 3 + 2], p);
@@ -442,7 +450,7 @@ function genRoof(n, seed) {
   const cols = 8, rowsN = 4;
   const pal = [[0.68, 0.39, 0.26], [0.63, 0.35, 0.23], [0.72, 0.45, 0.31], [0.58, 0.36, 0.27], [0.66, 0.42, 0.3], [0.61, 0.4, 0.31]];
   const FI = field(n, 64, 2, 7064), LI = field(n, 24, 3, seed + 4), DK = field(n, 40, 2, seed + 9);
-  const lq = quantile(LI, 0.9), dq = quantile(DK, 0.9);
+  const lq = quantile(LI, 0.95), dq = quantile(DK, 0.9);
   return bake(n, (u, v, o, i) => {
     const x = u * cols, ci = Math.floor(x), fx = x - ci;
     const convex = ci % 2 === 1;
@@ -461,7 +469,7 @@ function genRoof(n, seed) {
     // Soot/grime in the channels, lighter sun-bleached crowns.
     k *= convex ? 0.95 + 0.1 * across : 0.84 + 0.1 * (1 - across);
     setRGB(o, c, k);
-    const lich = smooth(lq - 0.02 + (r2 - 0.5) * 0.06, lq + 0.03, LI[i]) * 0.6;
+    const lich = smooth(lq - 0.01 + (r2 - 0.5) * 0.04, lq + 0.03, LI[i]) * 0.45;
     const dark = smooth(dq, dq + 0.06, DK[i]);
     o.r = mix(o.r, 0.66, lich); o.g = mix(o.g, 0.64, lich); o.b = mix(o.b, 0.5, lich);
     o.r *= 1 - dark * 0.25; o.g *= 1 - dark * 0.22; o.b *= 1 - dark * 0.2;
@@ -476,7 +484,7 @@ function genRoof(n, seed) {
 function genShutterStructure(n, seed) {
   const slats = 18;
   const N = n * n, S = { n, H: new Float32Array(N), M: new Uint8Array(N * 4), chip: new Float32Array(N), shade: new Float32Array(N), grain: null, fade: null };
-  const CH = field(n, 12, 5, seed), cq = quantile(CH, 0.9);
+  const CH = field(n, 20, 4, seed), cq = quantile(CH, 0.95);
   S.grain = field(n, 4, 4, seed + 2, 96); S.fade = field(n, 3, 3, seed + 4);
   for (let y = 0; y < n; y++) {
     const v = (y + 0.5) / n;
@@ -638,10 +646,10 @@ export function createMaterials(renderer) {
   M.stoneTrim = material(genStoneTrim(256, 43), { tile: 1.5, normal: 2 }); // 1.5 m dressed stone
   M.brick = material(genBrick(512, 47), { tile: 1.2, normal: 5 });          // 1.2 m (bricks 24 × 7.5 cm)
 
-  // Plaster: 3 structures × colour variants, 4 m per repeat.
-  const structs = [genPlasterStructure(512, 101), genPlasterStructure(512, 211), genPlasterStructure(512, 307)];
-  const sNormals = structs.map((s) => normalTex(s.H, s.n, 4));
-  const sOrm = structs.map((s) => tex(s.M, s.n, false));
+  // Plaster: one shared structure (height/ORM/normal) × colour variants, 4 m per repeat. Every
+  // building also gets a random UV offset, so the stains and patches never line up between houses.
+  const ps = genPlasterStructure(512, 101);
+  const pN = normalTex(ps.H, ps.n, 4), pO = tex(ps.M, ps.n, false);
   const plasterColours = [
     [0.76, 0.6, 0.41],  // warm ochre
     [0.8, 0.76, 0.66],  // cream
@@ -652,7 +660,7 @@ export function createMaterials(renderer) {
     [0.74, 0.55, 0.42], // faded terracotta
   ];
   M.plaster = plasterColours.map((c, i) => material(null, {
-    tile: 4.0, colorTex: plasterColour(structs[i % 3], c, 500 + i * 37), normalMap: sNormals[i % 3], ormTex: sOrm[i % 3],
+    tile: 4.0, colorTex: plasterColour(ps, c, 500 + i * 37), normalMap: pN, ormTex: pO,
   }));
 
   M.roof = material(genRoof(512, 61), { tile: 1.5, normal: 7 });            // 1.5 m (8 coppi channels × 4 rows)

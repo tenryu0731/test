@@ -15,7 +15,7 @@ const CFG = {
   patrolSpeed: 1.3, chaseSpeed: 2.7, strafeSpeed: 1.6, retreatSpeed: 1.9,
   minRange: 8, maxRange: 18,
   reaction: 0.6,
-  burst: [2, 4], burstGap: 0.14, burstCooldown: [1.1, 2.0],
+  burst: [2, 4], burstGap: 0.14, burstCooldown: [0.95, 1.7],
   maxShooters: 3, shooterGap: 0.35,
   damage: 8,
   forget: 11,
@@ -923,7 +923,7 @@ export class EnemyManager {
     const muzzle = this._muzzleWorld(r, _muz);
     const chest = _aim.set(ctx.playerEye.x, ctx.playerEye.y - 0.45, ctx.playerEye.z);
     const d = muzzle.distanceTo(chest);
-    let p = clamp(0.8 - 0.022 * d, 0.12, 0.72);
+    let p = clamp(0.84 - 0.022 * d, 0.12, 0.72);
     const ps = Math.hypot(this.playerVel.x, this.playerVel.z);
     if (ps > 2.5) p *= 0.72;
     if (r.firstBurst) p *= 0.7;

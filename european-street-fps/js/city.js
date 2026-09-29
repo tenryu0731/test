@@ -141,23 +141,36 @@ export function buildCity(scene, M) {
     geo.geom(mat, g, faceMatrix(f), o);
     g.dispose();
   }
-  function spandrel(f, mat, t0, t1, spring, top, d0, d1, o) {
-    const r = (t1 - t0) / 2, tc = (t0 + t1) / 2;
-    const s = new THREE.Shape();
-    s.moveTo(t0, top); s.lineTo(t0, spring);
-    s.absarc(tc, spring, r + 0.005, Math.PI, 0, true);
-    s.lineTo(t1, top); s.lineTo(t0, top);
-    lshape(f, mat, s, d0, d1, o);
+  // Arches are generated directly (no triangulation): only faces that can be seen are emitted.
+  const P3 = (f, t, y, d) => [fx(f, t, d), y, fz(f, t, d)];
+  const arcSegs = (r) => Math.min(16, Math.max(8, Math.round(6 + r * 6)));
+  // Wall above a semicircular opening: from the arc up to `top`, front face at d1 (back optional).
+  function spandrel(f, mat, t0, t1, spring, top, d0, d1, o, back = false) {
+    const r0 = (t1 - t0) / 2, r = r0 + 0.005, tc = (t0 + t1) / 2, n = arcSegs(r0);
+    const out = [f.dx, 0, f.dz], inn = [-f.dx, 0, -f.dz];
+    for (let k = 0; k < n; k++) {
+      const a0 = Math.PI * (1 - k / n), a1 = Math.PI * (1 - (k + 1) / n);
+      const ta = tc + r * Math.cos(a0), ya = spring + r * Math.sin(a0), tb = tc + r * Math.cos(a1), yb = spring + r * Math.sin(a1);
+      geo.quad(mat, P3(f, ta, ya, d1), P3(f, tb, yb, d1), P3(f, tb, top, d1), P3(f, ta, top, d1), out, o);
+      if (back) geo.quad(mat, P3(f, ta, ya, d0), P3(f, tb, yb, d0), P3(f, tb, top, d0), P3(f, ta, top, d0), inn, o);
+    }
   }
-  function archRing(f, t0, t1, spring, d0, d1, width = 0.3, o = {}) {
-    const r = (t1 - t0) / 2, tc = (t0 + t1) / 2;
-    const s = new THREE.Shape();
-    s.absarc(tc, spring, r + width, 0, Math.PI, false);
-    s.lineTo(tc - r, spring);
-    s.absarc(tc, spring, r, Math.PI, 0, true);
-    s.lineTo(tc + r + width, spring);
-    lshape(f, trim, s, d0, d1, o);
-    lbox(f, trim, tc - 0.13, tc + 0.13, spring + r - 0.02, spring + r + width + 0.06, d0, d1 + 0.03, o); // keystone
+  // Dressed-stone arch ring (archivolt) with keystone; intrados spans the whole reveal depth.
+  function archRing(f, t0, t1, spring, d0, d1, width = 0.3, o = {}, back = false) {
+    const r = (t1 - t0) / 2, R = r + width, tc = (t0 + t1) / 2, n = arcSegs(r);
+    const oo = { gao: false, ...o }, out = [f.dx, 0, f.dz], dv = Math.max(d0, -0.02);
+    for (let k = 0; k < n; k++) {
+      const a0 = Math.PI * (1 - k / n), a1 = Math.PI * (1 - (k + 1) / n), am = (a0 + a1) / 2;
+      const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1), cm = Math.cos(am), sm = Math.sin(am);
+      const i0 = [tc + r * c0, spring + r * s0], i1 = [tc + r * c1, spring + r * s1];
+      const e0 = [tc + R * c0, spring + R * s0], e1 = [tc + R * c1, spring + R * s1];
+      geo.quad(trim, P3(f, i0[0], i0[1], d1), P3(f, i1[0], i1[1], d1), P3(f, e1[0], e1[1], d1), P3(f, e0[0], e0[1], d1), out, oo);
+      if (back) geo.quad(trim, P3(f, i0[0], i0[1], d0), P3(f, i1[0], i1[1], d0), P3(f, e1[0], e1[1], d0), P3(f, e0[0], e0[1], d0), [-f.dx, 0, -f.dz], oo);
+      geo.quad(trim, P3(f, i0[0], i0[1], d0), P3(f, i1[0], i1[1], d0), P3(f, i1[0], i1[1], d1), P3(f, i0[0], i0[1], d1), [-cm * f.tx, -sm, -cm * f.tz], oo);
+      geo.quad(trim, P3(f, e0[0], e0[1], dv), P3(f, e1[0], e1[1], dv), P3(f, e1[0], e1[1], d1), P3(f, e0[0], e0[1], d1), [cm * f.tx, sm, cm * f.tz], oo);
+    }
+    for (const sgn of [-1, 1]) geo.quad(trim, P3(f, tc + sgn * r, spring, dv), P3(f, tc + sgn * R, spring, dv), P3(f, tc + sgn * R, spring, d1), P3(f, tc + sgn * r, spring, d1), [0, -1, 0], oo);
+    lbox(f, trim, tc - 0.13, tc + 0.13, spring + r - 0.02, spring + R + 0.06, dv, d1 + 0.03, oo); // keystone
   }
   function halfDisc(f, mat, tc, spring, r, d, o) {
     const g = new THREE.CircleGeometry(r, 10, 0, Math.PI);
@@ -286,6 +299,7 @@ export function buildCity(scene, M) {
         geo.geom(M.roof, g, null, {});
         g.dispose();
         blob(M.plant, x, 0.62, z, 0.3, 1.1);
+        collide(x - 0.24, 0, z - 0.24, x + 0.24, 0.9, z + 0.24);
       }
     }
     if (L.lantern) lantern(f, t1 + 0.7, 3.1);
@@ -312,7 +326,7 @@ export function buildCity(scene, M) {
   function lantern(f, t, y) {
     lbox(f, M.iron, t - 0.025, t + 0.025, y + 0.2, y + 0.25, 0, 0.45, { gao: false });
     const x = fx(f, t, 0.45), z = fz(f, t, 0.45);
-    geo.box(M.glass, x - 0.1, y - 0.2, z - 0.1, x + 0.1, y + 0.12, z + 0.1, { gao: false });
+    geo.box(M.lampGlass || M.glass, x - 0.1, y - 0.2, z - 0.1, x + 0.1, y + 0.12, z + 0.1, { gao: false });
     geo.box(M.iron, x - 0.12, y - 0.24, z - 0.12, x + 0.12, y - 0.2, z + 0.12, { gao: false });
     const g = new THREE.ConeGeometry(0.16, 0.14, 4);
     g.rotateY(Math.PI / 4); g.translate(x, y + 0.19, z);
@@ -349,7 +363,7 @@ export function buildCity(scene, M) {
 
   // Façade slab with real openings. bands: [{ y0, y1, ops:[{t0,t1,y0,y1,arch,kind}] }]
   function slab(f, bands, L, ts, te) {
-    const o = { tint: L.tint, uvOff: L.uvOff };
+    const o = { tint: L.tint, uvOff: L.uvOff, top: L.eaveAO };
     for (const band of bands) {
       const ops = band.ops.slice().sort((a, b) => a.t0 - b.t0);
       let cur = ts;
@@ -459,7 +473,8 @@ export function buildCity(scene, M) {
     // Body inset behind the façade slabs.
     const bx0 = l.x0 + (isFac('W') ? FAC : 0), bx1 = l.x1 - (isFac('E') ? FAC : 0);
     const bz0 = l.z0 + (isFac('N') ? FAC : 0), bz1 = l.z1 - (isFac('S') ? FAC : 0);
-    geo.box(L.wall, bx0, 0, bz0, bx1, L.H, bz1, { tint: L.tint, uvOff: L.uvOff });
+    L.eaveAO = L.H;
+    geo.box(L.wall, bx0, 0, bz0, bx1, L.H, bz1, { tint: L.tint, uvOff: L.uvOff, top: L.H });
     collide(l.x0, 0, l.z0, l.x1, L.H, l.z1);
 
     for (const dir of ['N', 'S', 'W', 'E']) {
@@ -680,8 +695,8 @@ export function buildCity(scene, M) {
     for (const [px, pz] of [[x0, z0], [x1 - p, z0], [x0, z1 - p], [x1 - p, z1 - p]]) geo.box(M.brick, px, H + 0.4, pz, px + p, top, pz + p, { tint, gao: false });
     for (const dir of ['N', 'S', 'W', 'E']) {
       const f = makeFace(CAMPANILE, dir);
-      spandrel(f, M.brick, p, f.W - p, top - 2.6, top, -0.6, 0, { tint, gao: false });
-      archRing(f, p, f.W - p, top - 2.6, -0.6, 0.05, 0.25, {});
+      spandrel(f, M.brick, p, f.W - p, top - 2.6, top, -0.6, 0, { tint, gao: false }, true);
+      archRing(f, p, f.W - p, top - 2.6, -0.61, 0.05, 0.25, {}, true);
     }
     geo.box(M.brick, x0, top, z0, x1, top + 0.5, z1, { tint, gao: false });
     geo.box(trim, x0 - 0.25, top + 0.5, z0 - 0.25, x1 + 0.25, top + 0.75, z1 + 0.25, { gao: false });
@@ -786,7 +801,7 @@ export function buildCity(scene, M) {
     }
     s.lineTo(f.W, spring); s.lineTo(f.W, bandTop); s.lineTo(0, bandTop);
     lshape(f, M.plaster[1], s, -0.5, 0, { tint: 1.02 });
-    for (let k = 0; k < cols - 1; k++) archRing(f, xs[k] - x0 + 0.32, xs[k + 1] - x0 - 0.32, spring, -0.5, 0.03, 0.22, {});
+    for (let k = 0; k < cols - 1; k++) archRing(f, xs[k] - x0 + 0.32, xs[k + 1] - x0 - 0.32, spring, -0.51, 0.03, 0.22, {}, true);
     lbox(f, trim, 0, f.W, bandTop - 0.25, bandTop, 0, 0.12, { gao: false });
     collide(x0, spring, zf, x1, bandTop + 0.4, zf + 0.5);
     // End walls, ceiling and lean-to roof.
@@ -843,15 +858,15 @@ export function buildCity(scene, M) {
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2 + Math.PI / 8, ca = Math.cos(a), sa = Math.sin(a);
     const curve = new THREE.QuadraticBezierCurve3(V3(ca * 1.42, 1.8, sa * 1.42), V3(ca * 1.75, 1.7, sa * 1.75), V3(ca * 2.0, 0.33, sa * 2.0));
-    const g = new THREE.TubeGeometry(curve, 8, 0.03, 5, false);
-    geo.geom(M.water, g, null, { gao: false, cast: false }); g.dispose();
+    const g = new THREE.TubeGeometry(curve, 8, 0.025, 5, false);
+    geo.geom(M.waterJet || M.water, g, null, { gao: false, cast: false }); g.dispose();
   }
   for (let k = 0; k < 4; k++) {
     const a = (k / 4) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
     geo.box(M.metalBright, ca * 0.15 - 0.03, 2.42, sa * 0.15 - 0.03, ca * 0.3 + 0.03, 2.47, sa * 0.3 + 0.03, { gao: false, tint: [0.7, 0.6, 0.45] });
     const curve = new THREE.QuadraticBezierCurve3(V3(ca * 0.3, 2.44, sa * 0.3), V3(ca * 0.7, 2.5, sa * 0.7), V3(ca * 0.95, 1.82, sa * 0.95));
-    const g = new THREE.TubeGeometry(curve, 8, 0.02, 4, false);
-    geo.geom(M.water, g, null, { gao: false, cast: false }); g.dispose();
+    const g = new THREE.TubeGeometry(curve, 8, 0.018, 4, false);
+    geo.geom(M.waterJet || M.water, g, null, { gao: false, cast: false }); g.dispose();
   }
   collide(-3.1, 0, -3.1, 3.1, 0.42, 3.1);
   collide(-0.5, 0.42, -0.5, 0.5, 2.9, 0.5);

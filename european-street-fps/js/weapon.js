@@ -312,15 +312,14 @@ function buildGun() {
   // Flip-up sights.
   metal.add(ebox(0.024, 0.009, 0.028, 0.002, 0.0008), C.recvDark, M(0, 0.04, 0.066));
   {
-    const s = chamferRect(0.024, 0.026, 0.006); s.translate?.(0, 0);
+    const s = chamferRect(0.024, 0.026, 0.006);
     const hole = new THREE.Path(); hole.absarc(0, 0.004, 0.0032, 0, PI * 2, true); s.holes.push(hole);
     const g = new THREE.ExtrudeGeometry(s, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.0008, bevelSize: 0.0008, bevelSegments: 1, curveSegments: 10 });
-    metal.add(g, C.recvDark, M(0, 0.056, 0.07));
+    metal.add(g, C.recvDark, M(0, 0.047, 0.079, -1.45, 0, 0));
   }
-  metal.add(ebox(0.024, 0.01, 0.02, 0.002, 0.0008), C.recvDark, M(0, 0.041, -0.44));
-  metal.add(ebox(0.0045, 0.022, 0.012, 0.0015, 0.0007), C.recvDark, M(-0.0095, 0.056, -0.44));
-  metal.add(ebox(0.0045, 0.022, 0.012, 0.0015, 0.0007), C.recvDark, M(0.0095, 0.056, -0.44));
-  metal.add(ebox(0.0026, 0.017, 0.003, 0.0008, 0.0004), C.steel, M(0, 0.053, -0.44));
+  metal.add(ebox(0.024, 0.01, 0.02, 0.002, 0.0008), C.recvDark, M(0, 0.041, -0.44));   // folded front sight
+  metal.add(ebox(0.022, 0.005, 0.026, 0.0015, 0.0007), C.recvDark, M(0, 0.0475, -0.452));
+  metal.add(ebox(0.004, 0.003, 0.02, 0.001, 0.0005), C.steel, M(0, 0.0505, -0.455));
 
   // Worn edges: a few lighter strips where hands and holsters rub the anodising.
   metal.add(box(0.0012, 0.004, 0.2), C.wear, M(-0.0252, 0.022, -0.03));
@@ -435,7 +434,7 @@ function addForearm(gloveBag, sleeveBag, w, e) {
   at(0.022, strap, C.gloveDark, gloveBag);
   // sleeve: tapered cylinder with fabric folds
   const L = w.distanceTo(e);
-  const sl = new THREE.CylinderGeometry(0.056, 0.041, L, 16, 10, true);
+  const sl = new THREE.CylinderGeometry(0.05, 0.039, L, 16, 10, true);
   const pos = sl.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), a = Math.atan2(z, x), t = y / L + 0.5;
@@ -445,9 +444,9 @@ function addForearm(gloveBag, sleeveBag, w, e) {
   sl.computeVertexNormals();
   sl.translate(0, L / 2, 0);
   at(0.045, sl, C.sleeve, sleeveBag);
-  const cuffS = new THREE.CylinderGeometry(0.047, 0.045, 0.03, 16, 1, true);
+  const cuffS = new THREE.CylinderGeometry(0.044, 0.043, 0.03, 16, 1, true);
   at(0.05, cuffS, C.sleeveDark, sleeveBag);
-  const lip = new THREE.TorusGeometry(0.046, 0.005, 6, 16); lip.rotateX(PI / 2);
+  const lip = new THREE.TorusGeometry(0.043, 0.005, 6, 16); lip.rotateX(PI / 2);
   at(0.036, lip, C.sleeveDark, sleeveBag);
 }
 
@@ -620,7 +619,7 @@ export class Weapon {
     const mt = metalTextures();
     mt.map.repeat.set(1, 1);
     this.mats = {
-      metal: new THREE.MeshStandardMaterial({ vertexColors: true, map: mt.map, roughnessMap: mt.rough, roughness: 1.0, metalness: 0.55 }),
+      metal: new THREE.MeshStandardMaterial({ vertexColors: true, map: mt.map, roughnessMap: mt.rough, roughness: 1.0, metalness: 0.4 }),
       poly: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0, roughnessMap: noiseTexture(128, 200, 40), bumpMap: noiseTexture(128, 128, 110), bumpScale: 0.6 }),
       glove: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.0, bumpMap: noiseTexture(128, 128, 90, 2), bumpScale: 0.8 }),
       sleeve: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0.0, map: fabricTexture(), bumpMap: null, bumpScale: 0.5 }),
@@ -730,8 +729,8 @@ export class Weapon {
     }
 
     // ---- animation state
-    this.base = new THREE.Vector3(0.118, -0.128, -0.315);
-    this.baseRot = new THREE.Euler(0.0, 0.045, 0.0);
+    this.base = new THREE.Vector3(0.15, -0.125, -0.38);
+    this.baseRot = new THREE.Euler(0.0, 0.1, -0.18);
     this.rec = { z: new Spring(260, 24), pitch: new Spring(230, 21), roll: new Spring(160, 16), x: new Spring(200, 20), yaw: new Spring(200, 20) };
     this.sway = { x: new Spring(90, 14), y: new Spring(90, 14), land: new Spring(120, 13) };
     this.resize(this.viewCamera.aspect);
@@ -765,11 +764,11 @@ export class Weapon {
     // Right hand around the pistol grip (static in gun space).
     const rPose = {
       fingers: [[0.18, 0.55, 0.45, 0.06], [1.45, 1.5, 0.75, 0.02], [1.5, 1.5, 0.75, -0.02], [1.55, 1.45, 0.7, -0.06]],
-      thumb: { rot: [-0.25, 1.05, 0.2], curl: [0.25, 0.2] },
+      thumb: { rot: [-0.95, 0.35, 0.0], curl: [0.15, 0.1] },
     };
     const lPose = {
-      fingers: [[1.25, 1.2, 0.6, 0.04], [1.35, 1.25, 0.6, 0.0], [1.4, 1.25, 0.55, -0.04], [1.45, 1.2, 0.5, -0.08]],
-      thumb: { rot: [-0.05, 0.55, 0.3], curl: [0.1, 0.1] },
+      fingers: [[1.0, 1.2, 0.6, 0.06], [1.05, 1.25, 0.6, 0.0], [1.1, 1.25, 0.55, -0.05], [1.15, 1.2, 0.5, -0.1]],
+      thumb: { rot: [-0.7, 0.35, 0.0], curl: [0.3, 0.2] },
     };
     const rGlove = new Bag(), rSleeve = new Bag(), lGlove = new Bag(), lSleeve = new Bag();
     const rm = handMatrix(new THREE.Vector3(-1, 0.05, 0.25), new THREE.Vector3(0, 0.35, -1), new THREE.Vector3(0.03, -0.086, 0.078));
@@ -778,11 +777,11 @@ export class Weapon {
     addForearm(rGlove, rSleeve, rWrist, new THREE.Vector3(0.13, -0.3, 0.42));
 
     // Left hand under the handguard; geometry is relative to the palm centre (the arm's pivot).
-    this.leftPalm = new THREE.Vector3(-0.008, -0.05, -0.33);
-    const lm = handMatrix(new THREE.Vector3(0.2, 1, 0.0), new THREE.Vector3(1, -0.15, -0.9), this.leftPalm);
+    this.leftPalm = new THREE.Vector3(-0.047, -0.012, -0.39);
+    const lm = handMatrix(new THREE.Vector3(1, 0.12, 0.0), new THREE.Vector3(0.0, -0.25, -1), this.leftPalm);
     lGlove.add(handGeometry(lPose, true), null, lm);
     const lWrist = new THREE.Vector3().setFromMatrixPosition(lm);
-    addForearm(lGlove, lSleeve, lWrist, new THREE.Vector3(-0.3, -0.34, 0.02));
+    addForearm(lGlove, lSleeve, lWrist, new THREE.Vector3(-0.26, -0.26, 0.1));
 
     this.rightGlove = new THREE.Mesh(rGlove.build(0.05), this.mats.glove);
     this.rightSleeve = new THREE.Mesh(rSleeve.build(0.2), this.mats.sleeve);
@@ -943,10 +942,10 @@ export class Weapon {
 
     // bolt cycle: back and forward within ~60 ms, locked back on an empty mag until release
     this.boltT = Math.min(1, this.boltT + dt / 0.065);
-    let boltX = Math.sin(Math.min(1, this.boltT) * PI) * (this.boltT < 1 ? 1 : 0);
+    let boltX = this.boltT < 1 ? Math.sin(this.boltT * PI) : 0;
     if (this.boltLocked) {
-      boltX = this.isReloading && this.reloadT >= R.slap[1] ? Math.max(0, 1 - (this.reloadT - R.slap[1]) / 0.03) : Math.max(boltX, this.boltT >= 0.5 ? 1 : boltX);
-      if (this.isReloading && this.reloadT >= R.slap[1] + 0.03) this.boltLocked = false;
+      if (this.boltT >= 0.5) boltX = 1;
+      if (this.isReloading && this.reloadT >= R.slap[1]) { this.boltLocked = false; boltX = 0; this.rec.z.v += 0.2; }
     }
     this.bolt.position.z = boltX * 0.042;
 
