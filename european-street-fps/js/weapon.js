@@ -238,7 +238,7 @@ function zcyl(r0, r1, len, seg = 12, open = false) { const g = new THREE.Cylinde
 const C = {
   recv: 0x3b3d41, recvDark: 0x2c2e31, guard: 0x35373a, barrel: 0x2c2c2e, steel: 0x5d5f63, steelBright: 0xa4a29c,
   poly: 0x2f2e2c, polyMag: 0x3a3733, rubber: 0x1c1c1c, void: 0x060606, wear: 0x6c6e70,
-  glove: 0x6e5f47, gloveDark: 0x3f382e, glovePalm: 0x5c5040, sleeve: 0x5b6045, sleeveDark: 0x474b36, brass: 0xc79a4a,
+  glove: 0x6e5f47, gloveDark: 0x3f382e, glovePalm: 0x5c5040, sleeve: 0x5b6045, sleeveDark: 0x474b36, brass: 0xa7843f,
 };
 
 // ---------------------------------------------------------------- gun model
@@ -641,7 +641,7 @@ export class Weapon {
       poly: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.0, roughnessMap: noiseTexture(128, 200, 40), bumpMap: noiseTexture(128, 128, 110), bumpScale: 0.6 }),
       glove: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88, metalness: 0.0, bumpMap: noiseTexture(128, 128, 90, 2), bumpScale: 0.8 }),
       sleeve: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0.0, map: fabricTexture(), bumpMap: null, bumpScale: 0.5 }),
-      brass: new THREE.MeshStandardMaterial({ color: C.brass, roughness: 0.32, metalness: 0.9 }),
+      brass: new THREE.MeshStandardMaterial({ color: C.brass, roughness: 0.4, metalness: 0.85 }),
     };
     this.mats.sleeve.bumpMap = this.mats.sleeve.map;
     this.mats.sleeve.map.repeat.set(6, 6);
@@ -698,7 +698,7 @@ export class Weapon {
     this.sparkTex = sparkTexture();
     this.smoke = new Particles(48, this.puffTex);
     this.viewScene.add(this.smoke.mesh);
-    const casingGeo = new THREE.CylinderGeometry(0.0046, 0.0048, 0.03, 8);
+    const casingGeo = new THREE.CylinderGeometry(0.0042, 0.0045, 0.027, 8);
     casingGeo.rotateX(PI / 2);
     this.casings = new THREE.InstancedMesh(casingGeo, this.mats.brass, 10);
     this.casings.frustumCulled = false;
