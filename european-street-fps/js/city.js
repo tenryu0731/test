@@ -47,7 +47,7 @@ const PASSAGES = [
   { r: [-15, -11, 24, 26.5], axis: 'x', h: 7.4 },
 ];
 
-export function buildCity(scene, M) {
+export function buildCity(scene, M, opts = {}) {
   const t0 = performance.now();
   const R = mulberry32(20240917);
   const rr = (a, b) => a + (b - a) * R();
@@ -1041,7 +1041,7 @@ export function buildCity(scene, M) {
   scene.add(decalMesh);
 
   // ------------------------------------------------------------------ backdrop
-  const backdrop = buildBackdrop(scene, M, R);
+  const backdrop = opts.backdrop === false ? [] : buildBackdrop(scene, M, R);
 
   // ------------------------------------------------------------------ navigation
   const clear = (x, z, r) => {

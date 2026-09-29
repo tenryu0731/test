@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Physics } from './physics.js';
 import { createMaterials } from './textures.js';
-import { buildCity } from './city.js';
+import { buildWorld } from './world.js';
+import { createGraphics } from './render.js';
 import { Weapon } from './weapon.js';
 import { EnemyManager } from './enemies.js';
 import { Input } from './input.js';
@@ -13,94 +14,21 @@ const params = new URLSearchParams(location.search);
 
 // ---------- renderer ----------
 const canvas = document.getElementById('game');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-const maxPR = isTouch ? 1.5 : 2;
-let pixelRatio = Math.min(devicePixelRatio, maxPR);
-renderer.setPixelRatio(pixelRatio);
-renderer.setSize(innerWidth, innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.autoClear = false;
-
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 600);
-camera.rotation.order = 'YXZ';
-scene.add(camera);
-
-// ---------- sky, sun, environment ----------
-const SUN_DIR = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(38), THREE.MathUtils.degToRad(215));
-const SKY_TOP = new THREE.Color(0x3f7fd0), SKY_HORIZON = new THREE.Color(0xc9dcec), SKY_GROUND = new THREE.Color(0xb7a58c);
-
-function makeSky() {
-  const mat = new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: {
-      top: { value: SKY_TOP }, horizon: { value: SKY_HORIZON }, ground: { value: SKY_GROUND },
-      sunDir: { value: SUN_DIR },
-    },
-    vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); vec4 p = modelViewMatrix * vec4(position,1.0); gl_Position = projectionMatrix * p; gl_Position.z = gl_Position.w; }`,
-    fragmentShader: `uniform vec3 top, horizon, ground, sunDir; varying vec3 vDir;
-      void main(){
-        vec3 d = normalize(vDir);
-        float h = d.y;
-        vec3 c = h > 0.0 ? mix(horizon, top, pow(clamp(h,0.0,1.0), 0.55)) : mix(horizon, ground, clamp(-h*4.0,0.0,1.0));
-        float s = max(dot(d, normalize(sunDir)), 0.0);
-        c += vec3(1.0,0.93,0.8) * (pow(s, 900.0) * 1.6 + pow(s, 12.0) * 0.12);
-        // a few soft cirrus streaks, very faint
-        float cl = smoothstep(0.55, 1.0, sin(d.x*9.0 + d.z*3.0) * sin(d.z*7.0 - d.x*2.0 + 1.3)) * smoothstep(0.05, 0.35, h) * 0.18;
-        c = mix(c, vec3(1.0), cl);
-        gl_FragColor = vec4(c, 1.0);
-        #include <colorspace_fragment>
-      }`,
-  });
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 32, 16), mat);
-  sky.frustumCulled = false;
-  sky.renderOrder = -1;
-  return sky;
-}
-const sky = makeSky();
-scene.add(sky);
-
-{
-  // Image-based lighting baked from the sky so PBR materials pick up bright daylight.
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  const envScene = new THREE.Scene();
-  envScene.add(makeSky());
-  scene.environment = pmrem.fromScene(envScene, 0.02).texture;
-  scene.environmentIntensity = 0.45;
-  pmrem.dispose();
-}
-
-const hemi = new THREE.HemisphereLight(0xdde6f0, 0xb49a78, 0.8);
-scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffe9cc, 3.0);
-sun.castShadow = true;
-const SHADOW_R = isTouch ? 34 : 45;
-// ?q=low: small shadow map (used by headless screenshot tooling, also handy on weak phones).
-sun.shadow.mapSize.setScalar(params.get('q') === 'low' ? 1024 : isTouch ? 2048 : 4096);
-Object.assign(sun.shadow.camera, { left: -SHADOW_R, right: SHADOW_R, top: SHADOW_R, bottom: -SHADOW_R, near: 1, far: 200 });
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.035;
-sun.shadow.radius = 2;
-scene.add(sun, sun.target);
-// Light haze only for aerial perspective on the far backdrop — never hides the street.
-scene.fog = new THREE.Fog(SKY_HORIZON.clone().lerp(new THREE.Color(0xffffff), 0.1), 90, 420);
+const gfx = createGraphics(canvas, { isTouch, params });
+const { renderer, scene, camera } = gfx;
 
 // ---------- world ----------
 const t0 = performance.now();
 const materials = createMaterials(renderer);
-const city = buildCity(scene, materials);
-const physics = new Physics(city.colliders);
-console.log(`[boot] city built in ${(performance.now() - t0).toFixed(0)} ms, ${city.colliders.length} colliders`);
+const world = buildWorld(scene, materials, { renderer, camera });
+const physics = new Physics(world.colliders, world.groundAt);
+console.log(`[boot] world built in ${(performance.now() - t0).toFixed(0)} ms, ${world.colliders.length} colliders`);
 
 const t1 = performance.now();
 const audio = new GameAudio();
 const weapon = new Weapon({ renderer, audio });
 const t2 = performance.now();
-const enemies = new EnemyManager({ scene, physics, audio, spawns: city.enemySpawns, navPoints: city.navPoints });
+const enemies = new EnemyManager({ scene, physics, audio, world, spawns: world.enemySites.flatMap((s) => s.spawns), navPoints: world.navPoints });
 const t3 = performance.now();
 const input = new Input(canvas, { isTouch });
 const ui = new UI(document.getElementById('ui'), { isTouch });
@@ -117,9 +45,9 @@ let state = 'menu';
 let winTimer = -1;
 
 function resetGame() {
-  player.pos.copy(city.playerSpawn);
+  player.pos.copy(world.playerSpawn);
   player.velY = 0; player.grounded = true;
-  player.yaw = city.playerYaw; player.pitch = 0;
+  player.yaw = world.playerYaw; player.pitch = 0;
   player.kickPitch = player.kickYaw = 0;
   player.hp = PLAYER.maxHP;
   stats.start = performance.now(); stats.shots = 0; stats.hits = 0;
@@ -255,10 +183,8 @@ function updatePlayer(dt) {
   } else if (player.pos.y - ground > 0.05) {
     player.grounded = false;
   }
-  if (city.bounds) {
-    player.pos.x = THREE.MathUtils.clamp(player.pos.x, city.bounds.minX, city.bounds.maxX);
-    player.pos.z = THREE.MathUtils.clamp(player.pos.z, city.bounds.minZ, city.bounds.maxZ);
-  }
+  player.pos.x = THREE.MathUtils.clamp(player.pos.x, world.bounds.minX, world.bounds.maxX);
+  player.pos.z = THREE.MathUtils.clamp(player.pos.z, world.bounds.minZ, world.bounds.maxZ);
 
   // Footsteps.
   const moving = mag > 0.1 && player.grounded;
@@ -289,35 +215,7 @@ function updatePlayer(dt) {
   camera.rotation.set(player.pitch + player.kickPitch, player.yaw + player.kickYaw, 0);
 }
 
-function updateSun(focus) {
-  // Shadow frustum follows the player, snapped to texels to avoid shimmering.
-  const texel = (SHADOW_R * 2) / sun.shadow.mapSize.x;
-  const cx = Math.round(focus.x / texel) * texel, cz = Math.round(focus.z / texel) * texel;
-  sun.target.position.set(cx, 0, cz);
-  sun.position.set(cx, 0, cz).addScaledVector(SUN_DIR, 100);
-  sun.target.updateMatrixWorld();
-}
-
-// ---------- adaptive resolution (keeps phones smooth) ----------
-let frames = 0, fpsTime = 0, lowStreak = 0;
-function adaptResolution(dt) {
-  frames++; fpsTime += dt;
-  if (fpsTime < 2) return;
-  const fps = frames / fpsTime;
-  frames = 0; fpsTime = 0;
-  if (fps < 45 && pixelRatio > 0.75) { if (++lowStreak >= 1) { pixelRatio = Math.max(0.75, pixelRatio - 0.25); applySize(); lowStreak = 0; } }
-  else if (fps > 58 && pixelRatio < Math.min(devicePixelRatio, maxPR)) { pixelRatio = Math.min(Math.min(devicePixelRatio, maxPR), pixelRatio + 0.125); applySize(); }
-}
-
-function applySize() {
-  renderer.setPixelRatio(pixelRatio);
-  renderer.setSize(innerWidth, innerHeight);
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  weapon.resize(camera.aspect);
-}
-addEventListener('resize', applySize);
-addEventListener('orientationchange', () => setTimeout(applySize, 200));
+gfx.onResize((aspect) => weapon.resize(aspect));
 
 // ---------- loop ----------
 const clock = new THREE.Clock();
@@ -337,7 +235,6 @@ function update(dt) {
     ui.setCrosshairSpread(4 + weapon.currentSpread * 900);
     if (enemies.remaining === 0 && winTimer < 0) winTimer = 1.2;
     if (winTimer > 0 && (winTimer -= dt) <= 0) endRound(true);
-    adaptResolution(dt);
   } else if (state === 'menu') {
     // Slow orbit over the piazza behind the start screen.
     const t = performance.now() / 1000;
@@ -349,18 +246,14 @@ function update(dt) {
     weapon.update(dt, { moving: false, speed01: 0, grounded: true, lookDX: 0, lookDY: 0 });
   }
   weapon.updateEffects(dt);
-  city.update?.(dt);
-  updateSun(state === 'menu' ? _zero : player.pos);
-  sky.position.copy(camera.position);
+  world.update(dt, camera);
+  gfx.updateSun(state === 'menu' ? _zero : player.pos);
+  gfx.update(dt, { adaptive: state === 'playing' });
 }
 
 function render() {
-  renderer.clear();
-  renderer.render(scene, camera);
-  if (state !== 'menu') {
-    renderer.clearDepth();
-    renderer.render(weapon.viewScene, weapon.viewCamera);
-  }
+  if (state === 'menu') gfx.render();
+  else gfx.render(weapon.viewScene, weapon.viewCamera);
 }
 const _far = new THREE.Vector3(0, -999, 0), _zero = new THREE.Vector3();
 
@@ -368,11 +261,11 @@ const _far = new THREE.Vector3(0, -999, 0), _zero = new THREE.Vector3();
 const t4 = performance.now();
 resetGame();
 console.log(`[boot] resetGame ${(performance.now() - t4).toFixed(0)} ms`);
-applySize();
+gfx.resize();
 // Compile every shader behind the loading screen so the first frames don't hitch (slow on phones).
 try {
-  updateSun(_zero);
-  await Promise.all([renderer.compileAsync(scene, camera), renderer.compileAsync(weapon.viewScene, weapon.viewCamera)]);
+  gfx.updateSun(_zero);
+  await gfx.compile([[weapon.viewScene, weapon.viewCamera]]);
 } catch (e) { console.warn('[boot] shader precompile skipped', e); }
 console.log(`[boot] ready in ${(performance.now() - t0).toFixed(0)} ms`);
 document.getElementById('boot')?.remove();
@@ -382,7 +275,7 @@ if (params.has('autostart')) startPlaying(); // for automated screenshots
 // Debug/test hooks. freeze(true) stops the real-time loop; step(n, dt) advances the simulation
 // n fixed steps and renders one frame (headless software GL is far too slow for real time).
 window.__game = {
-  scene, camera, player, enemies, weapon, city, physics, renderer, input, ui, audio,
+  scene, camera, player, enemies, weapon, world, city: world.parts.city, physics, renderer, gfx, input, ui, audio,
   get state() { return state; }, startPlaying, endRound, shoot,
   freeze(v = true) { frozen = v; clock.getDelta(); },
   step(n = 1, dt = 1 / 30, draw = true) { for (let i = 0; i < n; i++) update(dt); if (draw) render(); },
