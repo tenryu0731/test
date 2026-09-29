@@ -895,7 +895,7 @@ export function createMaterials(renderer) {
     rows: 9, h0: 0.08, hr: 0.07, wMin: 0.12, wMax: 0.3, round: 0.018, jitter: 0.02, streak: 1.4, soot: 0.22, lichen: 0.08,
     pal: [[0.6, 0.55, 0.46], [0.54, 0.51, 0.45], [0.62, 0.56, 0.47], [0.52, 0.49, 0.44], [0.58, 0.51, 0.42], [0.65, 0.59, 0.5], [0.55, 0.48, 0.4]],
     mortar: [0.52, 0.49, 0.43],
-  }), 3.5, 4.5);
+  }), 2.6, 4.5);
   M.stoneTrim = layer('trim', genStoneTrim(256, 43), 1.5, 2);      // 1.5 m dressed stone
   M.marble = layer('marble', genMarble(256, 49), 1.5, 1.4);
   M.brick = layer('brick', genBrick(512, 47), 1.2, 5);            // 1.2 m (bricks 24 × 7.5 cm)

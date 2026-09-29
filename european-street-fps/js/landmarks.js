@@ -110,7 +110,7 @@ export function buildLandmarks(scene, M, { heightAt } = {}) {
     const far = sites.length === 0 ? farMeshFrom(gm.meshes) : null;
     const tn = performance.now();
     stats.tBuild = (stats.tBuild || 0) + tf - tb; stats.tFinish = (stats.tFinish || 0) + tfar - tf; stats.tFar = (stats.tFar || 0) + tn - tfar;
-    for (const m of ctx.extraMeshes) near.add(m);
+    for (const m of ctx.extraMeshes) mid.add(m);
     root.add(mid, near);
     if (far) { far.name = `lm-${s.id}-far`; root.add(far); }
     stats.mid += gm.tris; stats.near += dm.tris; stats.meshes += gm.meshes.length + dm.meshes.length;

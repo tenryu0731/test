@@ -26,8 +26,8 @@ function seedRep(i, j) {
   const m = hh(i, j, 5);
   return m < 0.28 ? [i - 1, j] : m < 0.48 ? [i, j - 1] : [i, j];
 }
-export function farSeedClass(i, j) {
-  const [ri, rj] = seedRep(i, j), r = hh(ri, rj, 3);
+export function farSeedClass(i, j, wb = 0) {
+  const [ri, rj] = seedRep(i, j), r = hh(ri, rj, 3) - wb;
   return r < 0.42 ? CLS.WOOD : r < 0.58 ? CLS.MEADOW : r < 0.72 ? CLS.WHEAT : r < 0.84 ? CLS.STUBBLE : r < 0.93 ? CLS.PLOUGH : CLS.VINE;
 }
 // class of the far field at a world point (for far woods placement)
@@ -38,7 +38,7 @@ export function farClassAt(x, z) {
     const p = seedPos(ci + di, cj + dj), d = (x - p.x) ** 2 + (z - p.z) ** 2;
     if (d < best) { best = d; bi = ci + di; bj = cj + dj; }
   }
-  return farSeedClass(bi, bj);
+  return farSeedClass(bi, bj, 0.3 * smooth(900, 1500, Math.max(Math.abs(x), Math.abs(z))));
 }
 
 // Sample the macro noise texture data (same as the GPU does with LinearFilter + repeat).

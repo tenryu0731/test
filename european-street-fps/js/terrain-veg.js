@@ -28,7 +28,8 @@ class Builder {
       if (uvMode === 'sphere' && center) {
         const dx = x - center.x, dy = y - center.y, dz = z - center.z;
         this.u.push(Math.atan2(dz, dx) / Math.PI * 1.5 + 1.5, dy * 0.7);
-      } else if (U) this.u.push(U[i * 2] * 2, U[i * 2 + 1] * 2);
+      } else if (uvMode === 'zy') this.u.push(z * 0.9 + x * 0.5, y * 0.9);
+      else if (U) this.u.push(U[i * 2] * 2, U[i * 2 + 1] * 2);
       else this.u.push(x * 0.5, y * 0.5);
       if (ctr) this.ctr.push(ctr[0], ctr[1], ctr[2]);
     }
@@ -148,7 +149,7 @@ function geoVine() {
     const autumn = 0.5 + 0.5 * Math.sin(z * 1.3 + 2);
     const k = 0.55 + 0.45 * (y - 0.58);
     return [(0.2 + 0.12 * autumn) * k, (0.27 + 0.04 * autumn) * k, 0.08 * k];
-  }, { center: new THREE.Vector3(0, 0.6, 0), sphereN: 0.35, uvMode: 'sphere' });
+  }, { center: new THREE.Vector3(0, 0.6, 0), sphereN: 0.35, uvMode: 'zy' });
   const post = new THREE.BoxGeometry(0.08, 1.75, 0.08);
   b.add(post, mat(0, 0.87, 3.0), () => [0.35, 0.3, 0.24]);
   const stem = new THREE.CylinderGeometry(0.04, 0.06, 0.6, 4, 1, true);
@@ -287,8 +288,12 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
   const reachOf = (type, r, vr) => (type === 'vine' ? vr : ['bush', 'bale', 'rock'].includes(type) ? r * 0.8 : r);
   let reachR = nearR, reachV = vineR;
   let nearTris = 0;
-  function refill(p) {
+  const fwd = new THREE.Vector3();
+  function refill(p, camera) {
     nearTris = 0;
+    camera.getWorldDirection(fwd);
+    const fl = Math.hypot(fwd.x, fwd.z), fx = fl > 0.25 ? fwd.x / fl : 0, fz = fl > 0.25 ? fwd.z / fl : 0;
+    const COS = Math.cos(THREE.MathUtils.degToRad(82));
     for (const t of types) {
       const R = reachOf(t.type, reachR, reachV) + 20, R2 = R * R, C2 = 50 * 50;
       const i0 = Math.max(0, Math.floor((p.x - R - GO) / GS)), i1 = Math.min(GN - 1, Math.floor((p.x + R - GO) / GS));
@@ -300,6 +305,7 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
         for (const q of t.grid[j * GN + i]) {
           const dx = t.Px[q] - p.x, dz = t.Pz[q] - p.z, d2 = dx * dx + dz * dz;
           if (d2 > R2) continue;
+          if (d2 > 900 && (dx * fx + dz * fz) < COS * Math.sqrt(d2)) continue; // behind the camera
           if (t.close && d2 < C2 && nc < capC) {
             cm.set(t.Mx.subarray(q * 16, q * 16 + 16), nc * 16); cc.set(t.Cl.subarray(q * 3, q * 3 + 3), nc * 3); nc++;
           } else if (nf < capF) {
@@ -378,13 +384,14 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
   }
 
   // ---- update
-  const last = new THREE.Vector3(1e9, 0, 0);
+  const last = new THREE.Vector3(1e9, 0, 0), lastDir = new THREE.Vector3(), dir = new THREE.Vector3();
   function update(dt, camera) {
     uTree.uTime.value += dt;
     const p = camera.position;
-    if (p.distanceToSquared(last) < 225) return;
-    last.copy(p);
-    refill(p);
+    camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
+    if (p.distanceToSquared(last) < 144 && dir.dot(lastDir) > 0.94) return;
+    last.copy(p); lastDir.copy(dir);
+    refill(p, camera);
   }
   function setQuality(q) {
     reachR = { low: 130, medium: 180, high: 230 }[q] || 180; reachV = { low: 70, medium: 100, high: 120 }[q] || 100;

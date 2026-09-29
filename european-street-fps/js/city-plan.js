@@ -222,7 +222,7 @@ export function makeLots(g, R) {
     let s = alongX ? x0 : z0;
     const end = s + L;
     while (s < end - 0.01) {
-      let len = snap(rr(5.5, 10));
+      let len = snap(rr(6.5, 11));
       if (R() < 0.12) len = snap(rr(11, 16)); // occasional wide palazzo lot
       if (end - (s + len) < 4.5) len = end - s;
       const e = s + len;

@@ -660,7 +660,7 @@ function carveChannelCoarse(H, n, o, st, river) {
     nearestOnPolyline(XA, ZA, x, z, q);
     if (q.d > 80) continue;
     const wl = Ws[q.i] + (Ws[q.i + 1] - Ws[q.i]) * q.t;
-    const v = q.d < 20 ? wl - 1.5 : wl - 1.5 + (q.d - 20) * 0.12;
+    const v = q.d < 9 ? wl - 1.5 : wl - 1.5 + (q.d - 9) * 0.3;
     const k = j * n + i;
     if (H[k] > v) H[k] = v;
   }

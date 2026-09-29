@@ -110,7 +110,8 @@ export function createTerrain(scene, { materials = {}, renderer = null, camera =
 
 // ------------------------------------------------------------------ dry-stone walls
 function buildWalls(scene, list, heightAt, stoneMat) {
-  const pos = [], nor = [], uv = [], col = [];
+  const chunks = new Map();
+  let pos, nor, uv, col;
   const colliders = [];
   const quad = (a, b, c, d, n, ua, ub, va, vb, shadeK) => {
     for (const [p, u, v] of [[a, ua, va], [b, ub, va], [c, ub, vb], [a, ua, va], [c, ub, vb], [d, ua, vb]]) {
@@ -120,6 +121,9 @@ function buildWalls(scene, list, heightAt, stoneMat) {
   let s = 0;
   for (const w of list) {
     const pts = w.pts;
+    const key = Math.floor(pts[0][0] / 400) + ',' + Math.floor(pts[0][1] / 400);
+    if (!chunks.has(key)) chunks.set(key, { pos: [], nor: [], uv: [], col: [] });
+    ({ pos, nor, uv, col } = chunks.get(key));
     for (let i = 0; i < pts.length - 1; i++) {
       const [x0, z0] = pts[i], [x1, z1] = pts[i + 1];
       const len = Math.hypot(x1 - x0, z1 - z0);
@@ -152,17 +156,18 @@ function buildWalls(scene, list, heightAt, stoneMat) {
     }
   }
   const meshes = [];
-  if (pos.length) {
+  let mat;
+  if (stoneMat) { mat = stoneMat.clone(); mat.vertexColors = true; mat.color = new THREE.Color(0xcfc3ad); }
+  else mat = new THREE.MeshStandardMaterial({ color: 0xb3a58d, roughness: 0.95, vertexColors: true });
+  mat.name = 'terrain-walls';
+  for (const { pos, nor, uv, col } of chunks.values()) {
+    if (!pos.length) continue;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
     g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.computeBoundingSphere();
-    let mat;
-    if (stoneMat) { mat = stoneMat.clone(); mat.vertexColors = true; mat.color = new THREE.Color(0xcfc3ad); }
-    else mat = new THREE.MeshStandardMaterial({ color: 0xb3a58d, roughness: 0.95, vertexColors: true });
-    mat.name = 'terrain-walls';
     const m = new THREE.Mesh(g, mat);
     m.name = 'dry-stone-walls'; m.castShadow = true; m.receiveShadow = true;
     scene.add(m); meshes.push(m);

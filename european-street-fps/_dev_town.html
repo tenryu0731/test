@@ -18,8 +18,10 @@ window.__t = { gfx, city, M, times: { tex: t1 - t0, city: t2 - t1 },
   view(px, py, pz, lx, ly, lz) {
     const c = gfx.camera; c.position.set(px, py, pz); c.lookAt(lx, ly, lz);
     city.update(0, c); gfx.updateSun({ x: px, y: 0, z: pz }); gfx.update(0, {});
-    gfx.renderer.info.autoReset = false; gfx.renderer.info.reset();
-    gfx.render();
-    const i = gfx.renderer.info.render; return { calls: i.calls, tris: i.triangles };
+    const r = gfx.renderer; r.info.autoReset = false;
+    r.shadowMap.autoUpdate = true; r.info.reset(); gfx.render();
+    const all = { calls: r.info.render.calls, tris: r.info.render.triangles };
+    r.shadowMap.autoUpdate = false; r.info.reset(); gfx.render(); r.shadowMap.autoUpdate = true;
+    return { mainCalls: r.info.render.calls, mainTris: r.info.render.triangles, allCalls: all.calls, allTris: all.tris };
   } };
 </script></body></html>

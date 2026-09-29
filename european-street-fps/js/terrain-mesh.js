@@ -178,7 +178,7 @@ void farFields(vec2 xz, out vec4 l1, out vec4 l2, out float tint) {
   }
   ivec2 r1 = seedRep(c1), r2 = seedRep(c2);
   float e = r1 == r2 ? 99.0 : (d2 - d1) / (2.0 * length(p2 - p1));
-  float r = hh(r1, 3);
+  float r = hh(r1, 3) - 0.3 * smoothstep(900.0, 1500.0, max(abs(xz.x), abs(xz.y)));
   l1 = vec4(0.0); l2 = vec4(0.0);
   if (r < 0.42) l2.g = 1.0; else if (r < 0.58) { l1.b = 0.75; l2.r = 0.25; } else if (r < 0.72) l1.r = 1.0;
   else if (r < 0.84) l2.r = 1.0; else if (r < 0.93) l1.g = 1.0; else l1.a = 1.0;
@@ -232,7 +232,7 @@ const FRAG_SPLAT = /* glsl */`
   float soilStrip = mix(1.0 - smoothstep(0.35, 0.75, dRow), 0.4, aaR);
 
   float shift = (mn.r - 0.5) * 0.7;
-  float wG = (lush + rest * 0.5 + vine * (1.0 - soilStrip) * 0.8 + woods * 0.25 + wet * 0.35 + verge * 0.4) * (1.0 + shift);
+  float wG = (lush * 1.25 + rest * 0.5 + vine * (1.0 - soilStrip) * 0.8 + woods * 0.25 + wet * 0.35 + verge * 0.4) * (1.0 + shift);
   float wD = (dry + wheat + rest * 0.5 + vine * (1.0 - soilStrip) * 0.2 + verge * 0.45) * (1.0 - shift);
   float wE = plough + vine * soilStrip + woods * 0.75 + wet * 0.6 + verge * 0.1;
   float wR = smoothstep(0.30, 0.52, slope + (mn.b - 0.5) * 0.25);
@@ -271,6 +271,7 @@ const FRAG_SPLAT = /* glsl */`
   float trk = smoothstep(-2.3, -1.9, sd) * (1.0 - smoothstep(-1.2, -0.85, sd));
   cv *= 1.0 + 0.1 * trk - 0.06 * (1.0 - trk);
   cv = mix(cv, cg, (1.0 - smoothstep(-2.5, -2.1, sd)) * smoothstep(0.45, 0.75, mn2.r) * 0.45);
+  cg *= vec3(0.86, 1.0, 0.72); cd *= 0.82; cv *= 0.8;
   vec3 col = cg * wG + cd * wD + ce * wE + cv * wV + cr * wR;
   // macro brightness variation, wet darkening
   col *= 0.9 + 0.22 * mn.a + 0.08 * (mn2.a - 0.5);

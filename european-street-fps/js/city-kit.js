@@ -81,7 +81,7 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
   const faceMatrix = (f) => new THREE.Matrix4().makeBasis(V3(f.tx, 0, f.tz), V3(0, 1, 0), V3(f.dx, 0, f.dz)).setPosition(f.ox, 0, f.oz);
 
   // ---------------------------------------------------------------- arches
-  const segsFor = (w) => (w < 1.0 ? 4 : w < 1.7 ? 6 : w < 3 ? 8 : w < 5 ? 10 : 12);
+  const segsFor = (w) => (w < 1.0 ? 4 : w < 1.8 ? 5 : w < 3 ? 7 : w < 5 ? 9 : 12);
   // Intrados curve from the left springer to the right one: [[t, y], ...].
   function archCurve(t0, t1, spring, kind = 'round', n = 0) {
     const w = t1 - t0, tc = (t0 + t1) / 2, pts = [];
@@ -232,6 +232,7 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     if (op.kind === 'win' && S.sillBase) lbox(f, T.trim, t0 - 0.1, t1 + 0.1, y0 - 0.09, y0 + 0.02, -FAC + 0.02, 0.08, { tint: S.trimTint, gao: false, open: 'b' });
     setLod(LOD.FAR);
     front(f, T.glass, t0, t1, y0, opTop(op), 0.02, { gao: false, tint: 0.8 });
+    if (S.court) { setLod(prev); return; }
     setLod(LOD.DETAIL);
     // Frame, mullion and transom set back in the reveal.
     const fr = T.door, fw = 0.055, fd = gd + 0.06, fo = { gao: false, tint: S.frameTint ?? 0.9 };
@@ -246,8 +247,8 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     // Stone surround.
     if (S.framed && !op.curve) {
       const so = { gao: false, tint: S.trimTint, open: 'b' };
-      lbox(f, T.trim, t0 - 0.13, t0, y0, y1, 0, 0.035, so);
-      lbox(f, T.trim, t1, t1 + 0.13, y0, y1, 0, 0.035, so);
+      lbox(f, T.trim, t0 - 0.13, t0, y0, y1, 0, 0.035, { ...so, open: 'btu' });
+      lbox(f, T.trim, t1, t1 + 0.13, y0, y1, 0, 0.035, { ...so, open: 'btu' });
       lbox(f, T.trim, t0 - 0.16, t1 + 0.16, y1, y1 + 0.17, 0, 0.05, so);
     }
     if (op.kind === 'gwin') { // grille
@@ -257,7 +258,7 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     if (op.kind === 'win' && !op.curve && R() < S.pots) { // flower box
       const pc = (t0 + t1) / 2;
       lbox(f, T.roof, pc - 0.32, pc + 0.32, y0 + 0.01, y0 + 0.2, 0.0, 0.22, { gao: false, open: 'b', tint: 0.9 });
-      for (const s of [-0.16, 0.14]) geo.proto(T.plant, TPL.blob0, fx(f, pc + s, 0.11), y0 + 0.3, fz(f, pc + s, 0.11), rr(0.17, 0.23), rr(0.15, 0.2), rr(0.15, 0.2), R() * 3, { gao: false });
+      geo.proto(T.plant, TPL.blob0, fx(f, pc, 0.11), y0 + 0.3, fz(f, pc, 0.11), f.dz ? 0.36 : 0.18, rr(0.15, 0.2), f.dz ? 0.18 : 0.36, 0, { gao: false, tint: R() < 0.4 ? [1.25, 0.6, 0.55] : 1 });
     }
     setLod(prev);
   }
@@ -290,7 +291,7 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     lbox(f, T.iron, tc - 0.05, tc + 0.05, 1.2, 1.3, dd, dd + 0.05, { gao: false, open: 'b' });
     front(f, T.wood, t0 + 0.12, t1 - 0.12, 0.3, 0.36, dd + 0.015, { gao: false, tint: 0.7 });
     if (S.lantern) lantern(f, t1 + 0.75, 3.2);
-    if (!S.noPots && R() < 0.4 && S.canPot(f, tc)) { // potted plants beside the door (not in narrow alleys)
+    if (!S.noPots && R() < 0.25 && S.canPot(f, tc)) { // potted plants beside the door (not in narrow alleys)
       for (const t of [t0 - 0.6, t1 + 0.6]) {
         const x = fx(f, t, 0.36), z = fz(f, t, 0.36);
         pottedPlant(x, z, rr(0.85, 1.15));
@@ -383,7 +384,7 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     lbox(f, T.trim, tc - w / 2 - 0.12, tc + w / 2 + 0.12, y0 - 0.1, y0 + 0.01, -FAC + 0.02, 0.08, { tint: S.trimTint, gao: false, open: 'b' });
     setLod(LOD.DETAIL);
     // Colonnette and capital between the lights.
-    geo.proto(T.marble, TPL.cyl8, fx(f, tc, -0.12), y0, fz(f, tc, -0.12), 0.07, spring - y0 - 0.12, 0.07, 0, { gao: false });
+    geo.proto(T.marble, TPL.cyl6, fx(f, tc, -0.12), y0, fz(f, tc, -0.12), 0.07, spring - y0 - 0.12, 0.07, 0, { gao: false });
     lbox(f, T.marble, tc - 0.1, tc + 0.1, spring - 0.14, spring + 0.02, -0.22, -0.02, { gao: false });
     setLod(prev);
     void lw;
@@ -415,7 +416,7 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
     lbox(f, ir, t0 + 0.02, t0 + 0.06, top - 0.04, top, 0, D - 0.06, io);
     lbox(f, ir, t1 - 0.06, t1 - 0.02, top - 0.04, top, 0, D - 0.06, io);
     lbox(f, ir, t0 + 0.02, t1 - 0.02, y + 0.1, y + 0.13, D - 0.06, D - 0.02, { gao: false });
-    const bars = { gao: false, open: 'tu' };
+    const bars = { gao: false, open: 'tub' };
     for (let t = t0 + 0.06; t <= t1 - 0.05; t += 0.2) lbox(f, ir, t - 0.01, t + 0.01, y, top, D - 0.05, D - 0.03, bars);
     for (let d = 0.15; d < D - 0.08; d += 0.2) {
       lbox(f, ir, t0 + 0.03, t0 + 0.05, y, top, d - 0.01, d + 0.01, bars);

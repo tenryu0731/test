@@ -56,7 +56,7 @@ export function createBuilders(ctx) {
       else if (onAlley) type = r < 0.45 ? 'casa' : r < 0.75 ? 'pietra' : 'rustica';
       else type = r < 0.5 ? 'casa' : r < 0.72 ? 'mista' : r < 0.92 ? 'pietra' : 'palazzo';
     }
-    const S = { type, uvOff: [R() * 5, R() * 5], pots: 0.16, lantern: R() < 0.3, awnings: onMain, canPot, noPots: false };
+    const S = { type, uvOff: [R() * 5, R() * 5], pots: 0.16, lantern: R() < 0.2, awnings: onMain, canPot, noPots: false };
     const stoneTint = () => { const k = rr(0.9, 1.06); return [k * rr(0.98, 1.04), k, k * rr(0.94, 1.0)]; };
     let storeys;
     if (type === 'palazzo') {
@@ -113,7 +113,8 @@ export function createBuilders(ctx) {
     S.bay = type === 'palazzo' ? rr(3.4, 4.2) : rr(2.7, 3.4);
     S.archDoor = type !== 'casa' || R() < 0.4;
     S.shop = onMain && type !== 'palazzo' ? 0.75 : type === 'mista' ? 0.45 : 0.08;
-    S.pitch = rr(0.3, 0.4); S.roofTint = rr(0.85, 1.08);
+    S.pitch = rr(0.3, 0.4);
+    { const k = rr(0.8, 1.08), g = R() < 0.25 ? rr(0.95, 1.08) : rr(0.86, 0.98); S.roofTint = [k, k * g, k * g * rr(0.9, 1.02)]; }
     S.fanlight = R() < 0.5;
     if (force?.S) {
       Object.assign(S, force.S);
@@ -147,7 +148,7 @@ export function createBuilders(ctx) {
           } else if (R() < 0.75) ops.push({ kind: 'gwin', t0: tc - 0.42, t1: tc + 0.42, y0: 1.55, y1: 2.6, shape: 'rect' });
         } else {
           const F = y1 - y0, sill = y0 + (S.type === 'palazzo' ? 1.0 : 0.95);
-          if (court && R() < 0.35) return;
+          if (court && R() < 0.5) return;
           if (!court && S.balconies && s === 1 && (i === balcBay || R() < 0.2)) {
             ops.push({ kind: 'balc', t0: tc - S.ww / 2, t1: tc + S.ww / 2, y0: y0 + 0.02, y1: Math.min(sill + S.wh, y1 - 0.45), shape: 'rect' });
             return;
@@ -208,7 +209,7 @@ export function createBuilders(ctx) {
         else if (op.kind === 'shop') shopFill(f, op, S);
         else if (op.kind === 'bif') { windowFill(f, op, { ...S, shutters: false, pots: 0 }); biforaDress(f, op, S); }
         else if (op.kind === 'none') continue;
-        else { windowFill(f, op, S); if (op.kind === 'balc') balcony(f, op, S); }
+        else { windowFill(f, op, court ? { ...S, court: true } : S); if (op.kind === 'balc') balcony(f, op, S); }
       }
       // String courses and the ground-floor/upper-floor material change.
       setLod(LOD.BASE);
@@ -233,7 +234,7 @@ export function createBuilders(ctx) {
         setLod(LOD.FAR); lbox(f, S.upper, 0, f.W, H - 0.1, H + 1.1, -0.1, 0.25, { gao: false, tint: S.upperTint, open: 'b' }); setLod(LOD.BASE);
       } else {
         setLod(LOD.DETAIL);
-        for (let t = 0.3; t < f.W - 0.1; t += 0.7) lbox(f, T.wood, t - 0.05, t + 0.05, H - 0.5, H - 0.3, 0, 0.4, { ao: 0.75, gao: false, open: 'bt' });
+        for (let t = 0.3; t < f.W - 0.1; t += 0.8) lbox(f, T.wood, t - 0.05, t + 0.05, H - 0.5, H - 0.3, 0, 0.4, { ao: 0.75, gao: false, open: 'bt' });
         setLod(LOD.BASE);
       }
       if (S.bench && !court) { // stone bench along the palazzo base (panca di via)

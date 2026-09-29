@@ -72,7 +72,7 @@ export function createWater(scene, river) {
         const a = Math.max(0, i - 1), b = Math.min(n - 1, i + 1);
         let tx = X[b] - X[a], tz = Z[b] - Z[a]; const l = Math.hypot(tx, tz) || 1; tx /= l; tz /= l;
         const r = Math.max(Math.abs(X[i]), Math.abs(Z[i]));
-        const hw = halfW + 1.6 + (r > FINE.half - 60 ? Math.min(1, (r - FINE.half + 60) / 60) * 26 : 0);
+        const hw = halfW + 1.6 + (r > FINE.half - 60 ? Math.min(1, (r - FINE.half + 60) / 60) * 8 : 0);
         for (const s of [-1, 1]) {
           pos.push(X[i] - tz * hw * s, W[i], Z[i] + tx * hw * s);
           wuv.push(hw * s, S[i], 1);

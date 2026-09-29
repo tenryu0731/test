@@ -33,7 +33,7 @@ const FACES = [
 class Bucket {
   constructor(scale) {
     this.scale = scale; // colour byte per unit
-    this.cap = scale > 200 ? 2048 : 16384; this.n = 0; this.ni = 0;
+    this.cap = scale > 200 ? 1024 : 8192; this.n = 0; this.ni = 0;
     this.P = new Float32Array(this.cap * 3); this.N = new Int8Array(this.cap * 3);
     this.U = new Float32Array(this.cap * 2); this.C = new Uint8Array(this.cap * 3); this.L = new Uint8Array(this.cap);
     this.I = new Uint32Array(this.cap * 2);
@@ -329,7 +329,7 @@ export class Geo {
       if (!b.n) continue;
       const ci = Math.floor(k / 3), lod = k % 3, c = chunks[ci];
       const mesh = make(b, arrMat, true);
-      mesh.castShadow = lod !== LOD.FAR; mesh.receiveShadow = true;
+      mesh.castShadow = lod === LOD.BASE; mesh.receiveShadow = true;
       mesh.name = `town-${ci}-${['base', 'detail', 'far'][lod]}`;
       c[['base', 'detail', 'far'][lod]] = mesh;
       c.tris[lod] = b.ni / 3;

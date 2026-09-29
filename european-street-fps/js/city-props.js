@@ -189,7 +189,7 @@ export function createProps(ctx) {
     const tint = [0.78, 0.85, 0.72];
     for (let k = 0; k < 4; k++) {
       const a = (k / 4) * Math.PI * 2 + R(), r = rr(0.5, 1.1) * s;
-      geo.proto(T.plant, TPL.blob1, x + lx * 2 + Math.cos(a) * r, rr(2.0, 2.8) * s, z + lz * 2 + Math.sin(a) * r, rr(0.9, 1.3) * s, rr(0.55, 0.8) * s, rr(0.9, 1.3) * s, R() * 3, { gao: false, tint });
+      geo.proto(T.plant, k ? TPL.blob0 : TPL.blob1, x + lx * 2 + Math.cos(a) * r, rr(2.0, 2.8) * s, z + lz * 2 + Math.sin(a) * r, rr(0.9, 1.3) * s, rr(0.55, 0.8) * s, rr(0.9, 1.3) * s, R() * 3, { gao: false, tint });
     }
     setLod(LOD.FAR);
     geo.proto(T.plant, TPL.blob0, x + lx * 2, 2.4 * s, z + lz * 2, 1.8 * s, 1.0 * s, 1.8 * s, 0, { gao: false, tint });
@@ -236,10 +236,11 @@ export function createProps(ctx) {
   // Rows of vines on posts / vegetable beds.
   function vineRow(x0, x1, z) {
     setLod(LOD.BASE);
-    for (let x = x0; x < x1; x += 1.4) {
-      geo.proto(T.wood, TPL.cyl6, x, 0, z, 0.04, 1.3, 0.04, 0, {});
-      geo.proto(T.plant, TPL.blob0, x + 0.7, 1.05, z, 0.8, 0.35, 0.3, 0, { gao: false, tint: [0.95, 1.1, 0.8] });
-    }
+    // One continuous leafy band per row (cheap from the towers), posts only up close.
+    geo.box(T.plant, x0, 0.75, z - 0.28, x1, 1.35, z + 0.28, { gao: false, tint: [0.95, 1.1, 0.8], skip: 8 });
+    const pl = setLod(LOD.DETAIL);
+    for (let x = x0; x <= x1; x += 2.4) geo.box(T.wood, x - 0.04, 0, z - 0.04, x + 0.04, 0.8, z + 0.04, { skip: 4 | 8 });
+    setLod(pl);
     geo.box(T.gravel, x0 - 0.3, 0, z - 0.35, x1 + 0.3, 0.03, z + 0.35, { gao: false, tint: [0.75, 0.62, 0.5] });
   }
 
