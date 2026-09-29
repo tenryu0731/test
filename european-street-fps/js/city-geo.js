@@ -26,7 +26,7 @@ const FACES = [
 class Bucket {
   constructor(mat, cast, receive) {
     this.mat = mat; this.cast = cast; this.receive = receive;
-    this.cap = 1024; this.n = 0; this.ni = 0;
+    this.cap = 8192; this.n = 0; this.ni = 0;
     this.P = new Float32Array(this.cap * 3); this.N = new Float32Array(this.cap * 3);
     this.U = new Float32Array(this.cap * 2); this.C = new Float32Array(this.cap * 3);
     this.I = new Uint32Array(this.cap * 2);
@@ -49,11 +49,10 @@ export class Geo {
   }
 
   _bucket(mat, o) {
-    const cast = o.cast !== false, receive = o.receive !== false;
-    const key = mat.uuid + (cast ? 'c' : '-') + (receive ? 'r' : '-');
-    let b = this.buckets.get(key);
-    if (!b) this.buckets.set(key, (b = new Bucket(mat, cast, receive)));
-    return b;
+    const cast = o.cast !== false, receive = o.receive !== false, k = (cast ? 2 : 0) + (receive ? 1 : 0);
+    let arr = this.buckets.get(mat);
+    if (!arr) this.buckets.set(mat, (arr = [null, null, null, null]));
+    return arr[k] || (arr[k] = new Bucket(mat, cast, receive));
   }
 
   _tint(o) {
@@ -196,8 +195,8 @@ export class Geo {
   finish(scene) {
     let tris = 0;
     const meshes = [];
-    for (const b of this.buckets.values()) {
-      if (!b.n) continue;
+    for (const b of [...this.buckets.values()].flat()) {
+      if (!b || !b.n) continue;
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.BufferAttribute(b.P.slice(0, b.n * 3), 3));
       g.setAttribute('normal', new THREE.BufferAttribute(b.N.slice(0, b.n * 3), 3));

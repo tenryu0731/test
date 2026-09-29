@@ -394,7 +394,7 @@ function handGeometry(pose, mirror) {
   { // thumb
     const t = pose.thumb;
     let node = new THREE.Object3D();
-    node.position.set(-0.03, -0.009, -0.02);
+    node.position.set(...(t.pos || [-0.03, -0.009, -0.02]));
     node.rotation.set(t.rot[0], t.rot[1], t.rot[2], 'YXZ');
     root.add(node);
     const lens = [0.038, 0.03, 0.025];
@@ -594,6 +594,22 @@ const _mA = new THREE.Matrix4(), _mB = new THREE.Matrix4();
 const _col = new THREE.Color(), _col2 = new THREE.Color();
 const Z_AXIS = new THREE.Vector3(0, 0, 1);
 
+// Viewmodel layout (gun space: bore along -z, origin above the pistol grip). Exported for tuning.
+export const ARM = {
+  base: [0.15, -0.125, -0.38], baseRot: [0.0, 0.1, -0.18],
+  // [palm faces, fingers point, palm centre]
+  rPalm: [[-1, 0.05, 0.25], [0, 0.0, -1], [0.03, -0.1, 0.078]], rElbow: [0.13, -0.3, 0.42],
+  lPalm: [[-0.25, 1, 0], [-1, -0.1, -0.45], [0.006, -0.047, -0.39]], lElbow: [-0.12, -0.37, 0.02],
+  rPose: {
+    fingers: [[0.3, 0.8, 0.5, 0.1], [1.45, 1.5, 0.75, 0.02], [1.5, 1.5, 0.75, -0.02], [1.55, 1.45, 0.7, -0.06]],
+    thumb: { pos: [-0.03, -0.035, -0.012], rot: [-0.34, 0.07, 0.0], curl: [-0.1, -0.05] },
+  },
+  lPose: {
+    fingers: [[1.0, 1.2, 0.6, 0.06], [1.05, 1.25, 0.6, 0.0], [1.1, 1.25, 0.55, -0.05], [1.15, 1.2, 0.5, -0.1]],
+    thumb: { rot: [-0.6, -0.1, 0.0], curl: [0.2, 0.1] },
+  },
+};
+
 // ================================================================= Weapon
 export class Weapon {
   constructor({ renderer, audio } = {}) {
@@ -729,8 +745,8 @@ export class Weapon {
     }
 
     // ---- animation state
-    this.base = new THREE.Vector3(0.15, -0.125, -0.38);
-    this.baseRot = new THREE.Euler(0.0, 0.1, -0.18);
+    this.base = new THREE.Vector3(...ARM.base);
+    this.baseRot = new THREE.Euler(...ARM.baseRot);
     this.rec = { z: new Spring(260, 24), pitch: new Spring(230, 21), roll: new Spring(160, 16), x: new Spring(200, 20), yaw: new Spring(200, 20) };
     this.sway = { x: new Spring(90, 14), y: new Spring(90, 14), land: new Spring(120, 13) };
     this.resize(this.viewCamera.aspect);
@@ -761,27 +777,20 @@ export class Weapon {
   }
 
   _buildArms() {
-    // Right hand around the pistol grip (static in gun space).
-    const rPose = {
-      fingers: [[0.18, 0.55, 0.45, 0.06], [1.45, 1.5, 0.75, 0.02], [1.5, 1.5, 0.75, -0.02], [1.55, 1.45, 0.7, -0.06]],
-      thumb: { rot: [-0.95, 0.35, 0.0], curl: [0.15, 0.1] },
-    };
-    const lPose = {
-      fingers: [[1.0, 1.2, 0.6, 0.06], [1.05, 1.25, 0.6, 0.0], [1.1, 1.25, 0.55, -0.05], [1.15, 1.2, 0.5, -0.1]],
-      thumb: { rot: [-0.7, 0.35, 0.0], curl: [0.3, 0.2] },
-    };
+    const A = ARM, V = (a) => new THREE.Vector3(...a);
+    const rPose = A.rPose, lPose = A.lPose;
     const rGlove = new Bag(), rSleeve = new Bag(), lGlove = new Bag(), lSleeve = new Bag();
-    const rm = handMatrix(new THREE.Vector3(-1, 0.05, 0.25), new THREE.Vector3(0, 0.35, -1), new THREE.Vector3(0.03, -0.086, 0.078));
+    const rm = handMatrix(V(A.rPalm[0]), V(A.rPalm[1]), V(A.rPalm[2]));
     rGlove.add(handGeometry(rPose, false), null, rm);
     const rWrist = new THREE.Vector3().setFromMatrixPosition(rm);
-    addForearm(rGlove, rSleeve, rWrist, new THREE.Vector3(0.13, -0.3, 0.42));
+    addForearm(rGlove, rSleeve, rWrist, V(A.rElbow));
 
     // Left hand under the handguard; geometry is relative to the palm centre (the arm's pivot).
-    this.leftPalm = new THREE.Vector3(-0.047, -0.012, -0.39);
-    const lm = handMatrix(new THREE.Vector3(1, 0.12, 0.0), new THREE.Vector3(0.0, -0.25, -1), this.leftPalm);
+    this.leftPalm = V(A.lPalm[2]);
+    const lm = handMatrix(V(A.lPalm[0]), V(A.lPalm[1]), this.leftPalm);
     lGlove.add(handGeometry(lPose, true), null, lm);
     const lWrist = new THREE.Vector3().setFromMatrixPosition(lm);
-    addForearm(lGlove, lSleeve, lWrist, new THREE.Vector3(-0.26, -0.26, 0.1));
+    addForearm(lGlove, lSleeve, lWrist, V(A.lElbow));
 
     this.rightGlove = new THREE.Mesh(rGlove.build(0.05), this.mats.glove);
     this.rightSleeve = new THREE.Mesh(rSleeve.build(0.2), this.mats.sleeve);
