@@ -162,6 +162,9 @@ function pause() {
   ui.showPause(() => startPlaying());
 }
 
+input.onPause = pause;
+ui.bindInput(input);
+
 document.addEventListener('pointerlockchange', () => {
   if (!isTouch && !document.pointerLockElement && state === 'playing') pause();
 });
