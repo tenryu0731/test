@@ -255,12 +255,12 @@ const FRAG_SPLAT = /* glsl */`
 
   vec3 cg = g.rgb * g.rgb, cd = d.rgb * d.rgb, ce = e.rgb * e.rgb, cv = v.rgb * v.rgb, cr = r.rgb * r.rgb;
   // tints: grass lushness, wheat gold vs pale stubble, clay colours, woodland litter
-  cg *= mix(vec3(0.92, 1.04, 0.82), vec3(1.12, 1.02, 0.7), clamp(tint * 0.5 + mn.g * 0.6 - 0.1, 0.0, 1.0));
+  cg *= mix(vec3(0.86, 1.06, 0.72), vec3(1.12, 1.02, 0.62), clamp(tint * 0.5 + mn.g * 0.6 - 0.1, 0.0, 1.0));
   float wf = wheat / (wheat + dry + 0.001);
-  cd *= mix(vec3(1.06, 1.0, 0.88), vec3(1.14, 0.94, 0.55), wf);
+  cd *= mix(vec3(1.06, 0.98, 0.84), vec3(1.2, 0.93, 0.44), wf);
   cd *= mix(1.0, 0.92 + 0.16 * smoothstep(0.3, 0.7, abs(fract(t / 3.4) - 0.5) * 2.0), (1.0 - wf) * dry * (1.0 - clamp(fwidth(t / 3.4) * 2.0, 0.0, 1.0)));
   cd *= 0.9 + 0.2 * tint;
-  vec3 clay = mix(vec3(1.0, 0.9, 0.78), vec3(0.7, 0.57, 0.45), tint);
+  vec3 clay = mix(vec3(0.96, 0.8, 0.64), vec3(0.64, 0.47, 0.34), tint);
   ce *= mix(clay, vec3(0.62, 0.56, 0.42), clamp(woods * 1.3, 0.0, 1.0));
   // furrows on ploughed fields
   float tf = t / 0.9, aaF = clamp(fwidth(tf) * 2.0, 0.0, 1.0);
@@ -276,6 +276,8 @@ const FRAG_SPLAT = /* glsl */`
   // macro brightness variation, wet darkening
   col *= 0.9 + 0.22 * mn.a + 0.08 * (mn2.a - 0.5);
   col *= 1.0 - wet * 0.35;
+  // richer land-use colours (the Tuscan patchwork reads as ochre, green and umber, not pastel)
+  col = max(mix(vec3(dot(col, vec3(0.3, 0.59, 0.11))), col, 1.22), 0.0);
   // far vineyards: canopy stripes where the vine geometry is not drawn
   float farV = smoothstep(uVineNear * 0.8, uVineNear, camD);
   float canopy = mix(1.0 - smoothstep(0.45, 0.8, dRow), 0.42, aaR);

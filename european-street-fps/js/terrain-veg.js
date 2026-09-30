@@ -29,6 +29,7 @@ class Builder {
         const dx = x - center.x, dy = y - center.y, dz = z - center.z;
         this.u.push(Math.atan2(dz, dx) / Math.PI * 1.5 + 1.5, dy * 0.7);
       } else if (uvMode === 'zy') this.u.push(z * 0.9 + x * 0.5, y * 0.9);
+      else if (uvMode === 'raw' && U) this.u.push(U[i * 2], U[i * 2 + 1]);
       else if (U) this.u.push(U[i * 2] * 2, U[i * 2 + 1] * 2);
       else this.u.push(x * 0.5, y * 0.5);
       if (ctr) this.ctr.push(ctr[0], ctr[1], ctr[2]);
@@ -72,6 +73,63 @@ function blob(b, cx, cy, cz, r, sy, colBase, seed, detail = 0, ctr = null) {
   b.add(g, mat(cx, cy, cz, seed * 0.3, seed * 0.7, 0, r, r * sy, r), shade(colBase, 0.55, cy - r * sy, cy + r * sy),
     { center: new THREE.Vector3(cx, cy - r * 0.2, cz), sphereN: 0.92, uvMode: 'sphere', ctr });
 }
+// Leaf-cluster cards scattered over a canopy lobe: alpha-tested quads that break the silhouette of
+// the core blob. Normals point away from the lobe centre so the cards light like a soft volume.
+function cards(b, cx, cy, cz, r, sy, colBase, seed, n = 8, size = 1.1) {
+  let s = seed * 7919 + 13;
+  const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const quad = new THREE.PlaneGeometry(1, 1);
+  const c = new THREE.Vector3(cx, cy - r * sy * 0.2, cz), d = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+  const lift = shade(colBase, 0.6, cy - r * sy, cy + r * sy, 0.12);
+  for (let i = 0; i < n; i++) {
+    // directions biased toward the upper hemisphere and the sides (little under the canopy)
+    const a = rnd() * Math.PI * 2, h = rnd() * 1.5 - 0.5;
+    d.set(Math.cos(a) * Math.sqrt(1 - h * h * 0.8), h, Math.sin(a) * Math.sqrt(1 - h * h * 0.8)).normalize();
+    const px = cx + d.x * r * 0.82, py = cy + d.y * r * sy * 0.82, pz = cz + d.z * r * 0.82;
+    const face = new THREE.Vector3(d.x + (rnd() - 0.5) * 1.2, d.y * 0.6 + (rnd() - 0.5) * 0.8, d.z + (rnd() - 0.5) * 1.2).normalize();
+    const m = new THREE.Matrix4().lookAt(face, new THREE.Vector3(), Math.abs(face.y) > 0.95 ? new THREE.Vector3(1, 0, 0) : up);
+    const k = size * (0.8 + rnd() * 0.5);
+    m.multiply(new THREE.Matrix4().makeRotationZ(rnd() * Math.PI * 2)).scale(new THREE.Vector3(k, k, k)).setPosition(px, py, pz);
+    b.add(quad, m, (x, y, z) => lift(x, y, z).map((v) => v * 1.12), { center: c, sphereN: 1, uvMode: 'raw' });
+  }
+}
+// Leaf-cluster sprite: grey luminance (tinted by vertex colours) with alpha cut-outs.
+function makeLeafCardTexture(n = 128) {
+  const data = new Uint8Array(n * n * 4);
+  let s = 4242;
+  const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+  const lum = new Float32Array(n * n), al = new Float32Array(n * n);
+  for (let i = 0; i < 150; i++) {
+    // leaf: narrow ellipse, placed within a disc, pointing roughly outward
+    const rr = Math.sqrt(rnd()) * 0.41, a = rnd() * Math.PI * 2;
+    const cx = 0.5 + Math.cos(a) * rr, cy = 0.5 + Math.sin(a) * rr;
+    const ang = a + (rnd() - 0.5) * 1.4, L = 0.045 + rnd() * 0.04, W = L * (0.28 + rnd() * 0.12);
+    const ca = Math.cos(ang), sa = Math.sin(ang), shadeV = 0.62 + rnd() * 0.38;
+    const x0 = Math.max(0, Math.floor((cx - L) * n)), x1 = Math.min(n - 1, Math.ceil((cx + L) * n));
+    const y0 = Math.max(0, Math.floor((cy - L) * n)), y1 = Math.min(n - 1, Math.ceil((cy + L) * n));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const u = (x + 0.5) / n - cx, v = (y + 0.5) / n - cy;
+      const lu = u * ca + v * sa, lv = -u * sa + v * ca;
+      const e = (lu * lu) / (L * L) + (lv * lv) / (W * W);
+      if (e > 1) continue;
+      const k = y * n + x;
+      // midrib + edge darkening
+      const g = shadeV * (0.8 + 0.2 * (1 - e)) * (Math.abs(lv) < W * 0.12 ? 0.85 : 1);
+      if (g > lum[k] || al[k] === 0) lum[k] = g;
+      al[k] = 1;
+    }
+  }
+  for (let k = 0; k < n * n; k++) {
+    const v = Math.round(Math.min(1, lum[k]) * 255);
+    data[k * 4] = data[k * 4 + 1] = data[k * 4 + 2] = al[k] ? v : 150; data[k * 4 + 3] = al[k] ? 255 : 0;
+  }
+  const t = new THREE.DataTexture(data, n, n, THREE.RGBAFormat);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+  t.needsUpdate = true;
+  return t;
+}
+
 function lathe(b, prof, seg, col, lo, jit, seed, ctr = null, h = 1) {
   const pts = prof.map(([r, y]) => new THREE.Vector2(r, y));
   let g = new THREE.LatheGeometry(pts, seg);
@@ -107,25 +165,32 @@ function geoOlive() {
   const limb = new THREE.CylinderGeometry(0.1, 0.16, 1.4, 4, 1, true);
   b.add(limb, mat(0.35, 2.1, 0.1, 0.2, 0, -0.5), shade(BARK, 0.8, 1.5, 2.8));
   b.add(limb, mat(-0.3, 2.1, -0.2, -0.3, 0, 0.45), shade(BARK, 0.8, 1.5, 2.8));
-  const C = [0.33, 0.39, 0.25];
-  const bl = [[0.9, 2.85, 0.3, 1.35], [-0.8, 2.95, -0.4, 1.3], [0.1, 3.5, 0.1, 1.25], [-0.1, 2.6, 0.2, 1.3]];
-  bl.forEach(([x, y, z, r], i) => blob(b, x, y, z, r, 0.72, C, i + 3));
+  OLIVE.forEach(([x, y, z, r], i) => blob(b, x, y, z, r * 0.74, 0.72, OLIVE_C.map((v) => v * 0.72), i + 3));
+  return b.build();
+}
+const OLIVE_C = [0.33, 0.39, 0.25], OAK_C = [0.17, 0.23, 0.1], PINE_C = [0.15, 0.21, 0.1];
+const OLIVE = [[0.9, 2.85, 0.3, 1.35], [-0.8, 2.95, -0.4, 1.3], [0.1, 3.5, 0.1, 1.25], [-0.1, 2.6, 0.2, 1.3]];
+const OAK = [[0, 5.6, 0, 2.5], [1.8, 4.9, 0.6, 1.9], [-1.7, 5.0, -0.5, 2.0], [0.5, 4.7, -1.8, 1.8], [-0.6, 4.6, 1.8, 1.8], [0.8, 6.6, 0.7, 1.7], [-0.9, 6.4, -0.6, 1.6]];
+const PINE = [[0.4, 8.6, 0.2, 2.8], [-1.9, 8.2, -0.6, 2.2], [1.9, 8.0, -1.2, 2.0], [-0.4, 8.1, 2.1, 2.1], [1.2, 9.1, 1.2, 1.8]];
+// leaf-card shells of the broadleaf trees (drawn by a second InstancedMesh sharing the instances)
+function geoCards(type) {
+  const b = new Builder();
+  if (type === 'olive') OLIVE.forEach(([x, y, z, r], i) => cards(b, x, y, z, r, 0.72, OLIVE_C, i + 3, 14, 1.25));
+  else if (type === 'oak') OAK.forEach(([x, y, z, r], i) => cards(b, x, y, z, r, 0.8, OAK_C, i + 11, 14, 1.9));
+  else if (type === 'pine') PINE.forEach(([x, y, z, r], i) => cards(b, x, y, z, r, 0.38, PINE_C, i + 21, 12, 1.9));
+  else if (type === 'bush') [[0, 0.55, 0, 0.8], [0.6, 0.45, 0.2, 0.6], [-0.5, 0.45, -0.3, 0.62]].forEach(([x, y, z, r], i) => cards(b, x, y, z, r, 0.8, [0.2, 0.26, 0.12], i + 31, 7, 0.8));
   return b.build();
 }
 function geoOak() {
   const b = new Builder();
   trunk(b, 3.6, 0.45, 0.3, 0.2, 7);
-  const C = [0.17, 0.23, 0.1];
-  const bl = [[0, 5.6, 0, 2.5], [1.8, 4.9, 0.6, 1.9], [-1.7, 5.0, -0.5, 2.0], [0.5, 4.7, -1.8, 1.8], [-0.6, 4.6, 1.8, 1.8], [0.8, 6.6, 0.7, 1.7], [-0.9, 6.4, -0.6, 1.6]];
-  bl.forEach(([x, y, z, r], i) => blob(b, x, y, z, r, 0.8, C, i + 11));
+  OAK.forEach(([x, y, z, r], i) => blob(b, x, y, z, r * 0.74, 0.8, OAK_C.map((v) => v * 0.72), i + 11));
   return b.build();
 }
 function geoPine() {
   const b = new Builder();
   trunk(b, 8.2, 0.34, 0.2, 0.45, 6);
-  const C = [0.15, 0.21, 0.1];
-  const bl = [[0.4, 8.6, 0.2, 2.8], [-1.9, 8.2, -0.6, 2.2], [1.9, 8.0, -1.2, 2.0], [-0.4, 8.1, 2.1, 2.1], [1.2, 9.1, 1.2, 1.8]];
-  bl.forEach(([x, y, z, r], i) => blob(b, x, y, z, r, 0.38, C, i + 21));
+  PINE.forEach(([x, y, z, r], i) => blob(b, x, y, z, r * 0.8, 0.38, PINE_C.map((v) => v * 0.75), i + 21));
   return b.build();
 }
 function geoBush() {
@@ -177,12 +242,12 @@ function farShapes() {
   return {
     cypress: { g: cone(14, 1.3, 5), c: [0.1, 0.16, 0.08], y: 0 },
     poplar: { g: cone(17, 2.0, 5), c: [0.26, 0.34, 0.14], y: 0 },
-    olive: { g: oct, c: [0.33, 0.39, 0.25], y: 2.9, s: [2.1, 1.5, 2.1] },
+    olive: { g: ico, c: [0.3, 0.36, 0.23], y: 2.9, s: [2.0, 1.4, 2.0] },
     oak: { g: ico, c: [0.17, 0.23, 0.1], y: 5.4, s: [3.3, 2.6, 3.3] },
     pine: { g: ico, c: [0.15, 0.21, 0.1], y: 8.5, s: [3.6, 1.3, 3.6] },
     bush: { g: oct, c: [0.2, 0.26, 0.12], y: 0.5, s: [1.0, 0.7, 1.0] },
-    oakFar: { g: oct, c: [0.17, 0.23, 0.1], y: 5.2, s: [3.4, 2.8, 3.4] },
-    pineFar: { g: oct, c: [0.15, 0.21, 0.1], y: 8.3, s: [3.6, 1.4, 3.6] },
+    oakFar: { g: ico, c: [0.17, 0.23, 0.1], y: 5.2, s: [3.3, 2.6, 3.3] },
+    pineFar: { g: ico, c: [0.15, 0.21, 0.1], y: 8.3, s: [3.5, 1.3, 3.5] },
     bale: { g: oct, c: [0.7, 0.58, 0.33], y: 0.7, s: [0.8, 0.75, 0.8] },
   };
 }
@@ -228,6 +293,10 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
   const matVine = vegMaterial(uVine, 'nearV', fol);
   const matProp = vegMaterial(uSmall, 'nearP', null);
   const matFar = vegMaterial(uTree, 'far', null);
+  const cardTex = makeLeafCardTexture(128);
+  const cardMat = (u, kind) => { const m = vegMaterial(u, kind, null); m.map = cardTex; m.alphaTest = 0.5; m.side = THREE.DoubleSide; return m; };
+  const matCard = cardMat(uTree, 'nearC'), matCardS = cardMat(uSmall, 'nearCS');
+  const CARDS = { olive: geoCards('olive'), oak: geoCards('oak'), pine: geoCards('pine'), bush: geoCards('bush') };
 
   const GEO = {
     cypress: geoCypress(false), poplar: geoCypress(true), olive: geoOlive(), oak: geoOak(), pine: geoPine(),
@@ -282,6 +351,16 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
     };
     const cap = Math.min(N, type === "vine" ? 6000 : 4000);
     const t = { type, N, Mx, Cl, Px, Pz, grid, far: mk(cap, 'veg-' + type, false), close: TREE[type] ? mk(Math.min(N, 600), 'veg-' + type + '-near', true) : null };
+    // leaf-card shell: a second InstancedMesh drawing from the same instance buffers
+    const shell = (im, cast) => {
+      if (!im || !CARDS[type]) return null;
+      const c = new THREE.InstancedMesh(CARDS[type], type === 'bush' ? matCardS : matCard, 1);
+      c.instanceMatrix = im.instanceMatrix; c.instanceColor = im.instanceColor;
+      c.count = 0; c.frustumCulled = false; c.castShadow = cast; c.receiveShadow = true; c.name = im.name + '-cards';
+      scene.add(c);
+      return c;
+    };
+    t.farCards = shell(t.far, false); t.closeCards = shell(t.close, true);
     types.push(t);
     instCount += N;
   }
@@ -322,6 +401,8 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
       };
       up(t.far, nf);
       if (t.close) up(t.close, nc);
+      if (t.farCards) { t.farCards.count = nf; nearTris += nf * CARDS[t.type].attributes.position.count / 3; }
+      if (t.closeCards) { t.closeCards.count = nc; nearTris += nc * CARDS[t.type].attributes.position.count / 3; }
     }
   }
 
@@ -332,7 +413,12 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
   const SH = {};
   for (const [k, sh] of Object.entries(F)) {
     const g = sh.g.index ? sh.g.toNonIndexed() : sh.g;
-    SH[k] = { p: g.attributes.position.array, n: g.attributes.normal.array, c: sh.c, y: sh.y, s: sh.s || [1, 1, 1] };
+    let n = g.attributes.normal.array;
+    if (sh.s) { // rounded canopies: sphere normals, so the low-poly shapes shade smoothly instead of as facets
+      const P = g.attributes.position.array; n = new Float32Array(P.length);
+      for (let i = 0; i < P.length; i += 3) { const l = Math.hypot(P[i], P[i + 1] + 0.35, P[i + 2]) || 1; n[i] = P[i] / l; n[i + 1] = (P[i + 1] + 0.35) / l; n[i + 2] = P[i + 2] / l; }
+    }
+    SH[k] = { p: g.attributes.position.array, n, c: sh.c, y: sh.y, s: sh.s || [1, 1, 1] };
   }
   const farList = [];   // [type, x, y, z, rot, s, sy, v]
   for (const type of ['cypress', 'poplar', 'olive', 'oak', 'pine', 'bale']) {
@@ -402,5 +488,5 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
   }
   const stats = { get nearTris() { return nearTris; }, farTris, instCount, farMeshes: farMeshes.length, ms: performance.now() - t0 };
   void heightAt;
-  return { update, setQuality, stats, vineR: uVine.uNearR, meshes: [...farMeshes, ...types.flatMap((t) => (t.close ? [t.far, t.close] : [t.far]))] };
+  return { update, setQuality, stats, vineR: uVine.uNearR, meshes: [...farMeshes, ...types.flatMap((t) => [t.far, t.close, t.farCards, t.closeCards].filter(Boolean))] };
 }

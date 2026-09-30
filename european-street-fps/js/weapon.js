@@ -626,9 +626,9 @@ const V3 = (a) => new THREE.Vector3(...a);
 // Viewmodel layout (view space: camera at the origin looking down -z; gun space: bore along -z,
 // origin above the pistol grip). Exported for tuning.
 export const LAYOUT = {
-  hipPos: [0.122, -0.094, -0.44], hipRot: [0.035, 0.08, -0.05],
-  eyeZ: 0.132,                          // gun-space z of the eye at full aim (eye relief behind the optic)
-  hipFov: 54, adsFovK: 0.78,            // view-model FOV (desktop landscape) and its ADS factor
+  hipPos: [0.128, -0.104, -0.45], hipRot: [0.035, 0.08, -0.05],
+  eyeZ: 0.19,                         // gun-space z of the eye at full aim (eye relief behind the optic)
+  hipFov: 64, adsFovK: 0.66,            // view-model FOV (desktop landscape) and its ADS factor (ADS ≈ 42°)
   rShoulder: [0.2, -0.3, 0.13], rElbow: [0.36, -0.52, -0.05], rShoulderAds: [0.15, -0.28, 0.17], rElbowAds: [0.28, -0.5, 0.02],
   lShoulder: [-0.2, -0.36, 0.06], lElbow: [-0.16, -0.7, -0.32], lShoulderAds: [-0.18, -0.32, 0.08], lElbowAds: [-0.2, -0.52, -0.12],
   // hands: [palm normal, knuckle line toward the little finger, palm contact point] in gun space

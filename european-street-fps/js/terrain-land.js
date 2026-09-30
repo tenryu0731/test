@@ -336,9 +336,9 @@ function placeAll(ctx) {
     if (s.walls > 0.55 || s.cls === CLS.WOOD) continue;
     if (!free(jx, jz, 3.5, 2)) continue;
     const r = rng();
-    if (r < 0.32) add('bush', jx, jz, rng() * 6.28, 0.8 + rng() * 0.8, 0.8 + rng() * 0.5, rng());
-    else if (r < 0.345) { add('oak', jx, jz, rng() * 6.28, 0.9 + rng() * 0.5, 1, rng()); if (nearRoadOrSite(jx, jz, 12)) trunks.push([jx, jz, 0.5, 3]); }
-    else if (r < 0.36) add('cypress', jx, jz, rng() * 6.28, 0.9 + rng() * 0.3, 0.9 + rng() * 0.3, rng());
+    if (r < 0.46) add('bush', jx, jz, rng() * 6.28, 0.9 + rng() * 0.8, 0.8 + rng() * 0.5, rng());
+    else if (r < 0.5) { add('oak', jx, jz, rng() * 6.28, 0.9 + rng() * 0.5, 1, rng()); if (nearRoadOrSite(jx, jz, 12)) trunks.push([jx, jz, 0.5, 3]); }
+    else if (r < 0.52) add('cypress', jx, jz, rng() * 6.28, 0.9 + rng() * 0.3, 0.9 + rng() * 0.3, rng());
   }
 
   // ---- cypress avenues along roads and rings around sites
