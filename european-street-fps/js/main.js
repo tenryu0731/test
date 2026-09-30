@@ -479,7 +479,7 @@ function collect(item) {
   if (item.type === 'ammo') {
     const room = maxReserve - weapon.reserve;
     if (room <= 0) { denyToast('弾薬はこれ以上持てません'); return false; }
-    const n = Math.min(room, ammoPerCrate);
+    const n = Math.min(room, item.amount || ammoPerCrate);
     if (typeof weapon.addAmmo === 'function') weapon.addAmmo(n); else weapon.reserve += n;
     ui.toast(`弾薬を回収 +${n}`, 'ammo');
     audio.play('pickupAmmo');
@@ -706,6 +706,11 @@ combat.player = {
   damage(amount, from, kind) { if (vehicle) vehicleDamage(amount, from); else playerDamage(kind === 'blast' ? amount * 0.8 : amount, from); },
 };
 combat.onKill = (t) => onVehicleKill(t);
+// Defeated robots drop a small ammo crate (heavies a bigger one).
+enemies.onDeath = (r) => {
+  const base = Math.round(ammoPerCrate * (r.type === 'heavy' ? 0.6 : 0.35));
+  pickups.drop(r.pos.x, physics.groundHeight(r.pos.x, r.pos.z, 0.3, r.pos.y + 0.6), r.pos.z, base);
+};
 combat.onRobotKill = () => { intelT = 0; ui.hitMarker(true); ui.toast(`訓練ロボットを停止 — 残り ${remainingEnemies()}`); };
 combat.onExplosion = (pos, size) => {
   const d = pos.distanceTo(camera.position);

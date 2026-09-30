@@ -121,6 +121,8 @@ function makeRingTexture() {
 function hash(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; }
 
 // ------------------------------------------------------------------ manager
+const DROP_LIFE = 60;
+
 export class Pickups {
   constructor({ scene, world, physics }) {
     this.scene = scene; this.world = world; this.physics = physics;
@@ -233,8 +235,25 @@ export class Pickups {
 
   // ---------------------------------------------------------------- per round / frame
   reset() {
-    for (const it of this.items) { it.active = true; it.group.visible = true; it.denyT = 0; }
+    for (const it of this.items) {
+      if (it.drop) { it.active = false; it.group.visible = false; continue; }
+      it.active = true; it.group.visible = true; it.denyT = 0;
+    }
     this._cullT = 0;
+  }
+
+  /** A small ammo crate dropped by a defeated robot at (x, y, z); lasts DROP_LIFE seconds. `amount` is passed to the collector. */
+  drop(x, y, z, amount) {
+    let it = this.items.find((q) => q.drop && !q.active);
+    if (!it) {
+      if (this.items.filter((q) => q.drop).length >= 24) return;
+      this._addItem('ammo', { x, y, z }, '弾薬');
+      it = this.items[this.items.length - 1];
+      it.drop = true;
+      it.group.scale.setScalar(0.7);
+    }
+    it.x = x; it.y = y; it.z = z; it.group.position.set(x, y, z);
+    it.amount = amount; it.life = DROP_LIFE; it.active = true; it.near = true; it.denyT = 0; it.group.visible = true;
   }
 
   /**
@@ -251,6 +270,7 @@ export class Pickups {
     this.ringMat.ammo.opacity = pulse; this.ringMat.med.opacity = pulse;
     for (const it of this.items) {
       if (!it.active) continue;
+      if (it.drop && (it.life -= dt) <= 0) { it.active = false; it.group.visible = false; continue; }
       const dx = playerPos.x - it.x, dz = playerPos.z - it.z;
       const d2 = dx * dx + dz * dz;
       if (doCull) { it.near = d2 < VIEW_DIST * VIEW_DIST; it.group.visible = it.near; }

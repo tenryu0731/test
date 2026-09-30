@@ -949,6 +949,7 @@ export class EnemyManager {
     if (r.hasToken || r.burstLeft) this._endBurst(r, 99);
     this.remaining = Math.max(0, this.remaining - 1);
     r.deathT = 0; r.dieSparkT = 0.25;
+    if (this.onDeath) this.onDeath(r);
     r.fallSign = r.flinchZ >= 0 ? 1 : -1;
     r.roll = rand(-0.35, 0.35) + r.flinchX * 0.25;
     // Lie along the slope in the fall direction.
