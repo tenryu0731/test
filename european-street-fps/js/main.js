@@ -12,6 +12,8 @@ import { Settings } from './settings.js';
 import { WorldMap } from './map.js';
 import { ViewpointSystem, OverviewCam, Flyover } from './viewpoints.js';
 import { Pickups } from './pickups.js';
+import { Helicopter } from './helicopter.js';
+import { HELIPAD } from './layout.js';
 
 const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 const params = new URLSearchParams(location.search);
@@ -53,6 +55,12 @@ const worldMap = new WorldMap({ gfx, world, root: ui.root, isTouch: ui.isTouch }
 worldMap.attachHUD({ minimap: ui.el.minimapCanvas, compass: ui.el.compass });
 const overviewCam = new OverviewCam({ camera, world, element: ui.el.overview });
 const flyover = new Flyover({ world });
+const heli = new Helicopter({ scene, physics, world, pad: HELIPAD });
+const heliHud = document.createElement('div');
+heliHud.className = 'heli-hud';
+heliHud.innerHTML = '<span>高度 <b class="hh-alt">0</b> m</span><span>速度 <b class="hh-spd">0</b> km/h</span><small class="hh-hint"></small>';
+ui.root.appendChild(heliHud);
+const hh = { alt: heliHud.querySelector('.hh-alt'), spd: heliHud.querySelector('.hh-spd'), hint: heliHud.querySelector('.hh-hint') };
 console.log(`[boot] weapon ${(t2 - t1).toFixed(0)} ms, enemies ${(t3 - t2).toFixed(0)} ms, ui+systems ${(performance.now() - t3).toFixed(0)} ms, ` +
   `${pickups.items.length} crates, ${viewpoints.list.length} viewpoints`);
 
@@ -73,6 +81,8 @@ let winTimer = -1;
 let roundDirty = false;              // the current round has been played (start must reset)
 let appliedKey = '';
 let climb = null;                    // viewpoint transition in progress
+let flying = false;                  // piloting the helicopter
+const fcam = { yaw: 0, pitch: -0.12 };  // chase-camera orientation while flying
 let mapReturn = 'playing';
 let lockFailed = false;
 let intelT = 0, hudT = 0;
@@ -178,6 +188,8 @@ function resetGame() {
   stats.time = 0; stats.shots = 0; stats.hits = 0; stats.pickups = 0;
   winTimer = -1;
   climb = null;
+  setFlying(false);
+  heli.reset();
   weapon.reset();
   const scale = preset.ammoScale || 1;
   weapon.reserve = Math.round(weapon.reserve * scale);
@@ -467,6 +479,7 @@ function shoot(shot) {
 
 function onPlayerHit(damage, fromPos) {
   if (state !== 'playing') return;
+  if (flying) damage *= 0.5;            // the cabin takes part of it
   player.hp = Math.max(0, player.hp - damage);
   player.sinceHit = 0;
   ui.setHP(player.hp, player.maxHP);
@@ -570,12 +583,13 @@ function updatePlayer(dt) {
   camera.rotation.set(player.pitch + player.kickPitch, player.yaw + player.kickYaw, -le * LEAN_ROLL);
   camera.updateMatrixWorld();
 
-  // Viewpoint interaction.
-  const q = climb ? null : viewpoints.query(player.pos);
-  const label = q ? (q.mode === 'climb' ? '登る' : '降りる') : null;
+  // Viewpoint / helicopter interaction.
+  const board = !climb && !viewpoints.current && heli.canBoard(player.pos);
+  const q = climb || board ? null : viewpoints.query(player.pos);
+  const label = board ? 'ヘリに乗る' : q ? (q.mode === 'climb' ? '登る' : '降りる') : null;
   input.setInteract(label);
-  ui.setPrompt(label, q ? q.vp.name : '');
-  if (input.consumeInteract() && q) startClimb(q.vp, q.mode);
+  ui.setPrompt(label, board ? 'ヘリコプター' : q ? q.vp.name : '');
+  if (input.consumeInteract()) { if (board) { enterHeli(); return; } if (q) startClimb(q.vp, q.mode); }
 
   // Fire.
   if (input.fireHeld && !busy) {
@@ -595,6 +609,69 @@ function updatePlayer(dt) {
   ui.setAmmo(weapon.ammo, weapon.reserve, weapon.isReloading);
 
   // Health regeneration (per difficulty).
+  regenerate(dt);
+}
+
+// ---------- helicopter ----------
+function setFlying(on) {
+  flying = on;
+  heli.piloted = on;
+  input.setFlying(on);
+  document.body.classList.toggle('flying', on);
+}
+function enterHeli() {
+  setFlying(true);
+  input.clearToggles();
+  player.aim = player.aimE = player.leanRaw = player.lean = 0;
+  fcam.yaw = heli.yaw; fcam.pitch = -0.12;
+  camera.fov = BASE_FOV; camera.updateProjectionMatrix();
+  ui.setPrompt(null); input.setInteract(null);
+  audio.play('uiClick');
+  hh.hint.textContent = isTouch ? '左スティックで移動 · ▲▼で上昇/下降 · 着陸して「降りる」' : 'W/S 前後 · A/D 横 · マウスで向き · Space 上昇 · C 下降 · Shift 加速 · 着陸して F で降りる';
+  ui.toast('ヘリコプターに搭乗 — ローターが回り始めます');
+}
+function exitHeli() {
+  heli.exitSpot(player.pos);
+  setFlying(false);
+  player.yaw = heli.yaw; player.pitch = 0; player.velY = 0; player.grounded = true;
+  audio.play('uiClick');
+}
+const _ct = new THREE.Vector3(), _cd = new THREE.Vector3(), _cp = new THREE.Vector3(), _ce = new THREE.Euler(0, 0, 0, 'YXZ');
+let hudHeliT = 0;
+function updateFlight(dt) {
+  const look = input.consumeLook();
+  fcam.yaw -= look.dx;
+  fcam.pitch = THREE.MathUtils.clamp(fcam.pitch + look.dy, -1.1, 0.45);
+  input.consumeJump(); input.consumeReload();
+  heli.update(dt, { move: input.move, up: input.upHeld, down: input.downHeld, boost: input.sprint, heading: fcam.yaw });
+  player.pos.copy(heli.pos);
+  player.yaw = heli.yaw;
+  // Land to get out.
+  const canExit = heli.canExit();
+  input.setInteract(canExit ? '降りる' : null);
+  ui.setPrompt(canExit ? '降りる' : null, 'ヘリコプター');
+  if (input.consumeInteract() && canExit) { exitHeli(); return; }
+  // Chase camera: behind and above, pulled in when something is in the way.
+  _ct.set(heli.pos.x, heli.pos.y + 2.4, heli.pos.z);
+  _ce.set(fcam.pitch, fcam.yaw, 0);
+  _cd.set(0, 0, -1).applyEuler(_ce);
+  const dist = 13 + heli.speed * 0.12;
+  _cp.copy(_ct).addScaledVector(_cd, -dist); _cp.y += 1.4;
+  _ld.copy(_cp).sub(_ct); const L = _ld.length(); _ld.divideScalar(L);
+  const hit = physics.raycast(_ct, _ld, L);
+  if (hit) _cp.copy(_ct).addScaledVector(_ld, Math.max(1.5, hit.distance - 0.5));
+  _cp.y = Math.max(_cp.y, world.groundAt(_cp.x, _cp.z) + 0.6);
+  camera.position.copy(_cp);
+  camera.lookAt(_ct.x + _cd.x * 30, _ct.y + _cd.y * 30, _ct.z + _cd.z * 30);
+  camera.updateMatrixWorld();
+  if ((hudHeliT -= dt) <= 0) {
+    hudHeliT = 0.1;
+    hh.alt.textContent = String(Math.max(0, Math.round(heli.altitude)));
+    hh.spd.textContent = String(Math.round(heli.speed * 3.6));
+  }
+  regenerate(dt);
+}
+function regenerate(dt) {
   player.sinceHit += dt;
   const regen = player.hp > 0 && player.hp < player.maxHP && regenRate > 0 && player.sinceHit >= regenDelay;
   if (regen) { player.hp = Math.min(player.maxHP, player.hp + regenRate * dt); ui.setHP(player.hp, player.maxHP); }
@@ -619,10 +696,11 @@ function update(dt) {
   if (state === 'playing') {
     stats.time += dt;
     if (climb) updateClimb(dt);
-    updatePlayer(dt);
-    _eye.copy(camera.position);  // enemies see / shoot at the real (leaned) head position
+    if (flying) updateFlight(dt); else { updatePlayer(dt); heli.update(dt, null); }
+    // Enemies see / shoot at the real (leaned) head position, or at the cabin while flying.
+    if (flying) _eye.set(heli.pos.x, heli.pos.y + 1.6, heli.pos.z); else _eye.copy(camera.position);
     enemies.update(dt, { playerPos: player.pos, playerEye: _eye, playerAlive: player.hp > 0, onPlayerHit, camera });
-    pickups.update(dt, player.pos, collect);
+    if (!flying) pickups.update(dt, player.pos, collect);
     ui.setEnemies(enemies.remaining, enemies.total);
     ui.setCrosshairSpread(4 + weapon.currentSpread * 900);
     ui.setAiming(player.aimE);
@@ -635,6 +713,7 @@ function update(dt) {
     if (winTimer > 0 && (winTimer -= dt) <= 0) endRound(true);
     _focus.copy(player.pos);
   } else if (state === 'menu') {
+    heli.update(dt, null);
     flyover.update(dt, camera);
     enemies.update(dt, { playerPos: _far, playerEye: _far, playerAlive: false, onPlayerHit() {}, camera });
     _focus.copy(flyover.focus);
@@ -642,6 +721,7 @@ function update(dt) {
     overviewCam.update(dt);
     _focus.copy(overviewCam.focus);
   } else if (state === 'won' || state === 'lost') {
+    heli.update(dt, null);
     enemies.update(dt, { playerPos: player.pos, playerEye: _eye, playerAlive: false, onPlayerHit() {}, camera });
     weapon.update(dt, { moving: false, speed01: 0, grounded: true, lookDX: 0, lookDY: 0, aim: 0, lean: 0 });
     _focus.copy(player.pos);
@@ -649,6 +729,9 @@ function update(dt) {
     _focus.copy(player.pos);
   }
   weapon.updateEffects(dt);
+  // Rotor sound: full in the cockpit, fading with distance outside; silent in menus / the map.
+  const heard = state === 'playing' || state === 'won' || state === 'lost';
+  audio.setRotor(heard ? heli.rotor * (flying ? 1 : Math.max(0, 1 - camera.position.distanceTo(heli.pos) / 160)) : 0);
   world.update(dt, camera);
   gfx.updateSun(_focus);
   gfx.update(dt, { adaptive: state === 'playing' });
@@ -656,7 +739,7 @@ function update(dt) {
 
 function render() {
   if (state === 'map') return;                         // the map covers the whole screen
-  if (state === 'menu' || state === 'overview') gfx.render();
+  if (state === 'menu' || state === 'overview' || flying) gfx.render();   // no weapon viewmodel while flying
   else gfx.render(weapon.viewScene, weapon.viewCamera);
 }
 
@@ -683,8 +766,8 @@ if (params.has('autostart')) startFromMenu(); // for automated screenshots
 // n fixed steps and renders one frame (headless software GL is far too slow for real time).
 window.__game = {
   scene, camera, player, enemies, weapon, world, city: world.parts.city, physics, renderer, gfx, input, ui, audio,
-  map: worldMap, pickups, viewpoints, overviewCam, flyover, settings, sites,
-  get state() { return state; }, startPlaying, endRound, shoot, pause, newRound, toTitle,
+  map: worldMap, pickups, viewpoints, overviewCam, flyover, settings, sites, heli, fcam,
+  get state() { return state; }, get flying() { return flying; }, enterHeli, exitHeli, startPlaying, endRound, shoot, pause, newRound, toTitle,
   freeze(v = true) { frozen = v; clock.getDelta(); },
   step(n = 1, dt = 1 / 30, draw = true) { for (let i = 0; i < n; i++) update(dt); if (draw) render(); },
   openMap() { if (state === 'menu') startFromMenu(); openMap(); worldMap.update(0); },

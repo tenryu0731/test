@@ -1,6 +1,7 @@
 // Near-player grass and wild flowers (terrain agent): world-anchored 8 m tiles recycled around
 // the camera into two InstancedMeshes; wind sway and distance fade in the vertex shader.
 import * as THREE from 'three';
+import { HELIPAD } from './layout.js';
 import { CLS } from './terrain-land.js';
 import { rand2, RIVER_HALF_W } from './terrain-height.js';
 
@@ -114,6 +115,7 @@ export function createGrass(scene, land, heightAt, quality = 'high') {
       }
       if (dens <= 0 || rand2(ix, iz, 74) > dens) continue;
       if (land.roadSD(x, z) < 0.25 || land.riverD(x, z) < RIVER_HALF_W + 1.2 || land.lakeE(x, z) < 1) continue;
+      if ((x - HELIPAD.x) ** 2 + (z - HELIPAD.z) ** 2 < (HELIPAD.r + 0.3) ** 2) continue;   // concrete helipad
       const mix = rand2(ix, iz, 75);
       if (cl === CLS.MEADOW || cl === CLS.OLIVE || cl === CLS.EDGE || cl === CLS.PAD) { if (mix < 0.3) { cr = 0.52; cg = 0.47; cb = 0.26; } }
       if (land.roadSD(x, z) < 1.8) h *= 0.6;

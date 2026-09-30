@@ -60,5 +60,8 @@ export const ROADS = [
   { id: 'north-quarry', width: 4, points: [[-20, -260], [80, -420], [190, -580]] },
 ];
 
+// Helipad on the flat ring outside the south wall, west of the gate road (the helicopter starts there).
+export const HELIPAD = { x: -32, z: 161, r: 8, yaw: Math.PI * 0.8 };
+
 // Where the player starts: inside the south gate, looking north up the main street.
 export const PLAYER_START = { x: 0, z: 128, yaw: 0 };

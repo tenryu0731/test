@@ -102,6 +102,37 @@ export class GameAudio {
     } catch { /* never let audio break the game */ }
   }
 
+  /** Helicopter rotor loop: level 0 (silent) … 1 (full power). Built lazily, never throws. */
+  setRotor(level) {
+    const c = this.ctx;
+    if (!c || !this.master) return;
+    try {
+      level = Math.max(0, Math.min(1, level));
+      if (!this._rotor) {
+        if (level < 0.01) return;
+        const src = c.createBufferSource(); src.buffer = this.brown; src.loop = true;
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520; lp.Q.value = 0.9;
+        const chop = c.createGain(); chop.gain.value = 0.55;             // blade-slap amplitude modulation
+        const lfo = c.createOscillator(); lfo.type = 'triangle'; lfo.frequency.value = 3;
+        const depth = c.createGain(); depth.gain.value = 0.45;
+        lfo.connect(depth).connect(chop.gain);
+        const whine = c.createOscillator(); whine.type = 'sawtooth'; whine.frequency.value = 180;
+        const wg = c.createGain(); wg.gain.value = 0.012;
+        const out = c.createGain(); out.gain.value = 0;
+        src.connect(lp).connect(chop).connect(out);
+        whine.connect(wg).connect(out);
+        out.connect(this.master);
+        src.start(); lfo.start(); whine.start();
+        this._rotor = { out, lfo, whine, lp };
+      }
+      const r = this._rotor, t = c.currentTime;
+      r.out.gain.setTargetAtTime(level * 0.9, t, 0.15);
+      r.lfo.frequency.setTargetAtTime(2 + level * 16, t, 0.3);
+      r.whine.frequency.setTargetAtTime(90 + level * 260, t, 0.3);
+      r.lp.frequency.setTargetAtTime(300 + level * 500, t, 0.3);
+    } catch { /* never let audio break the game */ }
+  }
+
   _kill(v) {
     try {
       const t = this.ctx.currentTime;

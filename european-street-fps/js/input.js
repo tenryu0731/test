@@ -102,6 +102,13 @@ export class Input {
     return kl || this._leanToggle;
   }
 
+  /** Helicopter controls: climb (Space / touch ▲) and descend (C or Ctrl / touch ▼) while held. */
+  get upHeld() { return this._enabled && (this._keys.has('Space') || this._held('up')); }
+  get downHeld() { return this._enabled && (this._keys.has('KeyC') || this._keys.has('ControlLeft') || this._held('down')); }
+  _held(role) { for (const p of this._pointers.values()) if (p.role === role) return true; return false; }
+  /** Flying: swap the on-foot touch buttons (fire, aim, reload, jump, lean) for climb / descend. */
+  setFlying(v) { this.flying = !!v; this.touchRoot?.classList.toggle('fly', this.flying); }
+
   /** Drop the touch toggles (e.g. when a round restarts or the player climbs a tower). */
   clearToggles() {
     this._aimToggle = false; this._leanToggle = 0;
@@ -179,7 +186,7 @@ export class Input {
 
   // ---------------------------------------------------------------- keyboard / mouse
   _initKeyboardMouse() {
-    const GAME_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyF', 'KeyM', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'Tab']);
+    const GAME_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyF', 'KeyM', 'KeyC', 'ControlLeft', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ShiftLeft', 'ShiftRight', 'Tab']);
     addEventListener('keydown', (e) => {
       if (e.target instanceof Element && e.target.closest('input')) return;
       if (GAME_KEYS.has(e.code) && this._enabled) e.preventDefault();
@@ -246,6 +253,8 @@ export class Input {
         <button type="button" class="tbtn tbtn-lean" data-role="leanR" aria-label="右に覗く" aria-pressed="false">${ICONS.leanR}<span>右</span></button>
         <em class="lean-cap">覗く</em>
       </div>
+      <button type="button" class="tbtn tbtn-fly tbtn-up" data-role="up" aria-label="上昇">${ICONS.jump}<span>上昇</span></button>
+      <button type="button" class="tbtn tbtn-fly tbtn-down" data-role="down" aria-label="下降"><span class="flip">${ICONS.jump}</span><span>下降</span></button>
       <button type="button" class="tbtn tbtn-interact" data-role="interact" aria-hidden="true">${ICONS.climb}<span>登る</span></button>
       <button type="button" class="tbtn tbtn-pause" data-role="pause" aria-label="一時停止">${ICONS.pause}</button>`;
     this._joyEl = root.querySelector('.joy');

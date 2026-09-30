@@ -3,7 +3,7 @@
 // the per-texel data textures the terrain shader reads, and the placement of every tree, vine
 // row, bale, rock and dry-stone wall.
 import * as THREE from 'three';
-import { TOWN, SITES, LAKE, ROADS, MAP_HALF } from './layout.js';
+import { TOWN, SITES, LAKE, ROADS, MAP_HALF, HELIPAD } from './layout.js';
 import { FINE, RIVER_HALF_W, smooth, clamp, distToRect, lakeRadiusAt, rand2, hash2i } from './terrain-height.js';
 
 export const CLS = { MEADOW: 0, WHEAT: 1, STUBBLE: 2, PLOUGH: 3, VINE: 4, OLIVE: 5, WOOD: 6, SCRUB: 7, EDGE: 8, TOWN: 9, PAD: 10, WATER: 11, ROAD: 12 };
@@ -248,7 +248,11 @@ function placeAll(ctx) {
     T[type].push(x, y, z, rot, s, sy, v, extra);
   };
   const inMap = (x, z, m = 2) => Math.abs(x) < FINE.half - m && Math.abs(z) < FINE.half - m;
-  const padClear = (x, z, extra) => { for (const s of SITES) { const dx = x - s.x, dz = z - s.z, r = s.r + extra; if (dx * dx + dz * dz < r * r) return false; } return true; };
+  const padClear = (x, z, extra) => {
+    for (const s of SITES) { const dx = x - s.x, dz = z - s.z, r = s.r + extra; if (dx * dx + dz * dz < r * r) return false; }
+    const hr = HELIPAD.r + 6 + Math.max(0, extra);   // keep trees clear of the helipad and the rotor
+    return (x - HELIPAD.x) ** 2 + (z - HELIPAD.z) ** 2 >= hr * hr;
+  };
   const free = (x, z, road = 2.5, pad = 3) => inMap(x, z) && roadSD(x, z) > road && riverD(x, z) > RIVER_HALF_W + 3 && lakeE(x, z) > 3 &&
     distToRect(x, z, TOWN.rect) > 4 && padClear(x, z, pad);
   const nearRoadOrSite = (x, z, d) => roadSD(x, z) < d || !padClear(x, z, d + 10) || distToRect(x, z, TOWN.rect) < d + 30;
