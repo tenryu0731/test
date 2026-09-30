@@ -103,7 +103,7 @@ function makeLeafCardTexture(n = 128) {
     // leaf: narrow ellipse, placed within a disc, pointing roughly outward
     const rr = Math.sqrt(rnd()) * 0.41, a = rnd() * Math.PI * 2;
     const cx = 0.5 + Math.cos(a) * rr, cy = 0.5 + Math.sin(a) * rr;
-    const ang = a + (rnd() - 0.5) * 1.4, L = 0.045 + rnd() * 0.04, W = L * (0.28 + rnd() * 0.12);
+    const ang = rnd() * Math.PI * 2, L = 0.04 + rnd() * 0.035, W = L * (0.38 + rnd() * 0.2);
     const ca = Math.cos(ang), sa = Math.sin(ang), shadeV = 0.62 + rnd() * 0.38;
     const x0 = Math.max(0, Math.floor((cx - L) * n)), x1 = Math.min(n - 1, Math.ceil((cx + L) * n));
     const y0 = Math.max(0, Math.floor((cy - L) * n)), y1 = Math.min(n - 1, Math.ceil((cy + L) * n));
@@ -178,6 +178,21 @@ function geoCards(type) {
   if (type === 'olive') OLIVE.forEach(([x, y, z, r], i) => cards(b, x, y, z, r, 0.72, OLIVE_C, i + 3, 14, 1.25));
   else if (type === 'oak') OAK.forEach(([x, y, z, r], i) => cards(b, x, y, z, r, 0.8, OAK_C, i + 11, 14, 1.9));
   else if (type === 'pine') PINE.forEach(([x, y, z, r], i) => cards(b, x, y, z, r, 0.38, PINE_C, i + 21, 12, 1.9));
+  else if (type === 'vine') {
+    // cards along the 6 m hedge: mostly on the sides and the top, breaking its flat silhouette
+    let sd = 97; const rnd = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+    const quad = new THREE.PlaneGeometry(1, 1), up = new THREE.Vector3(0, 1, 0);
+    for (let i = 0; i < 12; i++) {
+      const z = -3 + (i + rnd()) * 0.5, side = rnd() < 0.5 ? -1 : 1, top = rnd() < 0.35;
+      const y = top ? 1.62 + rnd() * 0.12 : 0.8 + rnd() * 0.75, x = top ? (rnd() - 0.5) * 0.3 : side * (0.3 + 0.12 * (y - 0.55));
+      const face = new THREE.Vector3(top ? (rnd() - 0.5) * 0.6 : side, top ? 1 : (rnd() - 0.3) * 0.8, (rnd() - 0.5) * 0.8).normalize();
+      const k = 0.55 + rnd() * 0.3;
+      const m = new THREE.Matrix4().lookAt(face, new THREE.Vector3(), Math.abs(face.y) > 0.95 ? new THREE.Vector3(1, 0, 0) : up);
+      m.multiply(new THREE.Matrix4().makeRotationZ(rnd() * Math.PI * 2)).scale(new THREE.Vector3(k, k, k)).setPosition(x, y, z);
+      const autumn = 0.5 + 0.5 * Math.sin(z * 1.3 + 2);
+      b.add(quad, m, () => [0.24 + 0.1 * autumn, 0.31 + 0.03 * autumn, 0.1], { center: new THREE.Vector3(0, 0.9, z), sphereN: 0.7, uvMode: 'raw' });
+    }
+  }
   else if (type === 'bush') [[0, 0.55, 0, 0.8], [0.6, 0.45, 0.2, 0.6], [-0.5, 0.45, -0.3, 0.62]].forEach(([x, y, z, r], i) => cards(b, x, y, z, r, 0.8, [0.2, 0.26, 0.12], i + 31, 7, 0.8));
   return b.build();
 }
@@ -295,8 +310,8 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
   const matFar = vegMaterial(uTree, 'far', null);
   const cardTex = makeLeafCardTexture(128);
   const cardMat = (u, kind) => { const m = vegMaterial(u, kind, null); m.map = cardTex; m.alphaTest = 0.5; m.side = THREE.DoubleSide; return m; };
-  const matCard = cardMat(uTree, 'nearC'), matCardS = cardMat(uSmall, 'nearCS');
-  const CARDS = { olive: geoCards('olive'), oak: geoCards('oak'), pine: geoCards('pine'), bush: geoCards('bush') };
+  const matCard = cardMat(uTree, 'nearC'), matCardS = cardMat(uSmall, 'nearCS'), matCardV = cardMat(uVine, 'nearCV');
+  const CARDS = { olive: geoCards('olive'), oak: geoCards('oak'), pine: geoCards('pine'), bush: geoCards('bush'), vine: geoCards('vine') };
 
   const GEO = {
     cypress: geoCypress(false), poplar: geoCypress(true), olive: geoOlive(), oak: geoOak(), pine: geoPine(),
@@ -354,7 +369,7 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
     // leaf-card shell: a second InstancedMesh drawing from the same instance buffers
     const shell = (im, cast) => {
       if (!im || !CARDS[type]) return null;
-      const c = new THREE.InstancedMesh(CARDS[type], type === 'bush' ? matCardS : matCard, 1);
+      const c = new THREE.InstancedMesh(CARDS[type], type === 'bush' ? matCardS : type === 'vine' ? matCardV : matCard, 1);
       c.instanceMatrix = im.instanceMatrix; c.instanceColor = im.instanceColor;
       c.count = 0; c.frustumCulled = false; c.castShadow = cast; c.receiveShadow = true; c.name = im.name + '-cards';
       scene.add(c);

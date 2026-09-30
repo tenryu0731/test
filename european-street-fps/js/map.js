@@ -25,9 +25,33 @@ const C = {
 const wrapPI = (a) => ((a + Math.PI) % TAU + TAU) % TAU - Math.PI;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
+// Greedy label placement: each label tries its candidate anchors in order and is drawn at the first
+// one that does not overlap an already placed label; labels with no free anchor are skipped.
+class LabelLayout {
+  constructor(g) { this.g = g; this.boxes = []; }
+  reserve(x0, y0, x1, y1) { this.boxes.push([x0, y0, x1, y1]); }
+  place(text, x, y, size, opts = {}, cands = [[0, 0, 'center', 'top']]) {
+    const g = this.g, weight = opts.weight || 700;
+    g.font = fontOf(size, weight);
+    const w = g.measureText(text).width + size * 0.5, h = size * 1.25;
+    for (const [dx, dy, align, base] of cands) {
+      const ax = x + dx, ay = y + dy;
+      const x0 = align === 'center' ? ax - w / 2 : align === 'right' ? ax - w : ax;
+      const y0 = base === 'top' ? ay : base === 'bottom' ? ay - h : ay - h / 2;
+      const x1 = x0 + w, y1 = y0 + h;
+      if (this.boxes.some((b) => x0 < b[2] && x1 > b[0] && y0 < b[3] && y1 > b[1])) continue;
+      this.boxes.push([x0, y0, x1, y1]);
+      halo(g, text, ax, ay, size, { ...opts, align, base });
+      return true;
+    }
+    return false;
+  }
+}
+
 // ------------------------------------------------------------------ small canvas icon painters
+const fontOf = (size, weight) => `${weight} ${size}px system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", Meiryo, sans-serif`;
 function halo(g, text, x, y, size, { weight = 700, color = C.ink, align = 'center', base = 'middle' } = {}) {
-  g.font = `${weight} ${size}px system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", Meiryo, sans-serif`;
+  g.font = fontOf(size, weight);
   g.textAlign = align; g.textBaseline = base;
   g.lineJoin = 'round'; g.lineWidth = Math.max(3, size * 0.32); g.strokeStyle = C.halo;
   g.strokeText(text, x, y);
@@ -302,6 +326,11 @@ export class WorldMap {
     this._W = W; this._H = H; this._dpr = dpr;
     const w = Math.round(W * dpr), h = Math.round(H * dpr);
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
+    // screen boxes of the DOM overlays (title, legend pills, info panel, buttons) that labels avoid
+    const cr = this.canvas.getBoundingClientRect();
+    this._uiRects = [...this.el.querySelectorAll('.map-title, .map-close, .map-legend > *, .map-info, .map-zoom > *')]
+      .map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0)
+      .map((r) => [r.left - cr.left - 4, r.top - cr.top - 4, r.right - cr.left + 4, r.bottom - cr.top + 4]);
   }
   _fitScale() { return Math.min(this._W, this._H) / WORLD * 0.94; }
   _clampView() {
@@ -453,29 +482,34 @@ export class WorldMap {
         halo(g, '?', x, y, 16, { weight: 800 });
       }
     }
-    // Markers (landmark names; town details only when zoomed in).
+    // Labels, most important first so they win overlaps: squad counts, the town name, landmark
+    // names (town details only when zoomed in). Each tries below / above / right / left of its point.
+    const lay = new LabelLayout(g);
+    for (const r of this._uiRects || []) lay.reserve(...r);
+    // Robots, pickups and viewpoints are drawn first; labels keep clear of their icons.
+    const rr = clamp(v.s * 2.2, 3.2, 6);
+    for (const r of st.robots) robotDot(g, sx(r.x), sy(r.z), rr);
+    const ic = clamp(v.s * 6, 5, 9);
+    for (const p of st.pickups) if (p.active) { const x = sx(p.x), y = sy(p.z); crateIcon(g, x, y, ic, p.type); lay.reserve(x - ic, y - ic, x + ic, y + ic); }
+    for (const vp of st.viewpoints) { const x = sx(vp.x), y = sy(vp.z), k = ic + 2; towerBadge(g, x, y, k, vp.climbed); lay.reserve(x - k, y - k, x + k, y + k); }
+    for (const s of st.sites) {
+      if (!s.known || s.cleared) continue;
+      const rr = Math.max(14, (s.r || 20) * v.s);
+      lay.place(`${s.alive} 体`, sx(s.x), sy(s.z), 12, { weight: 800, color: '#ffc9ae' },
+        [[0, -rr - 9, 'center', 'middle'], [rr + 4, 0, 'left', 'middle'], [-rr - 4, 0, 'right', 'middle'], [0, rr + 9, 'center', 'middle']]);
+    }
     const [tx0, tx1, tz0, tz1] = TOWN.rect;
     const zoomTown = v.s > 1.15;
-    if (!zoomTown) halo(g, 'サン・ジミニャーノ', sx(0), sy(tz0) - 12, v.s > 0.5 ? 15 : 13, { weight: 800 });
+    if (!zoomTown) lay.place('サン・ジミニャーノ', sx(0), sy(tz0) - 12, v.s > 0.5 ? 15 : 13, { weight: 800 }, [[0, 0, 'center', 'bottom'], [0, -18, 'center', 'bottom']]);
     for (const m of st.markers) {
       const inTown = m.x > tx0 && m.x < tx1 && m.z > tz0 && m.z < tz1;
       if (inTown && !zoomTown) continue;
       const x = sx(m.x), y = sy(m.z);
       if (x < -80 || x > W + 80 || y < -30 || y > H + 30) continue;
       g.beginPath(); g.arc(x, y, 3, 0, TAU); g.fillStyle = C.ink; g.fill(); g.lineWidth = 1.5; g.strokeStyle = C.halo; g.stroke();
-      halo(g, m.name, x, y + 6, inTown ? 12 : 13, { base: 'top', weight: inTown ? 700 : 800 });
+      lay.place(m.name, x, y, inTown ? 12 : 13, { weight: inTown ? 700 : 800 },
+        [[0, 6, 'center', 'top'], [0, -6, 'center', 'bottom'], [7, 0, 'left', 'middle'], [-7, 0, 'right', 'middle']]);
     }
-    // Squad labels (count) and robots.
-    for (const s of st.sites) {
-      if (!s.known || s.cleared) continue;
-      halo(g, `${s.alive} 体`, sx(s.x), sy(s.z) - Math.max(14, (s.r || 20) * v.s) - 9, 12, { weight: 800, color: '#ffc9ae' });
-    }
-    const rr = clamp(v.s * 2.2, 3.2, 6);
-    for (const r of st.robots) robotDot(g, sx(r.x), sy(r.z), rr);
-    // Pickups and viewpoints.
-    const ic = clamp(v.s * 6, 5, 9);
-    for (const p of st.pickups) if (p.active) crateIcon(g, sx(p.x), sy(p.z), ic, p.type);
-    for (const vp of st.viewpoints) towerBadge(g, sx(vp.x), sy(vp.z), ic + 2, vp.climbed);
     // Objective + waypoint.
     if (st.objective) objectiveIcon(g, sx(st.objective.x), sy(st.objective.z), 8, t);
     if (this.waypoint) waypointPin(g, sx(this.waypoint.x), sy(this.waypoint.z), 11);
