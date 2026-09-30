@@ -46,7 +46,7 @@
 |---|---|---|
 | `last-light/` | LAST LIGHT — 60 秒のセリフなし 2D アニメーション | `claude/2d-animation-production-ntevqm` |
 | `lumen/` | LUMEN — キリスト教の信仰を描く 60 秒の 2D アニメーション | `claude/christian-faith-2d-animation-5zseur` |
-| `european-street-fps/` | サン・ジミニャーノ市街戦 — スマホ向け 3D FPS（three.js）※制作中、PR #1 で `main` に追加予定 | `claude/european-street-fps-8r88zy` |
+| `european-street-fps/` | サン・ジミニャーノ市街戦 — スマホ向け 3D FPS（three.js） | `claude/european-street-fps-8r88zy` |
 
 元の作業ブランチには、作品がフォルダ分けされる前の状態が残っています。
 
