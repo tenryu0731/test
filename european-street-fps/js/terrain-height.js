@@ -141,7 +141,7 @@ function edgeRise(x, z) {
   // Rounded-square radius; far hills rise beyond the map so the horizon has depth.
   const ax = Math.abs(x), az = Math.abs(z);
   const r = Math.pow(Math.pow(ax, 6) + Math.pow(az, 6), 1 / 6);
-  return 22 * smooth(430, 760, r) + 75 * smooth(760, 1650, r);
+  return 22 * smooth(430, 760, r) + 120 * smooth(760, 1800, r);
 }
 
 // Base natural ground (no roads/pads/water), identical for fine and coarse grids.
@@ -153,7 +153,7 @@ function makeBase() {
     h += 12 * fbm(wx / 430 + 3.1, wz / 430 - 1.7, 3, 11);
     h += 6 * fbm(wx / 170, wz / 170, 3, 29);
     const far = smooth(650, 1200, Math.max(Math.abs(x), Math.abs(z)));
-    if (far > 0) h += far * 30 * fbm(x / 520 + 7, z / 520 + 3, 4, 51);
+    if (far > 0) h += far * (30 + 30 * smooth(1000, 1700, Math.max(Math.abs(x), Math.abs(z)))) * fbm(x / 520 + 7, z / 520 + 3, 4, 51);
     return h;
   };
   const detail = (x, z) => 1.4 * fbm(x / 46, z / 46, 3, 37);

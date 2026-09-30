@@ -271,7 +271,7 @@ const FRAG_SPLAT = /* glsl */`
   float trk = smoothstep(-2.3, -1.9, sd) * (1.0 - smoothstep(-1.2, -0.85, sd));
   cv *= 1.0 + 0.1 * trk - 0.06 * (1.0 - trk);
   cv = mix(cv, cg, (1.0 - smoothstep(-2.5, -2.1, sd)) * smoothstep(0.45, 0.75, mn2.r) * 0.45);
-  cg *= vec3(0.8, 0.84, 0.6); cd *= vec3(0.74, 0.7, 0.62); cv *= 0.8;
+  cg *= vec3(0.8, 0.84, 0.6); cd *= vec3(0.74, 0.7, 0.62); cv *= 0.68;
   vec3 col = cg * wG + cd * wD + ce * wE + cv * wV + cr * wR;
   // macro brightness variation, wet darkening
   col *= 0.9 + 0.22 * mn.a + 0.08 * (mn2.a - 0.5);
