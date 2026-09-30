@@ -657,3 +657,14 @@ body.in-vehicle .heli-hud { display: flex; }
   /* 登る / 乗る / 降りる: below the middle of the screen, left of the button cluster. */
   #touch .tbtn-interact { bottom: calc(var(--by) + var(--small) + 4px); height: 50px; min-width: 100px; font-size: 16px; }
 }
+
+/* Mode picker (start screen): three wide options in one row. */
+.mode-grid { grid-template-columns: repeat(3, 1fr) !important; }
+/* Very short landscape phones: the extra mode row must not push the start button off screen. */
+@media (orientation: landscape) and (max-height: 430px) {
+  .start-side .subtitle { display: none; }
+  .start-side .brief { font-size: 12px; margin: 4px 0 6px; }
+  .start-side .diff-opt { min-height: 36px; }
+  .start-side .field { margin-bottom: 4px; }
+  .start-side .btn-primary { min-height: 46px; }
+}

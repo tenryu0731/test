@@ -16,8 +16,9 @@ import { buildAbbey } from './landmarks-abbey.js';
 import { buildVilla } from './landmarks-villa.js';
 import { buildMill } from './landmarks-mill.js';
 import { buildFarm, buildQuarry } from './landmarks-farm.js';
+import { buildTrenches, buildCompound } from './landmarks-arenas.js';
 
-const BUILDERS = { pieve: buildPieve, rocca: buildRocca, abbey: buildAbbey, villa: buildVilla, mill: buildMill, farm: buildFarm, chapel: buildChapel, watchtower: buildWatchtower, quarry: buildQuarry };
+const BUILDERS = { pieve: buildPieve, rocca: buildRocca, abbey: buildAbbey, villa: buildVilla, mill: buildMill, farm: buildFarm, chapel: buildChapel, watchtower: buildWatchtower, quarry: buildQuarry, trenches: buildTrenches, compound: buildCompound };
 const NEAR = 150, MID = 340, HYST = 12;
 
 function hashStr(s) { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
@@ -140,9 +141,9 @@ export function buildLandmarks(scene, M, { heightAt } = {}) {
     while (spawns.length < 4 && navs.length) spawns.push(navs[Math.floor(ctx.R() * navs.length)].clone());
     const e = ctx.enemy || { x: 0, z: 0, r: s.r * 0.6 };
     const ec = K.V(e.x, e.y ?? 0, e.z);
-    enemySites.push({ id: s.id, name: s.name, x: ec.x, y: ec.y, z: ec.z, r: e.r, spawns });
+    enemySites.push({ id: s.id, name: s.name, x: ec.x, y: ec.y, z: ec.z, r: e.r, spawns, mode: s.mode || null, arena: ctx.arena || null });
     viewpoints.push(...ctx.viewpoints);
-    markers.push({ id: s.id, name: s.name, type: s.type, x: s.x, z: s.z });
+    markers.push({ id: s.id, name: s.name, type: s.type, x: s.x, z: s.z, mode: s.mode || null });
     stats.tNav = (stats.tNav || 0) + performance.now() - tn;
     timings.push(`${s.id} ${(performance.now() - ts).toFixed(0)}`);
   }

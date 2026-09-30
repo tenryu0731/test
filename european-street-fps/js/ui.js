@@ -233,6 +233,9 @@ export class UI {
         <h1 class="title">${TITLE}</h1>
         <div class="subtitle">${SUBTITLE}</div>
         <p class="brief">${esc(opts.briefing || '城壁の町と周辺の丘に配備された訓練用ロボット部隊をすべて停止させよ。')}</p>
+        ${opts.modes ? `<div class="field"><div class="field-label">モード</div>
+          <div class="diff" role="radiogroup" aria-label="モード"><div class="diff-grid mode-grid">${opts.modes.map((m) => `<button type="button" class="diff-opt mode-opt" role="radio" aria-checked="${m.id === opts.mode}" data-mode="${m.id}">${esc(m.label)}</button>`).join('')}</div>
+          </div></div>` : ''}
         <div class="field"><div class="field-label">難易度</div>${this._diffPickerHTML(difficulty, custom)}</div>
         <div class="start-actions">
           <button type="button" class="btn-primary" data-act="start">出撃する</button>
@@ -252,6 +255,12 @@ export class UI {
       opts.onDifficulty(id, custom);
       this.showStart({ ...opts, difficulty: id });
     });
+    ov.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', (e) => {
+      e.preventDefault();
+      const m = b.dataset.mode;
+      const next = opts.onMode ? opts.onMode(m) : null;
+      this.showStart({ ...opts, ...(next || {}), mode: m });
+    }));
     this._onActivate(ov.querySelector('[data-act="start"]'), () => {
       if (this.isTouch) tryImmersive();
       opts.onStart();

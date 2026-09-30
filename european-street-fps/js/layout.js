@@ -36,7 +36,19 @@ export const SITES = [
   { id: 'chapel', type: 'chapel', name: '丘の礼拝堂', x: 580, z: 60, y: 32, r: 26 },
   { id: 'watchtower', type: 'watchtower', name: '見張りの塔', x: -580, z: -40, y: 36, r: 26 },
   { id: 'quarry', type: 'quarry', name: 'トラバーチン採石場', x: 190, z: -580, y: -12, r: 48 },
+  // Arenas of the other game modes (mode: only populated in that mode). Trench line on the east
+  // hill (own trench to the south, the training enemy's to the north); walled training compound west.
+  { id: 'trenches', type: 'trenches', name: '塹壕演習場', x: 540, z: -200, y: 23, r: 75, mode: 'trench' },
+  { id: 'compound', type: 'compound', name: '屋内戦闘訓練施設', x: -560, z: 200, y: 4, r: 40, mode: 'cqb' },
 ];
+
+// Game modes (main.js). `site`: the arena SITES id; `spawn`: player start in the arena's local frame.
+export const MODES = {
+  campaign: { id: 'campaign', label: '制圧作戦', desc: '街と田園の全ロボット部隊と敵車両を撃破する。戦車とヘリも使える。' },
+  trench: { id: 'trench', label: '塹壕戦', desc: '味方の塹壕を守り、押し寄せる訓練ロボットの波を 4 回しのぐ。最後の波には敵戦車も来る。', site: 'trenches', spawn: [0, 44], yaw: 0 },
+  cqb: { id: 'cqb', label: '室内制圧戦', desc: '訓練施設に突入し、部屋ごとに潜む訓練ロボットを制限時間内に全滅させる。', site: 'compound', spawn: [0, 25], yaw: 0, timeLimit: 300 },
+};
+export const MODE_ORDER = ['campaign', 'trench', 'cqb'];
 
 // Lake (water surface y) and river (polyline of bed centre points; water flows along the list).
 export const LAKE = { x: -330, z: 110, r: 50, y: -32 };

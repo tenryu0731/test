@@ -100,13 +100,14 @@ export class EnemyManager {
     this.stats = { ms: 0, msMax: 0, near: 0, mid: 0, sleep: 0, animated: 0, drawn: 0 };
 
     // Sites and navigation.
-    this.sites = this._buildSites(world, spawns);
+    this.sites = this.allSites = this._buildSites(world, spawns);
     this.nav = new NavGraph(physics, this.groundAt, (world && world.navPoints) || navPoints || []);
     const navGiven = this.nav.size;
     let added = 0;
     for (const s of this.sites) {
       // Thin nav sets (e.g. a countryside site with only a ring of points): add a standable grid,
       // wider in the countryside so chases up to the leash have a graph to follow.
+      if (s.mode === 'cqb') continue;   // the compound brings its own dense indoor nav grid
       added += s.town ? this.nav.densify(s.x, s.z, s.patrolR + 6, 3.5, 2.4) : this.nav.densify(s.x, s.z, 75, 6, 4.2);
     }
     for (const s of this.sites) {
@@ -146,6 +147,9 @@ export class EnemyManager {
         id: s.id != null ? String(s.id) : `site${i}`, name: s.name || (lay && lay.name) || s.id || `site${i}`,
         x, z, y: Number.isFinite(s.y) ? s.y : this.groundAt(x, z), r,
         town, kind, patrolR: clamp(r, town ? 16 : 20, CFG.patrolMax),
+        mode: s.mode || (lay && lay.mode) || null,
+        // Indoor arena: robots stay in the building; trench arena: they cross no-man's-land.
+        leash: (s.mode || lay?.mode) === 'cqb' ? 30 : (s.mode || lay?.mode) === 'trench' ? 150 : 0,
         spawns: (s.spawns || []).filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.z)),
         nav: [], robots: [],
       };
@@ -217,8 +221,14 @@ export class EnemyManager {
   }
 
   // -------------------------------------------------------------------------------------------
-  reset(preset) {
+  // opts: { mode: 'campaign' | 'trench' | 'cqb', count } — the campaign uses every site without a
+  // mode; a mode uses only its arena site, with `count` robots (0 → the arena is filled by waves).
+  reset(preset, opts) {
     if (preset && typeof preset === 'object') this.preset = preset;
+    if (opts) this.opts = opts;
+    const O = this.opts || {}, mode = O.mode || 'campaign';
+    this.mode = mode;
+    this.sites = this.allSites.filter((s) => (mode === 'campaign' ? !s.mode : s.mode === mode));
     const P = this.preset || DIFFICULTY.normal;
     const num = (v, d) => (Number.isFinite(v) ? v : d);
     const c = clamp(num(P.enemyCount, 1), 0.2, 3);
@@ -234,7 +244,7 @@ export class EnemyManager {
     this.list.length = 0;
     this.time = 0; this.shooters = 0; this.lastBurstStart = -10; this.frame = 0;
     this.streaks.clear();
-    const counts = this._allocate(c);
+    const counts = mode === 'campaign' ? this._allocate(c) : this.sites.map(() => Math.max(0, O.count | 0));
     const mix = this._mixAll(counts);
     this.sites.forEach((site, si) => {
       site.robots = [];
@@ -449,11 +459,11 @@ export class EnemyManager {
       const reached = this._steer(r, r.target, want);
       if (reached < 1.5 || (dSite < site.patrolR * 0.6 && reached < 6)) this._toPatrol(r);
     } else if (r.state === 'hunt') {
-      if (dSite > CFG.leash) this._toReturn(r);
+      if (dSite > (site.leash || CFG.leash)) this._toReturn(r);
       else {
         // Chase goal: the last known position, but never beyond the leash around the site.
         _goal.copy(r.lastKnown);
-        const gx = _goal.x - site.x, gz = _goal.z - site.z, gd = Math.hypot(gx, gz), lim = CFG.leash - 6;
+        const gx = _goal.x - site.x, gz = _goal.z - site.z, gd = Math.hypot(gx, gz), lim = (site.leash || CFG.leash) - 6;
         if (gd > lim) { _goal.set(site.x + gx / gd * lim, 0, site.z + gz / gd * lim); _goal.y = this.groundAt(_goal.x, _goal.z); }
         _v1.subVectors(r.lastKnown, r.pos); _v1.y = 0;
         const d = _v1.length();
@@ -494,7 +504,7 @@ export class EnemyManager {
             const px = -(r.lastKnown.z - r.pos.z), pz = r.lastKnown.x - r.pos.x, pl = Math.hypot(px, pz) || 1;
             const fx = r.lastKnown.x + px / pl * 7 * r.flankSide, fz = r.lastKnown.z + pz / pl * 7 * r.flankSide;
             const fy = this.nav.probe(fx, fz, cfg.radius, this.groundAt(fx, fz) + 0.3);
-            if (fy === fy && Math.hypot(fx - site.x, fz - site.z) < CFG.leash - 6) r.flankPt.set(fx, fy, fz); else r.flankStage = 2;
+            if (fy === fy && Math.hypot(fx - site.x, fz - site.z) < (site.leash || CFG.leash) - 6) r.flankPt.set(fx, fy, fz); else r.flankStage = 2;
           }
           const goal = r.flankStage === 1 ? r.flankPt : _goal;
           const dg = Math.hypot(goal.x - r.pos.x, goal.z - r.pos.z);
@@ -644,7 +654,7 @@ export class EnemyManager {
       else if (!wasSeeing) r.reactT = Math.max(r.reactT, 0.25 * this.reactMul);
       r.lastSeen = this.time;
       r.lastKnown.set(ctx.playerPos.x, ctx.playerPos.y, ctx.playerPos.z);
-      if (r.state === 'patrol' || (r.state === 'return' && Math.hypot(r.pos.x - r.site.x, r.pos.z - r.site.z) < CFG.leash - 12)) this._enterHunt(r, true);
+      if (r.state === 'patrol' || (r.state === 'return' && Math.hypot(r.pos.x - r.site.x, r.pos.z - r.site.z) < (r.site.leash || CFG.leash) - 12)) this._enterHunt(r, true);
     } else {
       // direct-walk check toward the current goal (cheap: only when not following LOS to the player)
       const goal = hunting ? r.lastKnown : r.target;
@@ -822,6 +832,33 @@ export class EnemyManager {
     }
     if (v < 0.03) return;
     try { a.play(name, { volume: v, pan, rate }); } catch { /* audio optional */ }
+  }
+
+  /** Trench mode: `n` more robots climb out of the arena site's spawns and advance on `goal`. */
+  spawnWave(n, goal, heavyEvery = 5) {
+    const site = this.sites[0];
+    if (!site) return 0;
+    const spawns = site.spawns.slice().sort(() => Math.random() - 0.5);
+    for (let k = 0; k < n; k++) {
+      const type = k % heavyEvery === heavyEvery - 1 ? 'heavy' : k % 3 === 2 ? 'scout' : 'trooper';
+      const r = this._acquire(type);
+      r.site = site; r.id = this.list.length;
+      this._placeAtSpawn(r, spawns, k);
+      this._initRobot(r);
+      site.robots.push(r); this.list.push(r);
+      this.total++; this.remaining++;
+      if (goal) { r.alertIn = 0.4 + k * 0.35; r.alertPos.copy(goal); }
+    }
+    return n;
+  }
+  /** Keep attackers pressing toward `goal` (the defended line) while they cannot see the player. */
+  pressAssault(goal, spread = 12) {
+    for (const r of this.list) {
+      if (!r.alive || r.sees) continue;
+      r.lastKnown.set(goal.x + rand(-spread, spread), goal.y, goal.z + rand(-3, 3));
+      r.lastSeen = this.time - 1;
+      if (r.state !== 'hunt' && r.alertIn <= 0) this._enterHunt(r, false);
+    }
   }
 
   // A loud noise at pos (e.g. the player's gunshot): patrolling robots within radius come to look.

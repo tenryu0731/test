@@ -49,15 +49,16 @@ export class EnemyVehicles {
     list.forEach((v, i) => { v.inUse = i < n; if (!v.inUse) { v.obj.group.visible = false; v.obj.alive = false; } });
   }
 
-  reset(preset) {
+  // opts.none: no vehicles this round (arena modes; tanks can still be added with spawnTank).
+  reset(preset, opts = {}) {
     const c = clamp(Number.isFinite(preset?.enemyCount) ? preset.enemyCount : 1, 0.2, 3);
     this.acc = clamp(preset?.enemyAccuracy ?? 1, 0.2, 3);
     this.react = clamp(preset?.enemyReaction ?? 1, 0.2, 5);
     this.view = clamp(preset?.enemyViewDist ?? 1, 0.3, 3);
     this.dmg = clamp(preset?.enemyDamage ?? 1, 0, 5);
     this.hpMul = clamp(preset?.enemyHP ?? 1, 0.2, 5);
-    const nT = Math.max(1, Math.round(BASE_TANKS * c)), nH = Math.max(1, Math.round(BASE_HELIS * c));
-    const mkTank = () => {
+    const nT = opts.none ? 0 : Math.max(1, Math.round(BASE_TANKS * c)), nH = opts.none ? 0 : Math.max(1, Math.round(BASE_HELIS * c));
+    const mkTank = this._mkTank = () => {
       const t = new Tank({ scene: this.scene, physics: this.physics, world: this.world, livery: 'enemy', hp: 1100 });
       const v = { kind: 'tank', obj: t, name: '敵の訓練戦車' };
       v.target = this.combat.addTarget({ team: 'enemy', pos: t.pos, radius: 2.9, cy: 1.3, get alive() { return t.alive && v.inUse; }, damage: (a) => this._hit(v, a), ref: v });
@@ -98,8 +99,22 @@ export class EnemyVehicles {
       Object.assign(v, { wpA: a, wpDir: Math.random() < 0.5 ? 1 : -1, wpR: R, state: 'patrol', lastSeen: -99, lastPos: new THREE.Vector3(), percT: rand(0, 0.3), sees: false, orbit: rand(0, 6.28), burst: 0, burstT: rand(1, 3), rocketT: rand(4, 8), deadT: -1 });
     });
     this.total = nT + nH;
+    this._preset = preset;
     this.remaining = this.total;
     this.time = 0;
+  }
+
+  /** Add one enemy tank at (x, z) that drives along `route` ([[x, z], ...], local patrol) — used by
+   *  the trench mode's last wave. */
+  spawnTank(x, z, yaw, route) {
+    let v = this.tanks.find((q) => !q.inUse);
+    if (!v) { v = this._mkTank(); this.tanks.push(v); }
+    v.inUse = true;
+    const t = v.obj;
+    t.hpMax = 1100 * this.hpMul; t.reset(x, z, yaw); t.reloadTime = 5.2 * this.react;
+    Object.assign(v, { route, wp: 0, dirStep: 1, state: 'patrol', seeT: 0, lastSeen: -99, lastPos: new THREE.Vector3(), stuckT: 0, backT: 0, percT: 0, sees: false, aimJit: new THREE.Vector3(), jitT: 0, deadT: -1, noTownCheck: true });
+    this.total++; this.remaining++;
+    return v;
   }
 
   _hit(v, amount) {

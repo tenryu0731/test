@@ -38,11 +38,12 @@ export class Settings {
     }
     this.quality = ['low', 'medium', 'high'].includes(s.quality) ? s.quality : null;
     this.volume = Number.isFinite(+s.volume) && s.volume !== null && s.volume !== undefined ? Math.max(0, Math.min(1, +s.volume)) : 0.8;
+    this.mode = ['campaign', 'trench', 'cqb'].includes(s.mode) ? s.mode : 'campaign';
   }
 
   save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify({ difficulty: this.difficulty, custom: this.custom, quality: this.quality, volume: this.volume }));
+      localStorage.setItem(KEY, JSON.stringify({ difficulty: this.difficulty, custom: this.custom, quality: this.quality, volume: this.volume, mode: this.mode }));
     } catch { /* storage blocked: keep the in-memory values */ }
   }
 

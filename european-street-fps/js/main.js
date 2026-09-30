@@ -16,7 +16,7 @@ import { Helicopter } from './helicopter.js';
 import { Tank, buildDepot } from './tank.js';
 import { Combat } from './combat.js';
 import { EnemyVehicles } from './enemy-vehicles.js';
-import { HELIPAD, TANK_DEPOT } from './layout.js';
+import { HELIPAD, TANK_DEPOT, MODES, MODE_ORDER } from './layout.js';
 
 const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 const params = new URLSearchParams(location.search);
@@ -96,7 +96,16 @@ let shake = 0;                         // camera shake from nearby explosions
 let mapReturn = 'playing';
 let lockFailed = false;
 let intelT = 0, hudT = 0;
-const diffKey = () => `${settings.difficulty}|${JSON.stringify(settings.custom)}`;
+const diffKey = () => `${settings.difficulty}|${JSON.stringify(settings.custom)}|${settings.mode}`;
+// ---------- game modes (campaign / trench / cqb) ----------
+let mode = 'campaign';
+const M = { arena: null, wave: 0, waves: 4, nextT: -1, waveAlive: 0, timeLeft: 0, pressT: 0, tankSent: false };
+const arenaOf = (m) => (world.enemySites || []).find((s) => s.mode === m) || null;
+const BRIEF = {
+  campaign: '城壁の町サン・ジミニャーノと周辺の丘に配備された訓練用ロボット部隊と敵の訓練車両をすべて撃破せよ。塔に登れば周囲の部隊を偵察できる。',
+  trench: '東の丘の塹壕演習場。味方の塹壕に陣取り、北の塹壕から押し寄せる訓練ロボットの波を 4 回撃退せよ。最後の波には敵戦車が加わる。',
+  cqb: '西の屋内戦闘訓練施設。建物に突入し、部屋や廊下に潜む訓練ロボットを制限時間内に全滅させよ。',
+};
 
 // ---------- intel: squads, discovery, objective ----------
 const sites = (world.enemySites || []).map((s, i) => ({
@@ -171,6 +180,16 @@ function updateIntel(silent = false) {
     const near = (m.x - px) ** 2 + (m.z - pz) ** 2 < 45 * 45;
     if ((s && s.known) || m.alerted || near) mapRobots.push({ x: m.x, z: m.z });
   });
+  if (mode === 'trench') {
+    ui.setObjective(M.nextT > 0 ? (M.wave ? `第${M.wave}波を撃退 · 次の波まで ${Math.ceil(M.nextT)} 秒` : `敵の攻撃開始まで ${Math.ceil(M.nextT)} 秒`)
+      : `第${M.wave}波 / ${M.waves} · 残り ${remainingEnemies()}`);
+    return;
+  }
+  if (mode === 'cqb') {
+    const t = Math.max(0, Math.ceil(M.timeLeft)), mm = Math.floor(t / 60), ss = String(t % 60).padStart(2, '0');
+    ui.setObjective(`屋内の敵 残り ${enemies.remaining} · 残り時間 ${mm}:${ss}`);
+    return;
+  }
   if (!objective) ui.setObjective(null);
   else if (objective.inside) ui.setObjective(`${objective.name} · 残り ${objective.alive} 体`);
   else ui.setObjective(`${objective.name} · ${Math.round(objective.dist / 10) * 10} m`);
@@ -195,9 +214,12 @@ function applyDifficulty() {
 
 function resetGame() {
   applyDifficulty();
-  player.pos.copy(world.playerSpawn);
+  mode = MODES[settings.mode] ? settings.mode : 'campaign';
+  M.arena = mode === 'campaign' ? null : arenaOf(mode);
+  if (!M.arena) mode = 'campaign';
+  player.pos.copy(M.arena?.arena?.playerSpawn || world.playerSpawn);
   player.velY = 0; player.grounded = true;
-  player.yaw = world.playerYaw; player.pitch = 0;
+  player.yaw = M.arena ? (MODES[mode].yaw ?? 0) : world.playerYaw; player.pitch = 0;
   player.kickPitch = player.kickYaw = 0;
   player.hp = player.maxHP; player.sinceHit = 99;
   player.aim = player.aimE = player.leanRaw = player.lean = player.camRise = 0;
@@ -214,8 +236,11 @@ function resetGame() {
   weapon.reserve = Math.round(weapon.reserve * scale);
   maxReserve = Math.max(weapon.reserve, Math.round((weapon.magSize || 24) * 10 * scale));
   ammoPerCrate = Math.max(24, Math.round(48 * scale));
-  enemies.reset(preset);
-  ev.reset(preset);
+  const ec = Number.isFinite(preset.enemyCount) ? preset.enemyCount : 1;
+  enemies.reset(preset, { mode, count: mode === 'cqb' ? THREE.MathUtils.clamp(Math.round(16 * ec), 6, 30) : 0 });
+  ev.reset(preset, { none: mode !== 'campaign' });
+  M.wave = 0; M.nextT = mode === 'trench' ? 6 : -1; M.pressT = 0; M.tankSent = false;
+  M.timeLeft = mode === 'cqb' ? Math.round(300 * THREE.MathUtils.clamp(1.25 / Math.max(0.5, ec), 0.7, 1.6)) : 0;
   ev.solids = [ptank];
   pickups.reset();
   viewpoints.reset();
@@ -244,8 +269,14 @@ function startPlaying() {
   roundDirty = true;
   camera.fov = BASE_FOV + (AIM_FOV - BASE_FOV) * player.aimE; camera.updateProjectionMatrix();
   clock.getDelta();
-  if (fresh) {
-    const squads = mapSites.length;
+  if (fresh && mode === 'trench') {
+    ui.titleCard('塹壕戦', '塹壕を守り抜け', `敵の攻撃は 4 波 · 最後の波に戦車 · 難易度 ${preset.label}`);
+    setTimeout(() => { if (state === 'playing') ui.toast('胸壁（土嚢の壁）の陰から撃ち返せ。砂袋の階段で塹壕の外に出られる'); }, 3200);
+  } else if (fresh && mode === 'cqb') {
+    ui.titleCard('室内制圧戦', '施設内の敵を全滅させよ', `訓練ロボット ${enemies.total} 体 · 制限時間 ${Math.floor(M.timeLeft / 60)} 分${M.timeLeft % 60 ? ` ${M.timeLeft % 60} 秒` : ''} · 難易度 ${preset.label}`);
+    setTimeout(() => { if (state === 'playing') ui.toast('入口は南の正面扉と北の裏口。曲がり角では覗き込み（左右）を使え'); }, 3200);
+  } else if (fresh) {
+    const squads = mapSites.filter((s) => s.total > 0).length;
     ui.titleCard('任務開始', '全ロボットと敵車両を撃破せよ', `訓練ロボット ${enemies.total} 体 · ${squads} 部隊 · 戦車とヘリ ${ev.total} 台 · 難易度 ${preset.label}`);
     setTimeout(() => { if (state === 'playing') ui.toast('南門の外にヘリ、東門の外に戦車があります'); }, 3800);
     setTimeout(() => { if (state === 'playing') ui.toast(ui.isTouch ? 'ミニマップをタップすると地図が開きます' : 'M キーで地図 · 塔の足元で F キーで登る'); }, 8000);
@@ -293,7 +324,9 @@ function showStartScreen() {
   camera.fov = BASE_FOV; camera.updateProjectionMatrix();
   ui.showStart({
     difficulty: settings.difficulty, custom: settings.custom,
-    briefing: '城壁の町サン・ジミニャーノと周辺の丘に配備された訓練用ロボット部隊をすべて停止させよ。塔に登れば周囲の部隊を偵察できる。',
+    briefing: BRIEF[settings.mode] || BRIEF.campaign,
+    modes: MODE_ORDER.map((id) => MODES[id]), mode: settings.mode,
+    onMode: (id) => { settings.mode = id; settings.save(); return { briefing: BRIEF[id] }; },
     onStart: startFromMenu,
     onDifficulty: (id, custom) => { settings.difficulty = id; if (custom) settings.custom = custom; settings.save(); },
     onSettings: () => showSettings(false, showStartScreen),
@@ -590,6 +623,11 @@ function updatePlayer(dt) {
   const b = world.bounds;
   player.pos.x = THREE.MathUtils.clamp(player.pos.x, b.minX, b.maxX);
   player.pos.z = THREE.MathUtils.clamp(player.pos.z, b.minZ, b.maxZ);
+  if (M.arena) {
+    // Arena modes: stay on the training ground.
+    const a = M.arena.arena?.center || M.arena, lim = mode === 'trench' ? 78 : 46, dx = player.pos.x - a.x, dz = player.pos.z - a.z, d = Math.hypot(dx, dz);
+    if (d > lim) { player.pos.x = a.x + dx / d * lim; player.pos.z = a.z + dz / d * lim; if (stats.time - lastDenyToast > 4) { lastDenyToast = stats.time; ui.toast('演習場の外には出られません'); } }
+  }
 
   // Footsteps.
   const moving = mag > 0.1 && player.grounded;
@@ -900,6 +938,39 @@ function regenerate(dt) {
 
 gfx.onResize((aspect) => weapon.resize(aspect));
 
+// ---------- mode rules ----------
+function updateMode(dt) {
+  if (mode === 'trench') {
+    const a = M.arena.arena?.center || M.arena;
+    if (M.nextT > 0) {
+      M.nextT -= dt;
+      if (M.nextT <= 0) {
+        M.wave++;
+        const ec = Number.isFinite(preset.enemyCount) ? preset.enemyCount : 1;
+        const n = Math.max(3, Math.round([6, 8, 10, 12][M.wave - 1] * ec));
+        enemies.spawnWave(n, player.pos, M.wave >= 3 ? 4 : 6);
+        if (M.wave === M.waves && !M.tankSent) {
+          // The last wave brings an enemy tank over the northern crest toward the friendly line.
+          M.tankSent = true;
+          ev.spawnTank(a.x + 20, a.z - 70, Math.PI, [[a.x + 20, a.z - 70], [a.x + 10, a.z - 20], [a.x - 15, a.z - 20], [a.x + 25, a.z - 20]]);
+        }
+        ui.titleCard(`第${M.wave}波`, M.wave === M.waves ? '最後の攻撃 — 敵戦車接近' : '敵が塹壕を出た', `訓練ロボット ${n} 体`);
+        audio.play('robotAlert');
+        intelT = 0;
+      }
+    } else if (remainingEnemies() === 0) {
+      if (M.wave >= M.waves) { if (winTimer < 0) winTimer = 1.5; }
+      else { M.nextT = 9; ui.toast(`第${M.wave}波を撃退 — 次の波まで 9 秒`, 'ok'); audio.play('objective'); intelT = 0; }
+    }
+    // Attackers keep pushing toward the defenders.
+    if ((M.pressT -= dt) <= 0) { M.pressT = 1.5; enemies.pressAssault(player.pos, 10); }
+  } else if (mode === 'cqb') {
+    M.timeLeft -= dt;
+    if (M.timeLeft <= 0 && enemies.remaining > 0) { ui.toast('時間切れ — 施設の制圧に失敗'); endRound(false); }
+    else if (M.timeLeft < 30 && Math.ceil(M.timeLeft) !== Math.ceil(M.timeLeft + dt) && Math.ceil(M.timeLeft) % 10 === 0) ui.toast(`残り ${Math.ceil(M.timeLeft)} 秒`);
+  }
+}
+
 // ---------- loop ----------
 const clock = new THREE.Clock();
 let frozen = false;
@@ -939,7 +1010,8 @@ function update(dt) {
     if ((hudT -= dt) <= 0) { hudT = 1 / 30; worldMap.drawHUD(getMapState(), 1 / 30); }
     const wp = worldMap.waypoint;
     if (wp && Math.hypot(wp.x - player.pos.x, wp.z - player.pos.z) < 10) { worldMap.setWaypoint(null); ui.toast('目的地に到着しました'); }
-    if (totalEnemies() > 0 && remainingEnemies() === 0 && winTimer < 0) winTimer = 1.2;
+    updateMode(dt);
+    if (mode !== 'trench' && totalEnemies() > 0 && remainingEnemies() === 0 && winTimer < 0) winTimer = 1.2;
     if (winTimer > 0 && (winTimer -= dt) <= 0) endRound(true);
     _focus.copy(player.pos);
   } else if (state === 'menu') {
