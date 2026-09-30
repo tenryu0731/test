@@ -103,7 +103,7 @@ const M = { arena: null, wave: 0, waves: 4, nextT: -1, waveAlive: 0, timeLeft: 0
 const arenaOf = (m) => (world.enemySites || []).find((s) => s.mode === m) || null;
 const BRIEF = {
   campaign: '城壁の町サン・ジミニャーノと周辺の丘に配備された訓練用ロボット部隊と敵の訓練車両をすべて撃破せよ。塔に登れば周囲の部隊を偵察できる。',
-  trench: '東の丘の塹壕演習場。味方の塹壕に陣取り、北の塹壕から押し寄せる訓練ロボットの波を 4 回撃退せよ。最後の波には敵戦車が加わる。',
+  trench: '東の丘の塹壕演習場。味方の塹壕の射撃用の足場から、北の塹壕を出て押し寄せる訓練ロボットの波を 4 回撃退せよ。2 波目からは敵戦車が塹壕の後ろから援護射撃してくる。波の合間に弾薬が補給される。',
   cqb: '西の屋内戦闘訓練施設。建物に突入し、部屋や廊下に潜む訓練ロボットを制限時間内に全滅させよ。',
 };
 
@@ -270,8 +270,8 @@ function startPlaying() {
   camera.fov = BASE_FOV + (AIM_FOV - BASE_FOV) * player.aimE; camera.updateProjectionMatrix();
   clock.getDelta();
   if (fresh && mode === 'trench') {
-    ui.titleCard('塹壕戦', '塹壕を守り抜け', `敵の攻撃は 4 波 · 最後の波に戦車 · 難易度 ${preset.label}`);
-    setTimeout(() => { if (state === 'playing') ui.toast('胸壁（土嚢の壁）の陰から撃ち返せ。砂袋の階段で塹壕の外に出られる'); }, 3200);
+    ui.titleCard('塹壕戦', '塹壕を守り抜け', `敵の攻撃は 4 波 · 2 波目から戦車 · 難易度 ${preset.label}`);
+    setTimeout(() => { if (state === 'playing') ui.toast('前の壁ぎわの足場に上がると砂袋越しに撃てる。前の壁の切り込みにある木の階段で塹壕の外に出られる'); }, 3200);
   } else if (fresh && mode === 'cqb') {
     ui.titleCard('室内制圧戦', '施設内の敵を全滅させよ', `訓練ロボット ${enemies.total} 体 · 制限時間 ${Math.floor(M.timeLeft / 60)} 分${M.timeLeft % 60 ? ` ${M.timeLeft % 60} 秒` : ''} · 難易度 ${preset.label}`);
     setTimeout(() => { if (state === 'playing') ui.toast('入口は南の正面扉と北の裏口。曲がり角では覗き込み（左右）を使え'); }, 3200);
@@ -770,6 +770,7 @@ function tankExitSpot(out) {
   return out.set(t.pos.x + c * 3.4, t.pos.y, t.pos.z - s * 3.4);
 }
 function exitVehicle() {
+  if (!vehicle) return;
   const kind = vehicle, v = vehObj();
   if (kind === 'heli') heli.exitSpot(player.pos); else tankExitSpot(player.pos);
   setVehicle(null);
@@ -947,20 +948,23 @@ function updateMode(dt) {
       if (M.nextT <= 0) {
         M.wave++;
         const ec = Number.isFinite(preset.enemyCount) ? preset.enemyCount : 1;
-        const n = Math.max(3, Math.round([6, 8, 10, 12][M.wave - 1] * ec));
+        const n = Math.max(4, Math.round([10, 14, 18, 24][M.wave - 1] * ec));
         enemies.spawnWave(n, player.pos, M.wave >= 3 ? 4 : 6);
-        if (M.wave === M.waves && !M.tankSent) {
-          // The last wave brings an enemy tank over the northern crest toward the friendly line.
-          M.tankSent = true;
-          ev.spawnTank(a.x + 20, a.z - 70, Math.PI, [[a.x + 20, a.z - 70], [a.x + 10, a.z - 20], [a.x - 15, a.z - 20], [a.x + 25, a.z - 20]]);
+        // Tanks from the second wave on (1, 2, 3 at normal): light training tanks come up behind the
+        // enemy trench and fire over it, patrolling a line there (they cannot cross the trenches).
+        const nTank = M.wave < 2 ? 0 : Math.max(1, Math.round((M.wave - 1) * ec));
+        for (let k = 0; k < nTank; k++) {
+          const lx = a.x - 45 + ((k * 23 + M.wave * 11) % 70), lz = a.z - 68 - (k % 2) * 4;
+          ev.spawnTank(lx, lz, 0, [[lx, lz], [Math.min(a.x + 20, lx + 25), lz], [Math.max(a.x - 48, lx - 25), lz]], { hold: true, hpScale: 0.45 });
         }
-        ui.titleCard(`第${M.wave}波`, M.wave === M.waves ? '最後の攻撃 — 敵戦車接近' : '敵が塹壕を出た', `訓練ロボット ${n} 体`);
+        if (nTank) M.tankSent = true;
+        ui.titleCard(`第${M.wave}波`, M.wave === M.waves ? '最後の総攻撃' : '敵が塹壕を出た', `訓練ロボット ${n} 体${nTank ? ` · 戦車 ${nTank} 両` : ''}`);
         audio.play('robotAlert');
         intelT = 0;
       }
     } else if (remainingEnemies() === 0) {
       if (M.wave >= M.waves) { if (winTimer < 0) winTimer = 1.5; }
-      else { M.nextT = 9; ui.toast(`第${M.wave}波を撃退 — 次の波まで 9 秒`, 'ok'); audio.play('objective'); intelT = 0; }
+      else { M.nextT = 9; weapon.refill(); ui.setAmmo(weapon.ammo, weapon.reserve, weapon.isReloading); ui.toast(`第${M.wave}波を撃退 — 弾薬を補給。次の波まで 9 秒`, 'ok'); audio.play('objective'); intelT = 0; }
     }
     // Attackers keep pushing toward the defenders.
     if ((M.pressT -= dt) <= 0) { M.pressT = 1.5; enemies.pressAssault(player.pos, 10); }

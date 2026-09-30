@@ -11,12 +11,12 @@ const Q = 32;                     // quads per node side
 const ROOT = 4096;                // root node size (±2048 m)
 const LEVELS = 6;                 // root level; level 0 = 64 m nodes at 2 m spacing
 
-export function createTerrainSurface(scene, { heightAt, fieldTex, ground, noiseTex, quality = 'high' }) {
+export function createTerrainSurface(scene, { heightAt, fieldTex, ground, noiseTex, quality = 'high', holes = [] }) {
   const [rx0, rx1, rz0, rz1] = TOWN.rect;
   const IN = 1.8; // below the paved town the rendered ground is sunk (no z-fight with the paving)
   const hRender = (x, z) => (x > rx0 + IN && x < rx1 - IN && z > rz0 + IN && z < rz1 - IN ? -3 : heightAt(x, z));
 
-  const material = makeMaterial({ fieldTex, ground, noiseTex, quality });
+  const material = makeMaterial({ fieldTex, ground, noiseTex, quality, holes });
   const group = new THREE.Group();
   group.name = 'terrain';
   scene.add(group);
@@ -124,14 +124,20 @@ export function createTerrainSurface(scene, { heightAt, fieldTex, ground, noiseT
 }
 
 // ------------------------------------------------------------------ material
-function makeMaterial({ fieldTex, ground, noiseTex, quality }) {
+const MAX_HOLES = 80;
+function makeMaterial({ fieldTex, ground, noiseTex, quality, holes = [] }) {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0 });
   mat.name = 'terrain-splat';
   const uniforms = {
     tFields: { value: fieldTex }, tAlb: { value: ground.albedo }, tNrm: { value: ground.normal }, tNoise: { value: noiseTex },
     uFineHalf: { value: FINE.half }, uFineN: { value: FINE.n }, uDetail: { value: quality === 'low' ? 0.0 : 1.0 },
     uVineNear: { value: 110 }, uG0: { value: FIELD.G0 }, uSP: { value: FIELD.SP },
+    // Rectangles [x0, z0, x1, z1] where the ground is cut away (the trench arena draws the trench itself).
+    uHoles: { value: Array.from({ length: MAX_HOLES }, (_, i) => { const r = holes[i]; return r ? new THREE.Vector4(r[0], r[2], r[1], r[3]) : new THREE.Vector4(0, 0, 0, 0); }) },
+    uHoleN: { value: Math.min(MAX_HOLES, holes.length) },
+    uHoleBB: { value: holes.length ? new THREE.Vector4(Math.min(...holes.map((r) => r[0])), Math.min(...holes.map((r) => r[2])), Math.max(...holes.map((r) => r[1])), Math.max(...holes.map((r) => r[3]))) : new THREE.Vector4(1, 1, -1, -1) },
   };
+  if (holes.length > MAX_HOLES) console.warn(`[terrain] ${holes.length} holes, only ${MAX_HOLES} cut`);
   mat.userData.uniforms = uniforms;
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uniforms);
@@ -140,11 +146,17 @@ function makeMaterial({ fieldTex, ground, noiseTex, quality }) {
       .replace('#include <project_vertex>', '#include <project_vertex>\nvWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvWN = normalize(mat3(modelMatrix) * objectNormal);');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\n' + FRAG_HEAD)
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+        if (vWPos.x > uHoleBB.x && vWPos.x < uHoleBB.z && vWPos.z > uHoleBB.y && vWPos.z < uHoleBB.w) for (int i = 0; i < ${MAX_HOLES}; i++) {
+          if (i >= uHoleN) break;
+          vec4 hr = uHoles[i];
+          if (vWPos.x > hr.x && vWPos.x < hr.z && vWPos.z > hr.y && vWPos.z < hr.w) discard;
+        }`)
       .replace('#include <map_fragment>', FRAG_SPLAT)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = gRough;')
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(gN, 0.0)).xyz);');
   };
-  mat.customProgramCacheKey = () => 'terrain-splat-v1';
+  mat.customProgramCacheKey = () => 'terrain-splat-v3';
   return mat;
 }
 
@@ -155,6 +167,9 @@ uniform sampler2DArray tAlb;
 uniform sampler2DArray tNrm;
 uniform sampler2D tNoise;
 uniform float uFineHalf, uFineN, uDetail, uVineNear, uG0, uSP;
+uniform vec4 uHoles[64];
+uniform vec4 uHoleBB;
+uniform int uHoleN;
 varying vec3 vWPos;
 varying vec3 vWN;
 float gRough;

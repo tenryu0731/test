@@ -45,7 +45,7 @@ export const SITES = [
 // Game modes (main.js). `site`: the arena SITES id; `spawn`: player start in the arena's local frame.
 export const MODES = {
   campaign: { id: 'campaign', label: '制圧作戦', desc: '街と田園の全ロボット部隊と敵車両を撃破する。戦車とヘリも使える。' },
-  trench: { id: 'trench', label: '塹壕戦', desc: '味方の塹壕を守り、押し寄せる訓練ロボットの波を 4 回しのぐ。最後の波には敵戦車も来る。', site: 'trenches', spawn: [0, 44], yaw: 0 },
+  trench: { id: 'trench', label: '塹壕戦', desc: '掘られた塹壕に陣取り、押し寄せる訓練ロボットの波を 4 回しのぐ。2 波目からは敵戦車（1・2・3 両）が敵の塹壕の後ろから砲撃してくる。', site: 'trenches', spawn: [0, 44], yaw: 0 },
   cqb: { id: 'cqb', label: '室内制圧戦', desc: '訓練施設に突入し、部屋ごとに潜む訓練ロボットを制限時間内に全滅させる。', site: 'compound', spawn: [0, 25], yaw: 0, timeLimit: 300 },
 };
 export const MODE_ORDER = ['campaign', 'trench', 'cqb'];

@@ -69,7 +69,7 @@ const CFG = {
   animFull: 45, animHalf: 110, shadowDist: 70, detailDist: 40,
   walkBudget: 45,        // uncached nav walk tests per frame
   plansPerFrame: 1,
-  baseCount: 32,         // robots on "normal" (enemyCount = 1)
+  baseCount: 40,         // robots on "normal" (enemyCount = 1)
 };
 // Kind of countryside site → squad composition preferences.
 const FORTIFIED = new Set(['rocca', 'abbey', 'quarry', 'villa']);

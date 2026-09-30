@@ -2,6 +2,7 @@
 // the camera into two InstancedMeshes; wind sway and distance fade in the vertex shader.
 import * as THREE from 'three';
 import { HELIPAD, TANK_DEPOT, SITES } from './layout.js';
+import { trenchFloorAt } from './trench-plan.js';
 const INDOOR = SITES.filter((s) => s.type === 'compound');   // no grass through building floors
 import { CLS } from './terrain-land.js';
 import { rand2, RIVER_HALF_W } from './terrain-height.js';
@@ -119,6 +120,7 @@ export function createGrass(scene, land, heightAt, quality = 'high') {
       if ((x - HELIPAD.x) ** 2 + (z - HELIPAD.z) ** 2 < (HELIPAD.r + 0.3) ** 2) continue;   // concrete helipad
       if ((x - TANK_DEPOT.x) ** 2 + (z - TANK_DEPOT.z) ** 2 < (TANK_DEPOT.r + 0.3) ** 2) continue;   // tank depot
       if (INDOOR.some((q) => Math.abs(x - q.x) < 18 && Math.abs(z - q.z) < 14)) continue;
+      if (trenchFloorAt(x, z) !== null) continue;
       const mix = rand2(ix, iz, 75);
       if (cl === CLS.MEADOW || cl === CLS.OLIVE || cl === CLS.EDGE || cl === CLS.PAD) { if (mix < 0.3) { cr = 0.52; cg = 0.47; cb = 0.26; } }
       if (land.roadSD(x, z) < 1.8) h *= 0.6;

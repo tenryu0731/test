@@ -1,5 +1,5 @@
 // Extra procedural materials for the landmarks (textures.js stays read-only): white gravel for
-// garden paths and yards, tilled soil for kitchen gardens, straw for haystacks. Small (128–256 px)
+// garden paths and yards, tilled soil for kitchen gardens, straw for haystacks, burlap for sandbags. Small (128–256 px)
 // tiling textures from a hashed value noise, generated in a few milliseconds.
 import * as THREE from 'three';
 
@@ -82,6 +82,15 @@ export function createLandmarkMaterials() {
     L.straw = make(n, 1.2, 4, (i) => {
       const k = 0.62 + 0.38 * F[i] * (0.8 + 0.4 * A[i]);
       return [0.86 * k, 0.72 * k, 0.42 * k, F[i], 0.95];
+    });
+  }
+  // Burlap (sandbags): a coarse weave of khaki threads with a seam every bag width.
+  {
+    const n = 128, A = noise(n, 16, 41), B = noise(n, 4, 42);
+    L.burlap = make(n, 0.6, 3, (i, x, y) => {
+      const w = ((x >> 1) + (y >> 1)) & 1 ? 0.9 + 0.1 * hash(x, y, 43) : 0.78 + 0.1 * hash(x, y, 44);
+      const k = w * (0.82 + 0.18 * A[i]) * (0.9 + 0.1 * B[i]);
+      return [0.78 * k, 0.7 * k, 0.52 * k, w * 0.5 + A[i] * 0.2, 0.98];
     });
   }
   return L;

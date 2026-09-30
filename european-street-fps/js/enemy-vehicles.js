@@ -11,7 +11,7 @@ import { Tank } from './tank.js';
 import { Helicopter } from './helicopter.js';
 import { TOWN, PLAYER_START, HELIPAD, TANK_DEPOT } from './layout.js';
 
-const BASE_TANKS = 3, BASE_HELIS = 2;
+const BASE_TANKS = 5, BASE_HELIS = 3;
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = THREE.MathUtils.clamp;
 const wrap = (a) => ((a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
@@ -106,13 +106,13 @@ export class EnemyVehicles {
 
   /** Add one enemy tank at (x, z) that drives along `route` ([[x, z], ...], local patrol) — used by
    *  the trench mode's last wave. */
-  spawnTank(x, z, yaw, route) {
+  spawnTank(x, z, yaw, route, { hold = false, hpScale = 1 } = {}) {
     let v = this.tanks.find((q) => !q.inUse);
     if (!v) { v = this._mkTank(); this.tanks.push(v); }
     v.inUse = true;
     const t = v.obj;
-    t.hpMax = 1100 * this.hpMul; t.reset(x, z, yaw); t.reloadTime = 5.2 * this.react;
-    Object.assign(v, { route, wp: 0, dirStep: 1, state: 'patrol', seeT: 0, lastSeen: -99, lastPos: new THREE.Vector3(), stuckT: 0, backT: 0, percT: 0, sees: false, aimJit: new THREE.Vector3(), jitT: 0, deadT: -1, noTownCheck: true });
+    t.hpMax = 1100 * this.hpMul * hpScale; t.reset(x, z, yaw); t.reloadTime = 5.2 * this.react;
+    Object.assign(v, { route, wp: 0, dirStep: 1, state: 'patrol', seeT: 0, lastSeen: -99, lastPos: new THREE.Vector3(), stuckT: 0, backT: 0, percT: 0, sees: false, aimJit: new THREE.Vector3(), jitT: 0, deadT: -1, noTownCheck: true, hold });
     this.total++; this.remaining++;
     return v;
   }
@@ -177,7 +177,8 @@ export class EnemyVehicles {
         }
       }
       // Manoeuvre: close in when far, back off when very close, otherwise hold.
-      if (dist > 130 || !sees) goal = tp; else if (dist < 45) { throttle = -0.5; }
+      if (v.hold) goal = null;                          // holds its firing line (trench arena)
+      else if (dist > 130 || !sees) goal = tp; else if (dist < 45) { throttle = -0.5; }
     } else {
       // Patrol along the route, turning around at its ends.
       const r = v.route, [wx, wz] = r[v.wp];

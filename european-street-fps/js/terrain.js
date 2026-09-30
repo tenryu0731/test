@@ -15,6 +15,7 @@ import { createTerrainSurface } from './terrain-mesh.js';
 import { createVegetation } from './terrain-veg.js';
 import { createGrass } from './terrain-grass.js';
 import { createWater } from './terrain-water.js';
+import { trenchFloorAt, TRENCH_RECTS } from './trench-plan.js';
 
 function detectQuality() {
   try {
@@ -36,7 +37,7 @@ export function createTerrain(scene, { materials = {}, renderer = null, camera =
   const T2 = performance.now();
   const land = buildLand(hf, noise);
   const T3 = performance.now();
-  const surface = createTerrainSurface(scene, { heightAt, fieldTex: land.tex, ground, noiseTex: noise.tex, quality });
+  const surface = createTerrainSurface(scene, { heightAt, fieldTex: land.tex, ground, noiseTex: noise.tex, quality, holes: TRENCH_RECTS });
   const water = createWater(scene, hf.river);
   const T4 = performance.now();
   const veg = createVegetation(scene, land, { quality, heightAt });
@@ -92,7 +93,8 @@ export function createTerrain(scene, { materials = {}, renderer = null, camera =
 
   if (camera) surface.update(camera);
   return {
-    heightAt, colliders, navPoints, meshes,
+    // Dug trenches of the trench arena cut into the ground (the rendered surface has holes there).
+    heightAt: (x, z) => trenchFloorAt(x, z) ?? heightAt(x, z), colliders, navPoints, meshes,
     roads: hf.roads.map((r) => ({ id: r.id, width: r.width, points: Array.from(r.X, (x, i) => [x, r.H[i], r.Z[i]]) })),
     river: { points: Array.from(hf.river.X, (x, i) => [x, hf.river.W[i], hf.river.Z[i]]), halfWidth: RIVER_HALF_W },
     update(dt, cam) {

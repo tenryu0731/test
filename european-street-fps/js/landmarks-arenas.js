@@ -9,97 +9,174 @@
 //             a ring corridor, eleven rooms with doorways, an entrance hall, a back door, crates and
 //             furniture as cover. Ceilings cast shadows so the interior reads as indoors.
 import * as THREE from 'three';
+import { TRENCH, TRENCH_LINES, DUGOUTS, STAIRS, STAIR_RUN, STAIR_HALF, localRects } from './trench-plan.js';
 
-const SAND = [0.93, 0.86, 0.66], EARTH = [0.75, 0.62, 0.46];
+const SAND = [0.93, 0.86, 0.66], EARTH = [0.75, 0.62, 0.46], SPOIL = [1.35, 1.3, 1.1];   // SPOIL: dry ochre topsoil
 
 // ------------------------------------------------------------------ trenches
+// The trenches are cut into the ground (trench-plan.js: terrain.heightAt returns the floor inside the
+// cut and the ground surface is not drawn over it). Here: revetted walls (planks and posts) on every
+// edge of the cut, an earth floor with duckboards, a fire step along the front wall of each fire bay,
+// sandbag stairs to go over the top, a sandbag row on the front lip, a low spoil bank behind, and
+// roofed dugouts at the end of the communication trenches.
 export function buildTrenches(K, ctx) {
   const M = K.M, L = K.L, R = ctx.R;
-  const soil = L.soil, sandbag = L.straw, wood = M.wood;
+  const soil = L.soil, sandbag = L.burlap, wood = M.wood;
+  const D = TRENCH.depth, rects = localRects();
   const navs = [], spawns = [];
+  const inCut = (x, z, m = 0) => rects.some((r) => x > r[0] - m && x < r[1] + m && z > r[2] - m && z < r[3] + m);
 
-  // One trench line along x at depth zc, `front` = −1 (parapet toward −z) or +1.
-  // Bays of 9 m alternate their centre line by ±1.4 m (the zig-zag that limits blast and enfilade).
-  function trench(zc, front, own) {
-    const W = 2.2, PH = 1.1, SB = 0.28, BH = 1.0;      // corridor width, parapet earth (+ sandbags = 1.38 m), parados
-    const x0 = -54, bay = 9;
-    for (let i = 0; x0 + i * bay < 54; i++) {
-      const a = x0 + i * bay, b = Math.min(54, a + bay), off = (i % 2 ? 0.5 : -0.5);   // ±0.5: the bays still overlap by 1.2 m
-      const z = zc + off;
-      const zf = z + front * W / 2, zb = z - front * W / 2;       // front / back edge of the corridor
-      // Parapet: earth core + sloped glacis toward the enemy + a row of sandbags on top.
-      const pz0 = Math.min(zf, zf + front * 1.4), pz1 = Math.max(zf, zf + front * 1.4);
-      K.box(soil, a, -0.3, pz0, b, PH, pz1, { tint: EARTH, col: true, gao: false });
-      K.quad(soil, [a, PH, zf + front * 1.4], [b, PH, zf + front * 1.4], [b, 0, zf + front * 4.4], [a, 0, zf + front * 4.4],
-        [0, 1, front], { tint: EARTH, gao: false });
-      for (let x = a + 0.3; x < b - 0.2; x += 0.62) {
-        K.box(sandbag, x - 0.29, PH, zf + front * 0.08, x + 0.29, PH + SB, zf + front * 0.62, { tint: SAND.map((v) => v * (0.9 + R() * 0.15)), gao: false });
-      }
-      K.col(a, PH, Math.min(zf, zf + front * 0.7), b, PH + SB, Math.max(zf, zf + front * 0.7));
-      // Timber revetment on the corridor face of the parapet.
-      K.box(wood, a, 0, Math.min(zf, zf + front * 0.06), b, PH, Math.max(zf, zf + front * 0.06), { tint: 0.7, gao: false });
-      for (let x = a + 0.8; x < b; x += 1.8) K.box(wood, x - 0.07, 0, Math.min(zf, zf - front * 0.14), x + 0.07, PH + 0.1, Math.max(zf, zf - front * 0.14), { tint: 0.6, d: true });
-      // Parados (rear wall), lower.
-      const qz0 = Math.min(zb, zb - front * 1.2), qz1 = Math.max(zb, zb - front * 1.2);
-      K.box(soil, a, -0.3, qz0, b, BH, qz1, { tint: EARTH.map((v) => v * 0.92), col: true, gao: false });
-      // Duckboards on the floor.
-      K.box(wood, a + 0.05, 0.0, Math.min(zf, zb) + 0.35, b - 0.05, 0.06, Math.max(zf, zb) - 0.35, { tint: 0.55, gao: false, cast: false });
-      // Bay ends: short traverse walls where the zig-zag steps (leave a 1.2 m passage).
-      if (i > 0) {
-        const pz = zc - off;            // previous bay centre
-        const zlo = Math.min(z, pz) - W / 2, zhi = Math.max(z, pz) + W / 2;
-        void zlo; void zhi;
-      }
-      for (let k = 0; k < 3; k++) navs.push([a + (k + 0.5) * (b - a) / 3, 0.06, z]);
-      // Exit steps over the parapet in every other bay (sandbag stairs, 0.35 m risers).
-      if (i % 2 === 0) {
-        const sx = (a + b) / 2 + (R() - 0.5) * 2;
-        // Highest step against the parapet face, lowest toward the back of the corridor.
-        for (let s = 0; s < 4; s++) {
-          const y1 = 0.35 * (s + 1), zc2 = zf - front * (0.22 + (3 - s) * 0.45);
-          K.box(sandbag, sx - 0.7, 0, zc2 - 0.22, sx + 0.7, y1, zc2 + 0.22, { tint: SAND, col: true, gao: false });
-        }
-        navs.push([sx, 0.35, zf - front * 1.5], [sx, 1.4, zf - front * 0.22], [sx, 1.48, zf + front * 0.5], [sx, 0.3, zf + front * 3.2]);
-      }
-      if (own) spawns.push(); else if (i % 2 === 1) spawns.push([(a + b) / 2, z]);
+  // ---- walls: boundary of the union of the corridor rectangles, rasterised on a 0.25 m grid.
+  const g = 0.25, bx0 = Math.min(...rects.map((r) => r[0])) - 1, bx1 = Math.max(...rects.map((r) => r[1])) + 1;
+  const bz0 = Math.min(...rects.map((r) => r[2])) - 1, bz1 = Math.max(...rects.map((r) => r[3])) + 1;
+  const NX = Math.ceil((bx1 - bx0) / g), NZ = Math.ceil((bz1 - bz0) / g);
+  const cell = new Uint8Array(NX * NZ);
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) cell[j * NX + i] = inCut(bx0 + (i + 0.5) * g, bz0 + (j + 0.5) * g) ? 1 : 0;
+  const at = (i, j) => (i < 0 || j < 0 || i >= NX || j >= NZ ? 0 : cell[j * NX + i]);
+  const T = 0.14, plank = { tint: [0.62, 0.52, 0.4], col: true };
+  const wallRun = (x0, x1, z0, z1, nx, nz) => {
+    K.box(wood, x0, -D - 0.1, z0, x1, 0.02, z1, plank);
+    // posts every 1.6 m on the trench side of the revetment
+    const alongX = z1 - z0 < x1 - x0, len = alongX ? x1 - x0 : z1 - z0;
+    for (let t = 0.8; t < len - 0.3; t += 1.6) {
+      const px = alongX ? x0 + t : (nx > 0 ? x1 : x0 - 0.1), pz = alongX ? (nz > 0 ? z1 : z0 - 0.1) : z0 + t;
+      K.box(wood, px - 0.06, -D, pz, px + 0.06 + (alongX ? 0 : 0.1) - (alongX ? 0 : 0.1), 0.05, pz + 0.1, { tint: 0.45, d: true, gao: false });
     }
-    // Close the trench ends.
-    for (const ex of [-54.6, 54.6]) K.box(soil, ex - 0.6, -0.3, zc - 4.2, ex + 0.6, 1.2, zc + 4.2, { tint: EARTH, col: true, gao: false });
-    // Dugout behind the centre bay: timber frame, earth-covered roof, sandbag walls.
-    {
-      const dz = zc - front * 4.6, dx = own ? -18 : 18;
-      const z0 = Math.min(dz, dz - front * 4), z1 = Math.max(dz, dz - front * 4);
-      K.box(sandbag, dx - 3.2, 0, z0, dx - 2.8, 2.2, z1, { tint: SAND, col: true, gao: false });
-      K.box(sandbag, dx + 2.8, 0, z0, dx + 3.2, 2.2, z1, { tint: SAND, col: true, gao: false });
-      K.box(sandbag, dx - 3.2, 0, front > 0 ? z0 : z1 - 0.4, dx + 3.2, 2.2, front > 0 ? z0 + 0.4 : z1, { tint: SAND, col: true, gao: false });
-      K.box(wood, dx - 3.4, 2.2, z0 - 0.2, dx + 3.4, 2.45, z1 + 0.2, { tint: 0.55, col: true });
-      K.box(soil, dx - 3.6, 2.45, z0 - 0.4, dx + 3.6, 2.9, z1 + 0.4, { tint: EARTH, gao: false });
-      for (let k = 0; k < 3; k++) K.box(wood, dx - 1.5 + k * 1.5 - 0.6, 0, dz - front * (2.2 + (k % 2) * 0.8) - 0.4, dx - 1.5 + k * 1.5 + 0.2, 0.5 + (k % 2) * 0.35, dz - front * (2.2 + (k % 2) * 0.8) + 0.4, { tint: 0.65, col: true, d: true });
-      navs.push([dx, 0.05, dz - front * 2]);
+  };
+  // rows (walls parallel to x)
+  for (let j = 0; j <= NZ; j++) {
+    let run = null;
+    for (let i = 0; i <= NX; i++) {
+      const a = at(i, j - 1), b = at(i, j), type = i < NX && a !== b ? (b ? 1 : 2) : 0;   // 1: cut below (+z side)
+      if (run && type !== run.type) {
+        const z = bz0 + j * g, x0 = bx0 + run.i * g, x1 = bx0 + i * g;
+        if (run.type === 1) wallRun(x0, x1, z - T, z, 0, 1); else wallRun(x0, x1, z, z + T, 0, -1);
+        run = null;
+      }
+      if (type && !run) run = { i, type };
     }
   }
-  trench(44, -1, true);        // friendly line: parapet faces north (−z)
-  trench(-44, 1, false);       // enemy line: parapet faces south (+z)
+  // columns (walls parallel to z)
+  for (let i = 0; i <= NX; i++) {
+    let run = null;
+    for (let j = 0; j <= NZ; j++) {
+      const a = at(i - 1, j), b = at(i, j), type = j < NZ && a !== b ? (b ? 1 : 2) : 0;
+      if (run && type !== run.type) {
+        const x = bx0 + i * g, z0 = bz0 + run.j * g, z1 = bz0 + j * g;
+        if (run.type === 1) wallRun(x - T, x, z0, z1, 1, 0); else wallRun(x, x + T, z0, z1, -1, 0);
+        run = null;
+      }
+      if (type && !run) run = { j, type };
+    }
+  }
 
-  // No-man's-land: craters (low rims), stumps, a ruined farmhouse, barbed wire belts.
+  // ---- floor and duckboards, nav along the centre lines
+  for (const r of rects) K.box(soil, r[0], -D - 0.4, r[2], r[1], -D, r[3], { tint: [0.62, 0.5, 0.38], gao: false, cast: false });
+  for (const line of TRENCH_LINES) for (let k = 0; k < line.length - 1; k++) {
+    const [ax, az] = line[k], [bx, bz] = line[k + 1], len = Math.hypot(bx - ax, bz - az);
+    if (len < 0.1) continue;
+    const ux = (bx - ax) / len, uz = (bz - az) / len;
+    K.box(wood, Math.min(ax, bx) - (uz ? 0.45 : 0), -D, Math.min(az, bz) - (ux ? 0.45 : 0), Math.max(ax, bx) + (uz ? 0.45 : 0), -D + 0.05, Math.max(az, bz) + (ux ? 0.45 : 0), { tint: 0.5, gao: false, cast: false });
+    for (let t = 0.4; t < len; t += 0.9) K.box(wood, ax + ux * t - (uz ? 0.5 : 0.05), -D + 0.05, az + uz * t - (ux ? 0.5 : 0.05), ax + ux * t + (uz ? 0.5 : 0.05), -D + 0.08, az + uz * t + (ux ? 0.5 : 0.05), { tint: 0.4, d: true, gao: false, cast: false });
+    for (let t = 1.2; t < len - 0.6; t += 2.4) navs.push([ax + ux * t, -D + 0.08, az + uz * t]);
+  }
+
+  // ---- per fire trench: fire steps, stepped exits in notches, sandbagged parapet, spoil bank behind
+  const h = TRENCH.width / 2;
+  const bagTint = () => [0.95, 0.9, 0.78].map((v) => v * (0.86 + R() * 0.18));
+  // One course of sandbags along x (bags 0.6 m long, 0.15 m high, rows offset half a bag).
+  const bagsX = (p0, p1, z0, z1, y, off) => {
+    for (let x = p0 + off; x < p1 - 0.25; x += 0.6) {
+      const a = Math.max(p0, x - 0.29), b = Math.min(p1, x + 0.29);
+      if (b - a > 0.2) K.box(sandbag, a, y, z0 + R() * 0.03, b, y + 0.15 + R() * 0.015, z1 - R() * 0.03, { tint: bagTint(), gao: false });
+    }
+  };
+  const bagsZ = (x0, x1, p0, p1, y, off) => {
+    for (let z = p0 + off; z < p1 - 0.25; z += 0.6) {
+      const a = Math.max(p0, z - 0.29), b = Math.min(p1, z + 0.29);
+      if (b - a > 0.2) K.box(sandbag, x0 + R() * 0.03, y, a, x1 - R() * 0.03, y + 0.15 + R() * 0.015, b, { tint: bagTint(), gao: false });
+    }
+  };
+  for (const S of STAIRS) {
+    const own = S.front < 0, F = S.front;
+    const wallZ = S.zf + F * h;                        // the front wall (enemy side) of the fire bays
+    const line = TRENCH_LINES[own ? 0 : 2];
+    for (let k = 0; k < line.length - 1; k++) {
+      const [ax, az] = line[k], [bx, bz] = line[k + 1];
+      if (az !== S.zf || bz !== S.zf) continue;         // fire bays only (not the rear jogs)
+      const x0 = Math.min(ax, bx) + (k === 0 ? 0 : h), x1 = Math.max(ax, bx) - (k === line.length - 2 ? 0 : h);
+      const stair = S.xs.find((sx) => sx > x0 && sx < x1);
+      const gap = stair === undefined ? [] : [[stair - STAIR_HALF - 0.15, stair + STAIR_HALF + 0.15]];
+      const split = (p0, p1) => { const out = []; let c = p0; for (const [g0, g1] of gap) { if (g0 > c) out.push([c, g0]); c = Math.max(c, g1); } if (c < p1) out.push([c, p1]); return out; };
+      // fire step: two treads (0.4 m each, 0.4 m deep) along the front wall, the top one 0.8 m up
+      const FS = TRENCH.fireStep;
+      for (const [p0, p1] of split(x0, x1)) if (p1 - p0 > 0.5) {
+        K.box(wood, p0, -D, Math.min(wallZ, wallZ - F * 0.8), p1, -D + FS / 2, Math.max(wallZ, wallZ - F * 0.8), { tint: 0.5, col: true });
+        K.box(wood, p0, -D + FS / 2, Math.min(wallZ, wallZ - F * 0.4), p1, -D + FS, Math.max(wallZ, wallZ - F * 0.4), { tint: 0.58, col: true });
+        for (let t = p0 + 1; t < p1; t += 2.5) navs.push([t, -D + FS + 0.02, wallZ - F * 0.2]);
+      }
+      // sandbagged parapet on the front lip: two courses (0.3 m: an eye on the fire step just clears it)
+      const sb0 = Math.min(wallZ, wallZ + F * 0.7), sb1 = Math.max(wallZ, wallZ + F * 0.7);
+      for (const [p0, p1] of split(x0 - h, x1 + h)) {
+        bagsX(p0, p1, sb0, sb1, 0, 0.3);
+        bagsX(p0, p1, sb0 + 0.06, sb1 - 0.06, 0.15, 0.6);
+        K.col(p0, 0, sb0, p1, 0.3, sb1);
+      }
+      if (stair !== undefined) {
+        // flight of four steps in the notch (0.4 m rises), the ground at the top; bags line the notch
+        for (let st = 0; st < 4; st++) {
+          const za = wallZ + F * st * 0.45, zb = wallZ + F * (st + 1) * 0.45, y1 = -D + (D / 5) * (st + 1);
+          K.box(wood, stair - STAIR_HALF + 0.02, -D, Math.min(za, zb), stair + STAIR_HALF - 0.02, y1, Math.max(za, zb), { tint: 0.5 + (st % 2) * 0.08, col: true });
+          navs.push([stair, y1 + 0.02, (za + zb) / 2]);
+        }
+        navs.push([stair, -D + 0.08, S.zf], [stair, 0.02, wallZ + F * (STAIR_RUN + 0.8)], [stair, 0.02, wallZ + F * (STAIR_RUN + 3)]);
+        const n0 = Math.min(wallZ, wallZ + F * STAIR_RUN), n1 = Math.max(wallZ, wallZ + F * STAIR_RUN);
+        for (const sx of [-1, 1]) {
+          const xa = stair + sx * (STAIR_HALF + 0.14), xb = xa + sx * 0.6;
+          bagsZ(Math.min(xa, xb), Math.max(xa, xb), n0, n1, 0, 0.3);
+          K.col(Math.min(xa, xb), 0, n0, Math.max(xa, xb), 0.15, n1);
+        }
+      }
+      if (!own) spawns.push([(x0 + x1) / 2 + (stair !== undefined ? 3 : 0), S.zf - F * 0.3, -D + 0.08]);
+    }
+    // spoil bank (parados) behind the rear walls: a lumpy low mound of the dug earth, open where the
+    // communication trench passes through
+    const rearZ = S.zf - F * (h + 4.5 + 2.0);
+    const cx = TRENCH_LINES[own ? 1 : 3][0][0];
+    for (let x = -55; x <= 55; x += 1.2) {
+      if (Math.abs(x - cx) < h + 1.2) continue;
+      K.blob(soil, x + (R() - 0.5) * 0.5, -0.05, rearZ + (R() - 0.5) * 0.5, 0.9 + R() * 0.35, 0.28 + R() * 0.12, 1.0 + R() * 0.3,
+        { tint: SPOIL.map((v) => v * (0.9 + R() * 0.15)), rot: R() * 3, detail: 1, gao: false });
+    }
+  }
+  // Dugouts: carved rooms roofed at ground level (timber roof + earth), bunks and a table inside.
+  for (const [x0, x1, z0, z1] of DUGOUTS) {
+    const own = z0 > 0, entryZ = own ? z0 : z1;          // entrance on the communication-trench side
+    K.box(wood, x0 - 0.2, -0.12, z0 - 0.2, x1 + 0.2, 0.05, z1 + 0.2, { tint: 0.45 });
+    for (let x = x0; x < x1; x += 0.8) K.box(wood, x, -0.3, z0 - 0.1, x + 0.2, -0.12, z1 + 0.1, { tint: 0.35, d: true });
+    K.box(soil, x0 - 0.6, 0.05, z0 - 0.6, x1 + 0.6, 0.4, z1 + 0.6, { tint: [0.66, 0.55, 0.42], gao: false });
+    K.box(wood, x0 + 0.3, -D, own ? z1 - 1.2 : z0 + 0.3, x1 - 0.3, -D + 0.5, own ? z1 - 0.3 : z0 + 1.2, { tint: 0.5, col: true });   // bunk
+    K.box(wood, x0 + 0.5, -D + 0.72, (z0 + z1) / 2 - 0.4, x0 + 1.5, -D + 0.78, (z0 + z1) / 2 + 0.4, { tint: 0.6 });
+    navs.push([(x0 + x1) / 2, -D + 0.05, (z0 + z1) / 2], [(x0 + x1) / 2, -D + 0.05, entryZ]);
+  }
+
+  // ---- no-man's-land: craters, stumps, a ruined farmhouse, barbed wire, fighting positions
   for (let k = 0; k < 22; k++) {
-    const x = (R() - 0.5) * 100, z = (R() - 0.5) * 52, r = 1.6 + R() * 2.4;
-    if (Math.abs(x) < 9 && Math.abs(z) < 7) continue;
-    for (let s = 0; s < 8; s++) {
-      const a = (s / 8) * Math.PI * 2, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
-      K.blob(soil, px, 0, pz, 0.9 + R() * 0.5, 0.35 + R() * 0.25, 0.9 + R() * 0.5, { tint: EARTH.map((v) => v * (0.85 + R() * 0.2)), rot: R() * 3, detail: 0 });
+    const x = (R() - 0.5) * 100, z = (R() - 0.5) * 50, r = 1.6 + R() * 2.4;
+    if ((Math.abs(x) < 9 && Math.abs(z) < 7) || inCut(x, z, r + 2)) continue;
+    for (let s2 = 0; s2 < 8; s2++) {
+      const a = (s2 / 8) * Math.PI * 2, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+      K.blob(soil, px, 0, pz, 0.9 + R() * 0.5, 0.3 + R() * 0.2, 0.9 + R() * 0.5, { tint: EARTH.map((v) => v * (0.85 + R() * 0.2)), rot: R() * 3, detail: 1 });
     }
     K.box(soil, x - r * 0.6, -0.01, z - r * 0.6, x + r * 0.6, 0.02, z + r * 0.6, { tint: EARTH.map((v) => v * 0.55), gao: false, cast: false });
-    if (r > 2.8) K.col(x - r - 0.5, 0, z - 0.8, x - r + 0.9, 0.55, z + 0.8);
   }
   for (const [x, z] of [[-30, 8], [22, -14], [40, 12], [-12, -20]]) {
     K.cyl(wood, x, 0, z, 0.28, 1.8 + R() * 1.5, 7, { tint: 0.45 });
     K.col(x - 0.3, 0, z - 0.3, x + 0.3, 2.5, z + 0.3);
   }
-  // Ruined farmhouse in the middle: broken stone walls to fight around.
   {
     const S = M.stone, t = [0.95, 0.9, 0.82];
-    const wall = (x0, z0, x1, z1, h) => K.box(S, x0, 0, z0, x1, h, z1, { tint: t, col: true });
+    const wall = (x0, z0, x1, z1, hh) => K.box(S, x0, 0, z0, x1, hh, z1, { tint: t, col: true });
     wall(-8, -6, -1.5, -5.4, 3.2); wall(1.5, -6, 8, -5.4, 2.1);
     wall(-8, -6, -7.4, 1, 2.6); wall(-8, 3.4, -7.4, 6, 1.4);
     wall(7.4, -6, 8, -1.5, 3.0); wall(7.4, 2, 8, 6, 1.1);
@@ -108,8 +185,7 @@ export function buildTrenches(K, ctx) {
     K.box(wood, -6, 2.3, -5.5, 6, 2.5, -5.2, { tint: 0.4, d: true });
     navs.push([0, 0, 0], [-4, 0, 2], [4, 0, -2], [0, 0, 8], [0, 0, -8]);
   }
-  // Barbed-wire belts in front of both lines: pickets and three strands, gaps every ~14 m.
-  for (const zw of [30, -30]) {
+  for (const zw of [28, -28]) {
     for (let x = -50; x < 50; x += 14) {
       const a = x + 1.5, b = x + 11;
       for (let px = a; px <= b + 0.01; px += 2.4) K.box(M.iron, px - 0.04, 0, zw - 0.04, px + 0.04, 1.2, zw + 0.04, { d: true, tint: 0.5 });
@@ -117,18 +193,17 @@ export function buildTrenches(K, ctx) {
       K.col(a, 0, zw - 0.3, b, 1.3, zw + 0.3);
     }
   }
-  // Sandbag fighting positions in no-man's-land.
-  for (const [x, z, rot] of [[-38, 12, 0], [30, -10, 1], [-20, -16, 0], [44, 18, 1]]) {
-    const w = 2.6;
-    K.box(sandbag, x - w, 0, z - 0.4, x + w, 1.1, z + 0.4, { tint: SAND, col: true, gao: false });
-    void rot;
+  for (const [x, z] of [[-38, 12], [30, -10], [-20, -16], [44, 18]]) {
+    for (let c = 0; c < 7; c++) bagsX(x - 2.6, x + 2.6, z - 0.4 + c * 0.03, z + 0.4 - c * 0.03, c * 0.15, c % 2 ? 0.6 : 0.3);
+    K.col(x - 2.6, 0, z - 0.4, x + 2.6, 1.05, z + 0.4);
     navs.push([x, 0, z + 2], [x, 0, z - 2]);
   }
-  // Nav: open ground on a 5 m grid (the default pad grid) + trench corridors + gaps.
+  // Pad nav grid: not over the cut or on its walls (those points are above the trench).
+  ctx.navExclude = (x, z) => inCut(x, z, 0.8);
   ctx.navPts(navs);
-  ctx.spawnsLocal(spawns.concat([[-30, -47], [30, -47], [0, -47]]));
-  ctx.enemy = { x: 0, z: -44, r: 60 };
-  ctx.arena = { playerSpawn: K.V(-4.5, 0.06, 44.5), center: K.V(0, 0, 0), front: -1 };  // centre of a friendly bay without exit steps
+  ctx.spawnsLocal(spawns);
+  ctx.enemy = { x: 0, z: -40, r: 60 };
+  ctx.arena = { playerSpawn: K.V(-4, -D + 0.1, 40), center: K.V(0, 0, 0), tankLine: -70 };
 }
 
 // ------------------------------------------------------------------ indoor compound
@@ -227,7 +302,7 @@ export function buildCompound(K, ctx) {
   }
   // Outside: sandbag cover by the main door, a parked cart, the approach.
   for (const [x, z] of [[-4, 19], [4.5, 21], [-9, 24]]) {
-    K.box(K.L.straw, x - 1.6, 0, z - 0.4, x + 1.6, 1.0, z + 0.4, { tint: SAND, col: true, gao: false });
+    K.box(K.L.burlap, x - 1.6, 0, z - 0.4, x + 1.6, 1.0, z + 0.4, { tint: SAND, col: true, gao: false });
     navs.push([x, 0, z + 1.6], [x, 0, z - 1.6]);
   }
   K.cart(-12, 18, 0, 1, {});
