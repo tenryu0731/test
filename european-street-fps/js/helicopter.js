@@ -7,11 +7,13 @@
 //   heli.update(dt, ctl)                 ctl = { move {x, y}, up, down, boost, heading } while piloted, null otherwise
 //   heli.exitSpot(out)                   a free spot beside the cabin to put the pilot down
 import * as THREE from 'three';
+import { LAKE } from './layout.js';
 
 const ROTOR_R = 5.2;
 const BODY_R = 4.2;           // collision radius (rotor disc, slightly inside the tips)
 const BODY_H = 3.4;           // collision height above the skids
 const MAX_SPEED = 28, BOOST_SPEED = 46, CLIMB = 7, CEILING = 380;
+const ROOF_CLEAR = 4.5;       // colliders only reach the eaves: keep this far above them (pitched roofs)
 
 function mat(color, rough, metal = 0, extra = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, ...extra });
@@ -40,10 +42,21 @@ function buildModel() {
   add(belly, band, 0, 1.2, 0.2);
   add(new THREE.BoxGeometry(1.0, 0.55, 1.9), paint, 0, 2.55, 0.55);
   add(new THREE.CylinderGeometry(0.28, 0.34, 0.5, 12), dark, 0, 2.6, 1.55, Math.PI / 2);
+  // Tapered fairing from the cabin into the boom, exhaust, door frames and a boom stripe.
+  const fair = new THREE.CylinderGeometry(0.42, 0.95, 1.7, 20); fair.rotateX(Math.PI / 2); fair.scale(1, 0.9, 1);
+  add(fair, paint, 0, 1.9, 2.15);
+  add(new THREE.CylinderGeometry(0.13, 0.16, 0.55, 10), dark, 0.32, 2.55, 1.75, Math.PI / 2 - 0.3);
+  for (const sx of [-1, 1]) {
+    add(new THREE.BoxGeometry(0.03, 1.15, 0.05), dark, sx * 1.2, 1.55, 0.95);     // door rear frame
+    add(new THREE.BoxGeometry(0.03, 0.05, 1.1), dark, sx * 1.16, 2.05, 0.4);      // window top frame
+    add(new THREE.BoxGeometry(0.035, 0.08, 0.16), dark, sx * 1.22, 1.35, 0.72);   // door handle
+  }
+  add(new THREE.CylinderGeometry(0.205, 0.33, 3.2, 12, 1, true), band, 0, 1.95, 4.0, Math.PI / 2).scale.set(1.02, 1, 1.02);
   // Tail boom, fin, stabiliser, tail rotor guard.
   add(new THREE.CylinderGeometry(0.2, 0.42, 5.2, 12), paint, 0, 1.95, 4.1, Math.PI / 2);
   add(new THREE.BoxGeometry(0.08, 1.1, 0.62), band, 0, 2.35, 6.6, -0.4);
   add(new THREE.BoxGeometry(2.0, 0.07, 0.5), paint, 0, 1.98, 5.5);
+  for (const sx of [-1, 1]) add(new THREE.BoxGeometry(0.05, 0.42, 0.4), band, sx * 1.0, 2.05, 5.55);   // end plates
   // Skids with struts.
   for (const s of [-1, 1]) {
     add(new THREE.CylinderGeometry(0.06, 0.06, 3.6, 8), dark, s * 1.15, 0.07, -0.1, Math.PI / 2);
@@ -97,6 +110,10 @@ export class Helicopter {
     this.yaw = 0; this.pitch = 0; this.roll = 0; this.rotor = 0; this.spin = 0;
     this.piloted = false; this.landed = true; this.altitude = 0;
     this._d = new THREE.Vector3(); this._p = new THREE.Vector3();
+    // Water: the lake and the river (surface polyline from the terrain), where it cannot set down.
+    const rv = world.parts?.terrain?.river;
+    this._river = rv ? { pts: rv.points, hw: rv.halfWidth + 1 } : null;
+    this.noLand = false;
     this.reset();
   }
 
@@ -110,10 +127,30 @@ export class Helicopter {
     this._pose(0);
   }
 
-  /** Highest ground or roof under the airframe. */
+  /** Water surface under (x, z), or -Infinity. */
+  waterAt(x, z) {
+    if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4) return LAKE.y;
+    const r = this._river;
+    if (!r) return -Infinity;
+    const P = r.pts;
+    for (let i = 0; i < P.length - 1; i++) {
+      const [ax, ay, az] = P[i], [bx, by, bz] = P[i + 1], vx = bx - ax, vz = bz - az, vv = vx * vx + vz * vz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / vv));
+      if (Math.hypot(x - ax - vx * t, z - az - vz * t) < r.hw) return ay + (by - ay) * t;
+    }
+    return -Infinity;
+  }
+
+  /** Lowest safe height under the airframe. Sets noLand over buildings (the colliders stop at the
+   *  eaves, the pitched roof rises above them) and over water: it hovers there instead of landing. */
   groundUnder(x, z, y) {
-    let h = this.physics.groundHeight(x, z, 2.4, y + 0.5);
-    if (Math.hypot(x - this.pad.x, z - this.pad.z) < this.pad.r) h = Math.max(h, this.padTop);
+    const terr = this.world.groundAt(x, z);
+    let h = this.physics.groundHeight(x, z, 2.4, y + 0.5 - ROOF_CLEAR);
+    this.noLand = false;
+    if (h > terr + 0.8) { h += ROOF_CLEAR; this.noLand = true; }
+    const w = this.waterAt(x, z);
+    if (w + 0.6 > h) { h = w + 0.6; this.noLand = true; }
+    if (Math.hypot(x - this.pad.x, z - this.pad.z) < this.pad.r) { h = Math.max(h, this.padTop); this.noLand = false; }
     return h;
   }
 
@@ -170,7 +207,11 @@ export class Helicopter {
 
     // Move with collision against buildings / towers / trees (boxes above the skids block).
     const p = this.pos;
-    this.physics.moveCircle(p, this._d.set(this.vel.x * dt, this.vel.y * dt, this.vel.z * dt), BODY_R, BODY_H);
+    // The collision body reaches ROOF_CLEAR below the skids: box tops stop at the eaves, so this keeps
+    // the airframe out of the pitched roofs above them (and matches the hover floor in groundUnder).
+    p.y -= ROOF_CLEAR;
+    this.physics.moveCircle(p, this._d.set(this.vel.x * dt, this.vel.y * dt, this.vel.z * dt), BODY_R, BODY_H + ROOF_CLEAR);
+    p.y += ROOF_CLEAR;
     const b = this.world.bounds;
     p.x = THREE.MathUtils.clamp(p.x, b.minX + 5, b.maxX - 5);
     p.z = THREE.MathUtils.clamp(p.z, b.minZ + 5, b.maxZ - 5);
@@ -178,11 +219,12 @@ export class Helicopter {
     if (p.y <= g + 0.02) {
       if (this.vel.y < -0.1 || p.y < g) p.y = g;
       if (this.vel.y < 0) this.vel.y = 0;
-      this.vel.x *= Math.exp(-dt * 6); this.vel.z *= Math.exp(-dt * 6);
-      this.landed = true;
-    } else this.landed = p.y - g < 0.15;
+      if (!this.noLand) { this.vel.x *= Math.exp(-dt * 6); this.vel.z *= Math.exp(-dt * 6); }
+      this.landed = !this.noLand;
+    } else this.landed = !this.noLand && p.y - g < 0.15;
+    this.blocked = this.noLand && p.y - g < 0.6;          // holding just above a roof or water
     if (p.y > CEILING) { p.y = CEILING; this.vel.y = Math.min(0, this.vel.y); }
-    this.altitude = p.y - g;
+    this.altitude = p.y - Math.max(this.world.groundAt(p.x, p.z), this.waterAt(p.x, p.z));   // above the street / field / water
     this._pose(dt);
   }
 

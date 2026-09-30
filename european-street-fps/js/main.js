@@ -637,7 +637,7 @@ function exitHeli() {
   audio.play('uiClick');
 }
 const _ct = new THREE.Vector3(), _cd = new THREE.Vector3(), _cp = new THREE.Vector3(), _ce = new THREE.Euler(0, 0, 0, 'YXZ');
-let hudHeliT = 0;
+let hudHeliT = 0, heliBlocked = false;
 function updateFlight(dt) {
   const look = input.consumeLook();
   fcam.yaw -= look.dx;
@@ -646,7 +646,9 @@ function updateFlight(dt) {
   heli.update(dt, { move: input.move, up: input.upHeld, down: input.downHeld, boost: input.sprint, heading: fcam.yaw });
   player.pos.copy(heli.pos);
   player.yaw = heli.yaw;
-  // Land to get out.
+  // Land to get out (not on roofs or water: it holds a hover there).
+  if (heli.blocked && !heliBlocked) ui.toast('ここには着陸できません — 地面か広場に降りてください');
+  heliBlocked = heli.blocked;
   const canExit = heli.canExit();
   input.setInteract(canExit ? '降りる' : null);
   ui.setPrompt(canExit ? '降りる' : null, 'ヘリコプター');
@@ -660,7 +662,9 @@ function updateFlight(dt) {
   _ld.copy(_cp).sub(_ct); const L = _ld.length(); _ld.divideScalar(L);
   const hit = physics.raycast(_ct, _ld, L);
   if (hit) _cp.copy(_ct).addScaledVector(_ld, Math.max(1.5, hit.distance - 0.5));
-  _cp.y = Math.max(_cp.y, world.groundAt(_cp.x, _cp.z) + 0.6);
+  // Stay out of the ground and out of pitched roofs (building colliders end at the eaves).
+  const terr = world.groundAt(_cp.x, _cp.z), top = physics.groundHeight(_cp.x, _cp.z, 0.6, _cp.y + 20);
+  _cp.y = Math.max(_cp.y, terr + 0.6, top > terr + 0.8 ? top + 4 : -Infinity);
   camera.position.copy(_cp);
   camera.lookAt(_ct.x + _cd.x * 30, _ct.y + _cd.y * 30, _ct.z + _cd.z * 30);
   camera.updateMatrixWorld();
