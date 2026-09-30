@@ -5,8 +5,10 @@ const CELL = 4;
 const STEP_UP = 0.45;
 
 export class Physics {
-  constructor(colliders) {
+  // colliders: Box3[]; groundAt(x, z): terrain/ground height (flat y = 0 when omitted).
+  constructor(colliders, groundAt = null) {
     this.boxes = colliders;
+    this.groundAt = groundAt;
     this.grid = new Map();
     this._stamp = 0;
     this._marks = new Uint32Array(colliders.length);
@@ -40,7 +42,7 @@ export class Physics {
   }
 
   groundHeight(x, z, radius, feetY) {
-    let h = 0;
+    let h = this.groundAt ? this.groundAt(x, z) : 0;
     for (const i of this.query(x - radius, z - radius, x + radius, z + radius)) {
       const b = this.boxes[i];
       if (b.max.y > feetY + STEP_UP || b.max.y <= h) continue;
@@ -106,8 +108,15 @@ export class Physics {
         if (hit) { bestT = hit.t; best = hit; }
       }
     }
-    // Ground plane.
-    if (dir.y < -1e-6) {
+    // Ground.
+    if (this.groundAt) {
+      const t = this._marchGround(origin, dir, bestT);
+      if (t >= 0) {
+        const p = origin.clone().addScaledVector(dir, t), e = 0.5, g = this.groundAt;
+        const normal = new THREE.Vector3(g(p.x - e, p.z) - g(p.x + e, p.z), 2 * e, g(p.x, p.z - e) - g(p.x, p.z + e)).normalize();
+        return { point: p, normal, distance: t };
+      }
+    } else if (dir.y < -1e-6) {
       const t = -origin.y / dir.y;
       if (t > 0 && t < bestT) { bestT = t; best = { t, axis: 1, sign: 1 }; }
     }
@@ -115,6 +124,30 @@ export class Physics {
     const normal = new THREE.Vector3();
     normal.setComponent(best.axis, best.sign);
     return { point: origin.clone().addScaledVector(dir, best.t), normal, distance: best.t };
+  }
+
+  // First t in [0, maxT] where the ray goes below the ground, or -1. Adaptive march + bisection.
+  _marchGround(o, d, maxT) {
+    const g = this.groundAt;
+    let t = 0, prevT = 0;
+    let above = o.y - g(o.x, o.z);
+    if (above < 0) return -1; // started underground (e.g. inside a basement): ignore
+    while (t < maxT) {
+      const step = Math.min(8, Math.max(0.4, above * 0.6));
+      prevT = t; t = Math.min(maxT, t + step);
+      const y = o.y + d.y * t, x = o.x + d.x * t, z = o.z + d.z * t;
+      above = y - g(x, z);
+      if (above < 0) {
+        let lo = prevT, hi = t;
+        for (let i = 0; i < 8; i++) {
+          const m = (lo + hi) / 2;
+          if (o.y + d.y * m - g(o.x + d.x * m, o.z + d.z * m) < 0) hi = m; else lo = m;
+        }
+        return hi;
+      }
+      if (t >= maxT) break;
+    }
+    return -1;
   }
 
   lineOfSight(a, b) {
@@ -165,7 +198,7 @@ function gridLine(x0, z0, x1, z1) {
   let tz = sz ? ((sz > 0 ? (cz + 1) * CELL - z0 : z0 - cz * CELL) / Math.abs(dz)) : Infinity;
   cells.push([cx, cz]);
   let guard = 0;
-  while ((cx !== ex || cz !== ez) && guard++ < 256) {
+  while ((cx !== ex || cz !== ez) && guard++ < 2048) {
     if (tx < tz) { cx += sx; tx += tdx; } else { cz += sz; tz += tdz; }
     cells.push([cx, cz]);
   }

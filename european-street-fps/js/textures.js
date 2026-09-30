@@ -342,18 +342,24 @@ function genHerringbone(n, seed) {
 }
 
 // Coursed travertine / sandstone masonry like the medieval towers: muted, low-contrast blocks.
-function genMasonry(n, seed) {
-  const heights = []; for (let i = 0; i < 12; i++) heights.push(0.065 + hash1(i, seed + 2) * 0.05);
-  const rows = makeRows(seed, heights, 0.08, 0.22);
-  const pal = [[0.67, 0.61, 0.52], [0.61, 0.58, 0.53], [0.68, 0.59, 0.47], [0.58, 0.55, 0.5], [0.65, 0.56, 0.46], [0.7, 0.65, 0.57], [0.62, 0.53, 0.44]];
+// opt: rows, h0/hr (course heights), wMin/wMax (block lengths), pal, mortar, round, jitter,
+// streak (rain-streak strength), soot (dark weathering drips), lichen.
+function genMasonry(n, seed, opt = {}) {
+  const nr = opt.rows || 12, h0 = opt.h0 ?? 0.065, hr = opt.hr ?? 0.05;
+  const heights = []; for (let i = 0; i < nr; i++) heights.push(h0 + hash1(i, seed + 2) * hr);
+  const rows = makeRows(seed, heights, opt.wMin || 0.08, opt.wMax || 0.22);
+  const pal = opt.pal || [[0.67, 0.61, 0.52], [0.61, 0.58, 0.53], [0.68, 0.59, 0.47], [0.58, 0.55, 0.5], [0.65, 0.56, 0.46], [0.7, 0.65, 0.57], [0.62, 0.53, 0.44]];
+  const mo = opt.mortar || [0.6, 0.56, 0.49], rad = opt.round ?? 0.01, jit = opt.jitter ?? 0.012;
+  const sk = opt.streak ?? 1, soot = opt.soot ?? 0, lich = opt.lichen ?? 0;
   const NZ = field(n, 32, 4, seed + 3), MO = field(n, 12, 3, seed + 4), FI = field(n, 128, 2, 7128);
   const PT = field(n, 64, 2, 7064), pq = quantile(PT, 0.94);
   const ST = field(n, 20, 3, seed + 7, 3), GR = field(n, 3, 3, seed + 8);
+  const LI = lich ? field(n, 10, 4, seed + 12) : null, lq = lich ? quantile(LI, 1 - lich) : 1;
   const R1 = ids(seed + 1), R2 = ids(seed + 8), R3 = ids(seed + 11);
   return bake(n, (u, v, o, i) => {
     blockAt(rows, u, v);
     const nz = NZ[i];
-    const edge = roundEdge(B.dx, B.dy * 1.15, 0.01) + (nz - 0.5) * 0.012;
+    const edge = roundEdge(B.dx, B.dy * 1.15, rad) + (nz - 0.5) * jit;
     const r1 = R1[B.id], r2 = R2[B.id], r3 = R3[B.id];
     const joint = 0.003 + r3 * 0.002;
     const block = smooth(joint, joint + 0.004, edge);
@@ -361,12 +367,17 @@ function genMasonry(n, seed) {
     const pits = smooth(pq, pq + 0.05, PT[i]);
     const fine = FI[i];
     // Vertical rain streaks and broad grime, lighter at block tops.
-    const streak = smooth(0.5, 0.8, ST[i]) * 0.1 + smooth(0.45, 0.75, GR[i]) * 0.08;
+    let streak = (smooth(0.5, 0.8, ST[i]) * 0.1 + smooth(0.45, 0.75, GR[i]) * 0.08) * sk;
+    if (soot) streak += smooth(0.62, 0.9, ST[i]) * smooth(0.3, 0.7, GR[i]) * soot;
     o.h = block * (0.52 + 0.2 * pillow + nz * 0.14 - pits * 0.06 + (r2 - 0.5) * 0.05) + (1 - block) * (0.3 + fine * 0.06);
     const c = pick(pal, r1);
     const k = (0.92 + 0.12 * r2) * (0.94 + 0.1 * MO[i]) * (0.96 + 0.06 * fine) * (1 - pits * 0.08) * (1 - streak);
     const mk = (0.84 + 0.2 * fine) * (1 - streak);
-    o.r = mix(0.6 * mk, c[0] * k, block); o.g = mix(0.56 * mk, c[1] * k, block); o.b = mix(0.49 * mk, c[2] * k, block);
+    o.r = mix(mo[0] * mk, c[0] * k, block); o.g = mix(mo[1] * mk, c[1] * k, block); o.b = mix(mo[2] * mk, c[2] * k, block);
+    if (LI) {
+      const l = smooth(lq, lq + 0.05, LI[i] + (fine - 0.5) * 0.04) * 0.6;
+      o.r = mix(o.r, 0.62, l); o.g = mix(o.g, 0.62, l); o.b = mix(o.b, 0.5, l);
+    }
     o.rough = mix(0.97, 0.88 + 0.06 * pits, block);
     o.ao = mix(0.62, 0.82 + 0.18 * pillow - pits * 0.15, block);
   });
@@ -384,10 +395,10 @@ function genStoneTrim(n, seed) {
   });
 }
 
-function genBrick(n, seed) {
+function genBrick(n, seed, palette = null) {
   const heights = new Array(16).fill(1);
   const rows = makeRows(seed, heights, 0.2, 0.2, [0, 0.1]);
-  const pal = [[0.58, 0.34, 0.24], [0.62, 0.38, 0.26], [0.55, 0.35, 0.27], [0.65, 0.43, 0.31], [0.6, 0.37, 0.27]];
+  const pal = palette || [[0.58, 0.34, 0.24], [0.62, 0.38, 0.26], [0.55, 0.35, 0.27], [0.65, 0.43, 0.31], [0.6, 0.37, 0.27]];
   const NZ = field(n, 32, 3, seed + 3), FI = field(n, 128, 2, 7128);
   const R1 = ids(seed + 1), R2 = ids(seed + 2);
   return bake(n, (u, v, o, i) => {
@@ -413,7 +424,7 @@ function genPlasterStructure(n, seed) {
   const brickRows = makeRows(seed + 50, new Array(48).fill(1), 0.065, 0.065, [0, 0.0325]);
   const bpal = [[0.6, 0.38, 0.27], [0.64, 0.43, 0.31], [0.68, 0.6, 0.5], [0.56, 0.36, 0.26], [0.66, 0.5, 0.38]];
   const BL = field(n, 8, 5, seed), TR = field(n, 48, 3, seed + 1), FI = field(n, 128, 2, 7128);
-  const PR = field(n, 3, 5, seed + 2), pq = quantile(PR, 0.94);
+  const PR = field(n, 3, 5, seed + 2), pq = quantile(PR, 0.975);
   const CR = field(n, 6, 4, seed + 4, 12), CM = field(n, 6, 3, seed + 10), cq = quantile(CM, 0.93);
   const SA = field(n, 40, 3, seed + 5, 2), SB = field(n, 3, 2, seed + 9), DA = field(n, 3, 4, seed + 6), dq = quantile(DA, 0.8);
   S.fine = FI;
@@ -469,7 +480,7 @@ function plasterColour(S, base, seed) {
     const cav = 0.6 + 0.4 * (SM[i * 4] / 255);
     C[i * 4] = clamp01(r * cav) * 255; C[i * 4 + 1] = clamp01(gg * cav) * 255; C[i * 4 + 2] = clamp01(b * cav) * 255; C[i * 4 + 3] = 255;
   }
-  return tex(C, n, true);
+  return C;
 }
 
 // Terracotta coppi: u along the eave (8 channels), v up the slope (4 tiles per repeat).
@@ -543,7 +554,7 @@ function shutterColour(S, paint) {
     C[i * 4 + 2] = clamp01(mix(mix(paint[2], 0.58, fd) * f, 0.31 * gk, c) * s) * 255;
     C[i * 4 + 3] = 255;
   }
-  return tex(C, n, true);
+  return C;
 }
 
 // Bare weathered timber (beams, rafters, benches); grain runs along u.
@@ -662,64 +673,311 @@ function genFabric(n, seed) {
   });
 }
 
+// Polished white marble slabs with soft grey veining (church trims, columns, stair treads).
+function genMarble(n, seed) {
+  const rows = makeRows(seed, [1, 1], 0.5, 0.5, [0, 0.5]);
+  const A = field(n, 3, 4, seed), V1 = field(n, 4, 5, seed + 1), V2 = field(n, 6, 4, seed + 2), F = field(n, 64, 2, 7064);
+  const R1 = ids(seed + 3);
+  return bake(n, (u, v, o, i) => {
+    blockAt(rows, u, v);
+    const joint = smooth(0.002, 0.005, Math.min(B.dx, B.dy));
+    const w = V1[i] - 0.5 + (A[i] - 0.5) * 0.35, w2 = V2[i] - 0.5;
+    const vein = (1 - smooth(0.0, 0.03, Math.abs(w))) * 0.7 + (1 - smooth(0.0, 0.012, Math.abs(w2))) * 0.35;
+    const k = (0.93 + 0.07 * A[i]) * (0.97 + 0.05 * R1[B.id]);
+    o.r = (0.87 * k - vein * 0.17) * (0.8 + 0.2 * joint); o.g = (0.86 * k - vein * 0.17) * (0.8 + 0.2 * joint); o.b = (0.83 * k - vein * 0.15) * (0.8 + 0.2 * joint);
+    o.h = 0.5 * joint + A[i] * 0.03;
+    o.rough = 0.36 + 0.14 * F[i] + (1 - joint) * 0.4; o.ao = 0.7 + 0.3 * joint;
+  });
+}
+
+// Lawn with blades, clover clumps and sun-dried patches (gardens, rocca).
+function genGrass(n, seed) {
+  const BL = field(n, 128, 1, seed, 24), BL2 = field(n, 24, 1, seed + 1, 128), CL = field(n, 12, 3, seed + 2);
+  const DR = field(n, 3, 4, seed + 3), FI = field(n, 64, 2, 7064);
+  return bake(n, (u, v, o, i) => {
+    const blade = BL[i] * 0.5 + BL2[i] * 0.5, cl = CL[i], dry = smooth(0.55, 0.78, DR[i]);
+    const b = smooth(0.35, 0.75, blade);
+    o.h = b * 0.6 + cl * 0.25 + FI[i] * 0.1;
+    const g = [mix(0.22, 0.52, dry), mix(0.33, 0.47, dry), mix(0.12, 0.26, dry)];
+    const k = (0.62 + 0.5 * b) * (0.9 + 0.2 * cl);
+    o.r = g[0] * k; o.g = g[1] * k; o.b = g[2] * k;
+    o.rough = 0.95; o.ao = 0.62 + 0.38 * b;
+  });
+}
+
+// Pale gravel and beaten earth (garden paths, orchard beds with a darker tint).
+function genGravel(n, seed) {
+  const DU = field(n, 6, 4, seed), FI = field(n, 64, 2, 7064), R1 = ids(seed + 1, 1 << 16), R2 = ids(seed + 2, 1 << 16);
+  return bake(n, (u, v, o, i) => {
+    voronoi(u, v, 36, seed, 0.9);
+    const e = V.f2 - V.f1, r1 = R1[V.id & 0xffff], r2 = R2[V.id & 0xffff];
+    const st = smooth(0.06, 0.2, e) * (r1 < 0.8 ? 1 : 0);
+    const dome = smooth(0.06, 0.45, e);
+    const dust = 0.85 + 0.2 * DU[i];
+    o.h = st * (0.45 + 0.4 * dome) + (1 - st) * (0.2 + FI[i] * 0.15);
+    const c = r2 < 0.3 ? [0.74, 0.7, 0.62] : r2 < 0.6 ? [0.68, 0.62, 0.52] : r2 < 0.85 ? [0.78, 0.74, 0.66] : [0.6, 0.55, 0.48];
+    const k = (0.9 + 0.12 * dome) * dust;
+    o.r = mix(0.62 * dust, c[0] * k, st); o.g = mix(0.55 * dust, c[1] * k, st); o.b = mix(0.44 * dust, c[2] * k, st);
+    o.rough = mix(0.97, 0.86, st); o.ao = mix(0.6, 0.8 + 0.2 * dome, st);
+  });
+}
+
+// Tangent-space normal data (RGBA bytes) from a wrapped height field (central differences).
+function normalData(H, n, strength) {
+  const out = new Uint8Array(n * n * 4), s = strength;
+  for (let y = 0; y < n; y++) {
+    const ym = ((y - 1 + n) % n) * n, yp = ((y + 1) % n) * n, yc = y * n;
+    for (let x = 0; x < n; x++) {
+      const xm = x === 0 ? n - 1 : x - 1, xp = x === n - 1 ? 0 : x + 1;
+      const nx = (H[yc + xm] - H[yc + xp]) * s, ny = (H[ym + x] - H[yp + x]) * s;
+      const l = 1 / Math.sqrt(nx * nx + ny * ny + 1), i = (yc + x) * 4;
+      out[i] = (nx * l * 0.5 + 0.5) * 255; out[i + 1] = (ny * l * 0.5 + 0.5) * 255;
+      out[i + 2] = (l * 0.5 + 0.5) * 255; out[i + 3] = 255;
+    }
+  }
+  return out;
+}
+
+// DataTexture whose pixels are generated only when three.js first uploads it (i.e. only if some
+// module actually renders with it).
+function lazyTex(n, gen, srgb) {
+  const t = tex(null, n, srgb);
+  let data = null;
+  t.image = { width: n, height: n, get data() { return data || (data = gen()); } };
+  t.needsUpdate = true;
+  return t;
+}
+
+// 2× bilinear upsampling of RGBA bytes with wrap-around (for the texture array; 0.75/0.25 taps).
+function upsample(src, n, S) {
+  if (n === S) return src;
+  if (S > n * 2) return upsample(upsample(src, n, n * 2), n * 2, S);
+  const out = new Uint8Array(S * S * 4), n4 = n * 4;
+  const xa = new Int32Array(S), xb = new Int32Array(S);
+  for (let x = 0; x < S; x++) { const i = x >> 1; xa[x] = i * 4; xb[x] = ((x & 1 ? i + 1 : i - 1 + n) % n) * 4; }
+  const row = new Float32Array(S * 4);
+  for (let y = 0; y < S; y++) {
+    const i = y >> 1, ra = i * n4, rb = ((y & 1 ? i + 1 : i - 1 + n) % n) * n4;
+    // Vertical pass into a float row, then horizontal pass.
+    for (let x = 0; x < n; x++) {
+      const a = ra + x * 4, b = rb + x * 4, o = x * 4;
+      row[o] = src[a] * 0.75 + src[b] * 0.25; row[o + 1] = src[a + 1] * 0.75 + src[b + 1] * 0.25;
+      row[o + 2] = src[a + 2] * 0.75 + src[b + 2] * 0.25; row[o + 3] = src[a + 3] * 0.75 + src[b + 3] * 0.25;
+    }
+    let o = y * S * 4;
+    for (let x = 0; x < S; x++, o += 4) {
+      const a = xa[x], b = xb[x];
+      out[o] = row[a] * 0.75 + row[b] * 0.25 + 0.5; out[o + 1] = row[a + 1] * 0.75 + row[b + 1] * 0.25 + 0.5;
+      out[o + 2] = row[a + 2] * 0.75 + row[b + 2] * 0.25 + 0.5; out[o + 3] = row[a + 3] * 0.75 + row[b + 3] * 0.25 + 0.5;
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- town texture array
+// Every opaque town surface uses ONE MeshStandardMaterial whose albedo / normal / AO / roughness /
+// metalness come from two 512² texture arrays indexed by a per-vertex `layer` attribute, so the
+// whole town costs one draw call per spatial chunk and LOD level.
+//   array A: sRGB albedo (rgb) + metalness (a);   array B: normal xy (rg) + AO (b) + roughness (a).
+// Vertex colours carry tint × baked AO, stored as bytes at half scale (the shader multiplies by 2).
+const ARR_SIZE = 512;
+function arrayTex(data, L, srgb) {
+  const t = new THREE.DataArrayTexture(data, ARR_SIZE, ARR_SIZE, L);
+  t.format = THREE.RGBAFormat; t.type = THREE.UnsignedByteType;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true; t.anisotropy = ANISO;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.needsUpdate = true;
+  // The pixel data is only needed for the upload: free ~50 MB of JS heap afterwards.
+  t.onUpdate = () => { t.image.data = null; };
+  return t;
+}
+
+const ARR_VERT_PARS = `
+attribute float layer;
+varying vec3 vArrUv;
+`;
+const ARR_FRAG_PARS = `
+uniform highp sampler2DArray tArrA;
+uniform highp sampler2DArray tArrB;
+varying vec3 vArrUv;
+mat3 arrTangentFrame( vec3 eye_pos, vec3 surf_norm, vec2 uv ) {
+  vec3 q0 = dFdx( eye_pos.xyz ); vec3 q1 = dFdy( eye_pos.xyz );
+  vec2 st0 = dFdx( uv.st ); vec2 st1 = dFdy( uv.st );
+  vec3 N = surf_norm;
+  vec3 q1perp = cross( q1, N ); vec3 q0perp = cross( N, q0 );
+  vec3 T = q1perp * st0.x + q0perp * st1.x;
+  vec3 B = q1perp * st0.y + q0perp * st1.y;
+  float det = max( dot( T, T ), dot( B, B ) );
+  float scale = ( det == 0.0 ) ? 0.0 : inversesqrt( det );
+  return mat3( T * scale, B * scale, N );
+}
+`;
+function patchArrayShader(shader, uniforms) {
+  Object.assign(shader.uniforms, uniforms);
+  const rep = (src, a, b) => (src.includes(a) ? src.replace(a, b) : src);
+  let v = shader.vertexShader, f = shader.fragmentShader;
+  v = rep(v, '#include <common>', '#include <common>\n' + ARR_VERT_PARS);
+  v = rep(v, '#include <uv_vertex>', '#include <uv_vertex>\n\tvArrUv = vec3( uv, layer );');
+  v = rep(v, '#include <color_vertex>', '#include <color_vertex>\n#ifdef USE_COLOR\n\tvColor.rgb *= 2.0;\n#endif');
+  f = rep(f, '#include <common>', '#include <common>\n' + ARR_FRAG_PARS);
+  f = rep(f, '#include <map_fragment>', 'vec4 arrA = texture( tArrA, vArrUv );\n\tvec4 arrB = texture( tArrB, vArrUv );\n\tdiffuseColor.rgb *= arrA.rgb;');
+  f = rep(f, '#include <roughnessmap_fragment>', 'float roughnessFactor = roughness * arrB.a;');
+  f = rep(f, '#include <metalnessmap_fragment>', 'float metalnessFactor = metalness * arrA.a;');
+  f = rep(f, '#include <normal_fragment_maps>', `{
+    vec3 mapN = vec3( arrB.xy * 2.0 - 1.0, 0.0 );
+    mapN.z = sqrt( max( 0.0, 1.0 - dot( mapN.xy, mapN.xy ) ) );
+    mat3 tbnA = arrTangentFrame( - vViewPosition, normal, vArrUv.xy );
+    #if defined( DOUBLE_SIDED ) && ! defined( FLAT_SHADED )
+      tbnA[0] *= faceDirection; tbnA[1] *= faceDirection;
+    #endif
+    normal = normalize( tbnA * mapN );
+  }`);
+  f = rep(f, '#include <aomap_fragment>', `{
+    float ambientOcclusion = ( arrB.b - 1.0 ) * 0.85 + 1.0;
+    reflectedLight.indirectDiffuse *= ambientOcclusion;
+    #if defined( USE_ENVMAP ) && defined( STANDARD )
+      float dotNV = saturate( dot( geometryNormal, geometryViewDir ) );
+      reflectedLight.indirectSpecular *= computeSpecularOcclusion( dotNV, ambientOcclusion, material.roughness );
+    #endif
+  }`);
+  shader.vertexShader = v; shader.fragmentShader = f;
+}
+
+function townArrayMaterial(texA, texB) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 1 });
+  m.name = 'townArray';
+  const uniforms = { tArrA: { value: texA }, tArrB: { value: texB } };
+  // Other modules (e.g. cascaded shadows) may install their own onBeforeCompile: chain it instead
+  // of being replaced by it.
+  let extra = null;
+  const hook = function (shader, renderer) { if (extra) extra.call(this, shader, renderer); patchArrayShader(shader, uniforms); };
+  Object.defineProperty(m, 'onBeforeCompile', {
+    configurable: true,
+    get: () => hook,
+    set: (fn) => { extra = fn === hook ? null : fn; },
+  });
+  m.customProgramCacheKey = () => 'townArray1|' + (extra ? extra.toString() : '');
+  m.userData.townArray = true;
+  return m;
+}
+
 // ---------------------------------------------------------------- public API
 export function createMaterials(renderer) {
   const t0 = performance.now();
   ANISO = Math.min(8, renderer?.capabilities?.getMaxAnisotropy?.() || 4);
-
   const M = {};
-  M.cobble = material(genCobble(512, 11), { tile: 2.0, normal: 6 });        // 2 m per repeat (setts ~13 × 12–20 cm)
-  M.paving = material(genPaving(512, 23), { tile: 3.0, normal: 4 });        // 3 m (flagstones 0.6–1.3 m)
-  M.herringbone = material(genHerringbone(512, 31), { tile: 2.0, normal: 5 }); // 2 m (bricks 12.5 × 25 cm)
-  M.stone = material(genMasonry(512, 41), { tile: 3.0, normal: 4 });        // 3 m (courses 20–35 cm)
-  M.stoneTrim = material(genStoneTrim(256, 43), { tile: 1.5, normal: 2 }); // 1.5 m dressed stone
-  M.brick = material(genBrick(512, 47), { tile: 1.2, normal: 5 });          // 1.2 m (bricks 24 × 7.5 cm)
+  const layers = []; // { name, b, N, tile } in texture-array order
+  const std = (b, N, tile, o = {}) => {
+    const orm = tex(b.M, b.n, false);
+    const m = new THREE.MeshStandardMaterial({
+      map: o.colorTex || tex(b.C, b.n, true), normalMap: tex(N, b.n, false),
+      roughnessMap: orm, aoMap: orm, aoMapIntensity: 0.85, metalnessMap: o.metal ? orm : null,
+      roughness: 1, metalness: o.metal || 0, ...(o.extra || {}),
+    });
+    m.userData.tile = tile;
+    return m;
+  };
+  // Bakes a generator, registers it as a town-array layer and returns a standalone material too.
+  const layer = (name, b, tile, normal, o = {}) => {
+    releaseFields();
+    const N = normalData(b.H, b.n, normal);
+    layers.push({ name, b, N, tile, C: o.arrC || b.C });
+    return std(b, N, tile, o);
+  };
 
-  // Plaster: one shared structure (height/ORM/normal) × colour variants, 4 m per repeat. Every
-  // building also gets a random UV offset, so the stains and patches never line up between houses.
+  M.cobble = layer('cobble', genCobble(512, 11), 2.0, 6);          // 2 m per repeat (setts ~13 × 12–20 cm)
+  M.paving = layer('paving', genPaving(512, 23), 3.0, 4);          // 3 m (flagstones 0.6–1.3 m)
+  M.herringbone = layer('herringbone', genHerringbone(512, 31), 2.0, 5); // 2 m (bricks 12.5 × 25 cm)
+  M.stone = layer('stone', genMasonry(512, 41), 2.2, 4);           // 3 m (courses 20–35 cm)
+  M.stoneDark = layer('stoneDark', genMasonry(256, 45, {             // aged tower / wall stone, bigger blocks
+    rows: 9, h0: 0.08, hr: 0.07, wMin: 0.12, wMax: 0.3, round: 0.018, jitter: 0.02, streak: 1.4, soot: 0.22, lichen: 0.08,
+    pal: [[0.6, 0.55, 0.46], [0.54, 0.51, 0.45], [0.62, 0.56, 0.47], [0.52, 0.49, 0.44], [0.58, 0.51, 0.42], [0.65, 0.59, 0.5], [0.55, 0.48, 0.4]],
+    mortar: [0.52, 0.49, 0.43],
+  }), 2.6, 4.5);
+  M.stoneTrim = layer('trim', genStoneTrim(256, 43), 1.5, 2);      // 1.5 m dressed stone
+  M.marble = layer('marble', genMarble(256, 49), 1.5, 1.4);
+  M.brick = layer('brick', genBrick(512, 47), 1.2, 5);            // 1.2 m (bricks 24 × 7.5 cm)
+
+  // Plaster: one shared structure; the town array holds a neutral cream that vertex colours tint.
   const ps = genPlasterStructure(512, 101);
-  const pN = normalTex(ps.H, ps.n, 4), pO = tex(ps.M, ps.n, false);
   const plasterColours = [
-    [0.76, 0.6, 0.41],  // warm ochre
-    [0.8, 0.76, 0.66],  // cream
-    [0.78, 0.64, 0.57], // pale pink
-    [0.68, 0.46, 0.33], // burnt sienna
-    [0.8, 0.7, 0.48],   // faded yellow
-    [0.72, 0.68, 0.6],  // stone grey-beige
-    [0.74, 0.55, 0.42], // faded terracotta
+    [0.76, 0.6, 0.41], [0.8, 0.76, 0.66], [0.78, 0.64, 0.57], [0.68, 0.46, 0.33],
+    [0.8, 0.7, 0.48], [0.72, 0.68, 0.6], [0.74, 0.55, 0.42],
   ];
-  M.plaster = plasterColours.map((c, i) => material(null, {
-    tile: 4.0, colorTex: plasterColour(ps, c, 500 + i * 37), normalMap: pN, ormTex: pO,
-  }));
+  const PLASTER_NEUTRAL = [0.82, 0.77, 0.67];
+  const psB = { n: 512, H: ps.H, M: ps.M, C: plasterColour(ps, PLASTER_NEUTRAL, 511) };
+  const plasterN = normalData(ps.H, 512, 4);
+  layers.push({ name: 'plaster', b: psB, N: plasterN, tile: 4.0, C: psB.C });
+  const pN = tex(plasterN, 512, false), pO = tex(ps.M, 512, false);
+  M.plaster = plasterColours.map((c, i) => {
+    const m = new THREE.MeshStandardMaterial({
+      map: lazyTex(512, () => plasterColour(ps, c, 500 + i * 37), true), normalMap: pN,
+      roughnessMap: pO, aoMap: pO, aoMapIntensity: 0.85, roughness: 1, metalness: 0,
+    });
+    m.userData.tile = 4.0;
+    return m;
+  });
+  M.plasterColours = plasterColours; M.plasterNeutral = PLASTER_NEUTRAL;
 
-  M.roof = material(genRoof(512, 61), { tile: 1.5, normal: 7 });            // 1.5 m (8 coppi channels × 4 rows)
-  M.wood = material(genWood(256, 71), { tile: 1.0, normal: 4 });            // 1 m weathered timber, grain along u
+  M.roof = layer('roof', genRoof(512, 61), 1.5, 7);               // 1.5 m (8 coppi channels × 4 rows)
+  M.wood = layer('wood', genWood(256, 71), 1.0, 4);                // 1 m weathered timber, grain along u
 
-  // Shutters: 1 m per repeat (18 louvres).
+  // Shutters: 1 m per repeat (18 louvres). Array layer = neutral paint, tinted per window.
   const ss = genShutterStructure(256, 81);
-  const shN = normalTex(ss.H, ss.n, 2), shO = tex(ss.M, ss.n, false);
-  M.shutters = [[0.3, 0.38, 0.28], [0.4, 0.45, 0.48], [0.4, 0.29, 0.2], [0.33, 0.46, 0.44], [0.52, 0.49, 0.41]]
-    .map((c) => material(null, { tile: 1.0, colorTex: shutterColour(ss, c), normalMap: shN, ormTex: shO }));
+  const shNd = normalData(ss.H, 256, 2);
+  const SHUTTER_NEUTRAL = [0.66, 0.66, 0.63];
+  layers.push({ name: 'shutter', b: { n: 256, H: ss.H, M: ss.M }, N: shNd, tile: 1.0, C: shutterColour(ss, SHUTTER_NEUTRAL) });
+  const shN = tex(shNd, 256, false), shO = tex(ss.M, 256, false);
+  M.shutterColours = [[0.3, 0.38, 0.28], [0.4, 0.45, 0.48], [0.4, 0.29, 0.2], [0.33, 0.46, 0.44], [0.52, 0.49, 0.41]];
+  M.shutterNeutral = SHUTTER_NEUTRAL;
+  M.shutters = M.shutterColours.map((c) => {
+    const m = new THREE.MeshStandardMaterial({ map: lazyTex(256, () => shutterColour(ss, c), true), normalMap: shN, roughnessMap: shO, aoMap: shO, aoMapIntensity: 0.85, roughness: 1, metalness: 0 });
+    m.userData.tile = 1.0;
+    return m;
+  });
 
-  M.door = material(genDoor(256, 91), { tile: 1.2, normal: 5, metal: 0.01 }); // 1.2 m door leaf
-  M.iron = material(genIron(128, 93), { tile: 1.0, normal: 2, metal: 0.8 });
-  M.glass = material(genGlass(128, 95), { tile: 1.5, normal: 0.5, extra: { envMapIntensity: 1.1 } });
-  M.water = material(genWater(256, 97), { tile: 1.5, normal: 1.5, extra: { transparent: true, opacity: 0.88, envMapIntensity: 1.2 } });
-  M.metalBright = material(genMetalBright(128, 98), { tile: 1.0, normal: 1, metal: 0.85 });
-  M.plant = material(genPlant(256, 99), { tile: 0.6, normal: 5 });          // 0.6 m foliage clump
-  M.fabric = material(genFabric(256, 100), { tile: 0.5, normal: 1.5 });     // 0.5 m canvas weave
+  M.door = layer('door', genDoor(256, 91), 1.2, 5, { metal: 0.01 }); // 1.2 m door leaf
+  M.iron = layer('iron', genIron(128, 93), 1.0, 2, { metal: 0.8 });
+  M.glass = layer('glass', genGlass(128, 95), 1.5, 0.5, { extra: { envMapIntensity: 1.1 } });
+  M.metalBright = layer('metal', genMetalBright(128, 98), 1.0, 1, { metal: 0.85 });
+  M.plant = layer('plant', genPlant(256, 99), 0.6, 5);            // 0.6 m foliage clump
+  M.fabric = layer('fabric', genFabric(256, 100), 0.5, 1.5);         // 0.5 m canvas weave
+  M.grass = layer('grass', genGrass(256, 105), 1.6, 4);
+  M.gravel = layer('gravel', genGravel(256, 107), 1.5, 4);
+
+  const wb = genWater(256, 97);
+  M.water = std(wb, normalData(wb.H, 256, 1.5), 1.5, { extra: { transparent: true, opacity: 0.88, envMapIntensity: 1.2 } });
 
   // Falling water jets (thin, pale, translucent) and frosted lantern glass: plain materials.
   M.waterJet = new THREE.MeshStandardMaterial({ color: 0xcfdcdc, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.55, depthWrite: false, envMapIntensity: 1.2 });
   M.waterJet.userData.tile = 1;
   M.lampGlass = new THREE.MeshStandardMaterial({ color: 0xb9ab8c, roughness: 0.35, metalness: 0 });
   M.lampGlass.userData.tile = 1;
-
-  // Thin inset panes and water never need to cast sun shadows (saves shadow-pass work).
   for (const m of [M.glass, M.water, M.waterJet, M.lampGlass]) m.userData.noCast = true;
 
+  // Pack the town texture array.
+  const S = ARR_SIZE, px = S * S, L = layers.length;
+  const A = new Uint8Array(px * 4 * L), Bd = new Uint8Array(px * 4 * L);
+  const town = { layers: {}, count: L };
+  const A32 = new Uint32Array(A.buffer), B32 = new Uint32Array(Bd.buffer);
+  layers.forEach((e, l) => {
+    const n = e.b.n, C = new Uint32Array(upsample(e.C, n, S).buffer), Mo = new Uint32Array(upsample(e.b.M, n, S).buffer);
+    const N = new Uint32Array(upsample(e.N, n, S).buffer), o = l * px;
+    // Little-endian RGBA words: A = rgb | metal << 24, B = normal.xy | ao << 16 | rough << 24.
+    for (let j = 0; j < px; j++) {
+      const m = Mo[j];
+      A32[o + j] = (C[j] & 0xffffff) | ((m & 0xff0000) << 8);
+      B32[o + j] = (N[j] & 0xffff) | ((m & 0xffff) << 16);
+    }
+    town.layers[e.name] = { name: e.name, layer: l, tile: e.tile };
+  });
+  town.material = townArrayMaterial(arrayTex(A, L, true), arrayTex(Bd, L, false));
+  M.town = town;
+
   fieldCache.clear(); axisCache.clear(); vorCache.clear();
-  console.log(`[textures] generated in ${(performance.now() - t0).toFixed(0)} ms`);
+  console.log(`[textures] generated in ${(performance.now() - t0).toFixed(0)} ms (${L} town layers)`);
   return M;
 }
 

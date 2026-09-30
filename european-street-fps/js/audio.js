@@ -8,6 +8,8 @@ const MAX_VOICES = 12;
 const LEVEL = {
   shot: 2.4, empty: 1.6, reload: 0.55, hitRobot: 1.8, hitWorld: 1.6, robotShot: 1.4, robotHurt: 1.8, robotDie: 0.6,
   robotAlert: 1.6, playerHurt: 1.5, step: 2.2, win: 1, lose: 1, uiClick: 2.5, servo: 6,
+  pickupAmmo: 1.6, pickupHealth: 1.2, mapOpen: 1.4, mapClose: 1.2, whoosh: 1.1, discover: 1, objective: 1,
+  tankGun: 2.2, explosion: 2.0, explosionBig: 2.2, heliCannon: 1.6, rocket: 1.6, mg: 1.8, vehicleEnter: 1.4,
 };
 
 export class GameAudio {
@@ -98,6 +100,62 @@ export class GameAudio {
       const api = new VoiceAPI(this, voice, now, rate);
       fn(api);
       this.voices.push(voice);
+    } catch { /* never let audio break the game */ }
+  }
+
+  /** Tank engine loop: level 0 (silent) … 1 (full throttle). Built lazily, never throws. */
+  setEngine(level) {
+    const c = this.ctx;
+    if (!c || !this.master) return;
+    try {
+      level = Math.max(0, Math.min(1, level));
+      if (!this._engine) {
+        if (level < 0.01) return;
+        const src = c.createBufferSource(); src.buffer = this.brown; src.loop = true;
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 180;
+        const hum = c.createOscillator(); hum.type = 'sawtooth'; hum.frequency.value = 38;
+        const hg = c.createGain(); hg.gain.value = 0.05;
+        const hl = c.createBiquadFilter(); hl.type = 'lowpass'; hl.frequency.value = 260;
+        const out = c.createGain(); out.gain.value = 0;
+        src.connect(lp).connect(out); hum.connect(hg).connect(hl).connect(out); out.connect(this.master);
+        src.start(); hum.start();
+        this._engine = { out, hum, lp };
+      }
+      const e = this._engine, t = c.currentTime;
+      e.out.gain.setTargetAtTime(level > 0.01 ? 0.35 + level * 0.5 : 0, t, 0.2);
+      e.hum.frequency.setTargetAtTime(34 + level * 36, t, 0.3);
+      e.lp.frequency.setTargetAtTime(150 + level * 260, t, 0.3);
+    } catch { /* never let audio break the game */ }
+  }
+
+  /** Helicopter rotor loop: level 0 (silent) … 1 (full power). Built lazily, never throws. */
+  setRotor(level) {
+    const c = this.ctx;
+    if (!c || !this.master) return;
+    try {
+      level = Math.max(0, Math.min(1, level));
+      if (!this._rotor) {
+        if (level < 0.01) return;
+        const src = c.createBufferSource(); src.buffer = this.brown; src.loop = true;
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520; lp.Q.value = 0.9;
+        const chop = c.createGain(); chop.gain.value = 0.55;             // blade-slap amplitude modulation
+        const lfo = c.createOscillator(); lfo.type = 'triangle'; lfo.frequency.value = 3;
+        const depth = c.createGain(); depth.gain.value = 0.45;
+        lfo.connect(depth).connect(chop.gain);
+        const whine = c.createOscillator(); whine.type = 'sawtooth'; whine.frequency.value = 180;
+        const wg = c.createGain(); wg.gain.value = 0.012;
+        const out = c.createGain(); out.gain.value = 0;
+        src.connect(lp).connect(chop).connect(out);
+        whine.connect(wg).connect(out);
+        out.connect(this.master);
+        src.start(); lfo.start(); whine.start();
+        this._rotor = { out, lfo, whine, lp };
+      }
+      const r = this._rotor, t = c.currentTime;
+      r.out.gain.setTargetAtTime(level * 0.9, t, 0.15);
+      r.lfo.frequency.setTargetAtTime(2 + level * 16, t, 0.3);
+      r.whine.frequency.setTargetAtTime(90 + level * 260, t, 0.3);
+      r.lp.frequency.setTargetAtTime(300 + level * 500, t, 0.3);
     } catch { /* never let audio break the game */ }
   }
 
@@ -255,6 +313,56 @@ const SOUNDS = {
     s.tone(0.02, 0.35, { f0: 3100, gain: 0.025, a: 0.03 });                     // faint ringing
   },
   // Boot on stone paving: gritty scuff + dull heel knock.
+  // Tank main gun: deep boom, sharp crack, long rolling tail with echo.
+  tankGun(s) {
+    s.send(0.9);
+    const grit = s.shaper(s.gain(0.8));
+    s.noise(0, 0.02, { type: 'highpass', freq: 1800, gain: 1.0, dest: grit });
+    s.noise(0, 0.25, { type: 'lowpass', freq: 900, gain: 1.4, brown: true });
+    s.tone(0, 0.45, { f0: 90, f1: 28, gain: 1.2, glide: 0.4 });
+    s.noise(0.05, 1.4, { type: 'lowpass', freq: 300, gain: 0.7, brown: true, a: 0.05 });
+  },
+  // Explosion: thump, crackle of debris, rumble.
+  explosion(s) {
+    s.send(0.8);
+    s.tone(0, 0.5, { f0: 70, f1: 24, gain: 1.1, glide: 0.45 });
+    s.noise(0, 0.35, { type: 'lowpass', freq: 1200, gain: 1.2, brown: true });
+    for (let i = 0; i < 6; i++) s.noise(0.05 + i * r(0.03, 0.08), 0.03, { type: 'bandpass', freq: r(1500, 3500), q: 1, gain: r(0.15, 0.35) });
+    s.noise(0.1, 1.6, { type: 'lowpass', freq: 260, gain: 0.6, brown: true, a: 0.08 });
+  },
+  explosionBig(s) {
+    s.send(1);
+    s.tone(0, 0.7, { f0: 55, f1: 20, gain: 1.3, glide: 0.6 });
+    s.noise(0, 0.5, { type: 'lowpass', freq: 1000, gain: 1.4, brown: true });
+    for (let i = 0; i < 9; i++) s.noise(0.06 + i * r(0.04, 0.1), 0.04, { type: 'bandpass', freq: r(1200, 3000), q: 1, gain: r(0.15, 0.35) });
+    s.noise(0.15, 2.4, { type: 'lowpass', freq: 220, gain: 0.7, brown: true, a: 0.1 });
+  },
+  // Helicopter chin cannon: short heavy thud-crack.
+  heliCannon(s) {
+    s.send(0.3);
+    s.noise(0, 0.012, { type: 'highpass', freq: 2200, gain: 0.8 });
+    s.noise(0, 0.08, { type: 'bandpass', freq: 700, q: 0.8, gain: 1.0 });
+    s.tone(0, 0.09, { f0: 130, f1: 50, gain: 0.7 });
+  },
+  // Rocket launch: whoosh with a rising hiss.
+  rocket(s) {
+    s.send(0.4);
+    s.noise(0, 0.05, { type: 'lowpass', freq: 800, gain: 0.9, brown: true });
+    s.noise(0, 0.7, { type: 'bandpass', freq: 900, q: 0.7, gain: 0.7, sweepTo: 2600, a: 0.02 });
+  },
+  // Coaxial machine gun: fast light crack.
+  mg(s) {
+    s.send(0.3);
+    s.noise(0, 0.01, { type: 'highpass', freq: 2800, gain: 0.8 });
+    s.noise(0, 0.05, { type: 'bandpass', freq: 1500, q: 0.8, gain: 0.8 });
+    s.tone(0, 0.05, { f0: 170, f1: 70, gain: 0.4 });
+  },
+  // Hatch / door and an engine catching.
+  vehicleEnter(s) {
+    s.noise(0, 0.04, { type: 'bandpass', freq: 1400, q: 1.5, gain: 0.6 });
+    s.tone(0.02, 0.08, { type: 'triangle', f0: 380, f1: 240, gain: 0.25 });
+    s.noise(0.25, 0.6, { type: 'lowpass', freq: 220, gain: 0.5, brown: true, a: 0.15 });
+  },
   step(s) {
     s.noise(0, 0.035, { type: 'bandpass', freq: r(500, 800), q: 1.1, gain: 0.8 });
     s.tone(0, 0.05, { f0: r(70, 90), f1: 50, gain: 0.35 });
@@ -274,5 +382,44 @@ const SOUNDS = {
   uiClick(s) {
     s.tone(0, 0.03, { f0: 1500, gain: 0.18 });
     s.noise(0, 0.008, { type: 'bandpass', freq: 3000, q: 1, gain: 0.2 });
+  },
+  // Ammo crate: latch clack, rounds rattling into the pouch, lid thump.
+  pickupAmmo(s) {
+    s.noise(0, 0.012, { type: 'bandpass', freq: 2800, q: 2, gain: 0.6 });
+    for (let i = 0; i < 4; i++) s.noise(0.06 + i * r(0.03, 0.05), 0.02, { type: 'bandpass', freq: r(3200, 4600), q: 3, gain: r(0.2, 0.35) });
+    s.tone(0.05, 0.08, { type: 'triangle', f0: 1900, f1: 1500, gain: 0.05 });
+    s.noise(0.26, 0.06, { type: 'lowpass', freq: 700, gain: 0.35, brown: true });
+  },
+  // Medkit: velcro rip + a soft two-note chime (warm, not arcade).
+  pickupHealth(s) {
+    s.noise(0, 0.12, { type: 'bandpass', freq: 2200, q: 0.8, gain: 0.25, sweepTo: 3600 });
+    s.tone(0.1, 0.5, { type: 'sine', f0: 659.25, gain: 0.12, a: 0.01 });
+    s.tone(0.2, 0.7, { type: 'sine', f0: 987.77, gain: 0.1, a: 0.01 });
+  },
+  // Paper map unfolding / folding.
+  mapOpen(s) {
+    s.noise(0, 0.16, { type: 'bandpass', freq: 2400, q: 0.7, gain: 0.35, a: 0.02, sweepTo: 1500 });
+    s.noise(0.12, 0.1, { type: 'bandpass', freq: 3200, q: 0.9, gain: 0.25, a: 0.01 });
+  },
+  mapClose(s) {
+    s.noise(0, 0.12, { type: 'bandpass', freq: 1800, q: 0.7, gain: 0.3, a: 0.02, sweepTo: 2600 });
+  },
+  // Quick climb / transition: filtered air rush.
+  whoosh(s) {
+    s.noise(0, 0.45, { type: 'bandpass', freq: 500, q: 0.6, gain: 0.45, a: 0.15, sweepTo: 1600 });
+    s.noise(0.05, 0.4, { type: 'lowpass', freq: 400, gain: 0.3, brown: true, a: 0.12 });
+  },
+  // Viewpoint reached: gentle open fifth with wind.
+  discover(s) {
+    s.send(0.35);
+    s.tone(0, 1.4, { type: 'sine', f0: 392, gain: 0.1, a: 0.08 });
+    s.tone(0.12, 1.3, { type: 'sine', f0: 587.33, gain: 0.08, a: 0.08 });
+    s.tone(0.24, 1.2, { type: 'triangle', f0: 783.99, gain: 0.05, a: 0.06 });
+    s.noise(0, 1.2, { type: 'bandpass', freq: 700, q: 0.5, gain: 0.08, a: 0.3 });
+  },
+  // Squad area cleared.
+  objective(s) {
+    s.send(0.3);
+    [523.25, 783.99].forEach((f, i) => s.tone(i * 0.11, 0.6, { type: 'triangle', f0: f, gain: 0.13, a: 0.01 }));
   },
 };

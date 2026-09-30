@@ -1,195 +1,169 @@
-# Module contract — San Gimignano Streets FPS
+# Module contract v2 — San Gimignano, semi-open world
 
-Setting: **San Gimignano** (Tuscany, Italy), a small medieval hill town, on a clear summer
-afternoon. The game is an artistic impression, not a survey-accurate reconstruction: plastered
-walls with age stains, terracotta roofs, wooden shutters, wrought-iron balconies, stone arches,
-a cobbled piazza with a fountain, narrow alleys, and the town's signature tall stone tower
-houses (torri) on the skyline.
+The game grows from one walled town into a **semi-open world of 1.4 km × 1.4 km**: an expanded,
+more refined San Gimignano on a hilltop plateau, surrounded by Tuscan countryside (rolling hills,
+white gravel roads, cypress avenues, vineyards, olive groves, wheat fields, a river and a lake) with
+countryside landmarks (Romanesque parish church, hilltop fortress, abbey, villa with garden, mill and
+stone bridge, farmhouses, chapel, watchtower, travertine quarry). Robots are spread over the world;
+the player can climb viewpoints (towers) to look down on the town, open a map, and pick a difficulty.
 
-Hard art rules (from the brief): bright natural daylight, visible contact shadows, material
-roughness. **Forbidden:** neon, strong emissive glow, dense fog, heavy depth-of-field, anything
-that hides the geometry. Enemies are non-bloody training robots (sparks / dust / plastic
-chips only, no blood). Target: smartphones first (touch), desktop also works.
+Target: "AAA-looking" town, map, systems and graphics — while staying playable on a mid-range phone.
 
-Everything is plain ES modules, no build step. `three` is imported through the import map in
-`index.html` (`import * as THREE from 'three'`, addons via `three/addons/...`, vendored in
-`vendor/`). No network requests to CDNs, no external assets: every texture and sound is generated
-in code.
+## Hard rules (from the brief)
+- Bright natural daylight, contact shading, material roughness, beautiful and believable.
+- **Forbidden:** neon, strong emissive glow, dense fog, heavy depth of field hiding the modelling.
+  (Distance haze for aerial perspective at the kilometre scale is fine; bloom only very subtle.)
+- Non-bloody training robots (sparks, chips, no blood).
+- Phones first: touch controls, legible Japanese UI, performance budgets below.
+- Everything procedural, no external assets, no network requests except the vendored three.js in
+  `vendor/` (import map: `three`, `three/addons/...` → `vendor/addons/...`; postprocessing, shaders,
+  csm, objects, math, lights, environments, utils and geometries addons are vendored).
+- Edit only the files you own (table below). Need something from another module? Put it in your
+  final report; do not edit their file. `layout.js` is read-only for everyone except the integrator.
 
-## Coordinate system and scale
-- Y up, 1 unit = 1 metre. Ground is flat at **y = 0** everywhere the player can walk
-  (low props like steps, fountain rims and benches may be stood on — see physics).
-- The playable town fits inside x,z ∈ [-60, 60]. The piazza is centred on the origin.
-- Player: feet position `pos`, radius 0.35, height 1.75, eye height 1.62.
+## Coordinates and the map (`js/layout.js`)
+- Y up, metres. Map x,z ∈ [-700, 700]; the player is clamped to ±680.
+- **Town**: `TOWN.rect = [-120, 120, -150, 150]` (outer face of the walls), flat plateau at y = 0.
+  Four gates at the wall centres (N z=-150, S z=150, E x=120, W x=-120), openings ≥ 5 m wide.
+- **Sites** (`SITES`): countryside landmarks with a flat pad at elevation `y`, radius `r`.
+- **Roads** (`ROADS`): polylines starting at the gates. **Lake** (`LAKE`), **River** (`RIVER`,
+  points are `[x, z, bedY]`). The south road crosses the river at the mill site.
+- Player start `PLAYER_START` inside the south gate, looking north.
 
 ## Files and owners
-| File | Owner | Purpose |
-|---|---|---|
-| `index.html`, `js/main.js`, `js/physics.js` | integrator | bootstrap, renderer, sky, lights, game loop, player movement, hitscan |
-| `js/textures.js` | textures agent | procedural PBR materials |
-| `js/city.js` | city agent | town geometry, colliders, spawn points |
-| `js/weapon.js`, `js/audio.js` | weapon agent | first-person gun + arms, recoil, effects, all sound |
-| `js/enemies.js` | enemy agent | training robots: model, AI, attack, hit reaction |
-| `js/input.js`, `js/ui.js`, `css/style.css` | UI agent | touch + keyboard/mouse input, HUD, menus |
+| File(s) | Owner |
+|---|---|
+| `js/main.js`, `js/physics.js`, `js/world.js`, `js/layout.js`, `js/difficulty.js`, `index.html` | integrator (systems agent may edit `main.js` — see below) |
+| `js/render.js` (+ new `js/render-*.js`) | **graphics agent** |
+| `js/terrain.js` (+ new `js/terrain-*.js`) | **terrain agent** |
+| `js/city.js`, `js/city-geo.js`, `js/textures.js` (+ new `js/city-*.js`) | **town agent** |
+| `js/landmarks.js` (+ new `js/landmarks-*.js`) | **landmarks agent** |
+| `js/enemies.js` (+ new `js/enemies-*.js`) | **enemy agent** |
+| `js/main.js` (game logic), `js/ui.js`, `js/input.js`, `css/style.css`, new `js/map.js`, `js/viewpoints.js`, `js/pickups.js`, `js/settings.js` | **systems agent** |
+| `js/weapon.js` (+ new `js/weapon-*.js`) | **weapon agent** (hands/grip, aim down sights, lean) |
+| `js/audio.js` | systems agent (add sounds if needed) |
 
-Do not edit files you do not own. If you need a contract change, write it in your final report.
+## Performance budget
+Quality presets `low | medium | high` (phones default `medium`, desktop `high`, `?q=low` forces low).
+- medium, any view, all passes: ≤ 700k triangles, ≤ 400 draw calls (incl. shadow pass), 60 fps
+  target on a recent phone at pixel ratio ≤ 1.5. high: ≤ 2M triangles.
+- **Everything big must be chunked** (e.g. 40–100 m cells) so frustum culling works, and must hide
+  fine detail with distance: each module exposes `update(dt, camera)` and toggles detail/LOD meshes
+  there (cheap: compare squared distances, no allocation per frame).
+- Load time (desktop): whole world ≤ 5 s including textures; show nothing heavy per frame at boot.
+- Shadow casters: only what matters (buildings, trees near the player). Distant vegetation: no shadows.
 
-## Performance budget (mid-range phone)
-- ≤ 250 draw calls for the whole frame, ≤ 450k triangles in view. Merge static geometry per
-  material (`mergeGeometries` from `three/addons/utils/BufferGeometryUtils.js`) and/or use
-  `InstancedMesh` for repeated parts.
-- Canvas textures ≤ 1024², most at 512². Generate once at load (< 1.5 s total on desktop).
-- One shadow-casting directional light (owned by main). Static meshes: `castShadow`/`receiveShadow`
-  set appropriately and `matrixAutoUpdate = false`.
-
----
-
-## `textures.js`
+## world.js (integrator) — what the game sees
 ```js
-export function createMaterials(renderer) // -> Materials
-```
-Returns an object of `THREE.MeshStandardMaterial` (all with `map`, `roughnessMap`, `normalMap`
-where sensible; `metalness` 0 except iron). Every material has `userData.tile` = metres covered by
-one texture repeat, so geometry UVs must be in **metres / tile** (city computes UVs in world metres
-and divides by `userData.tile`). Textures use `RepeatWrapping`, colour maps are `SRGBColorSpace`,
-anisotropy = `renderer.capabilities.getMaxAnisotropy()` capped at 8.
-
-Required keys:
-- `cobble` – rounded cobblestones with mortar gaps (streets)
-- `paving` – larger flagstones for the piazza
-- `plaster` – **array of ≥ 5** aged plaster variants (ochre, cream, pale pink, sienna, faded
-  yellow…), with stains, water streaks, patches where bricks show through
-- `stone` – dressed limestone for trims, arches, sills, cornices, fountain
-- `brick` – old exposed brick
-- `roof` – terracotta tile rows (UV u along the eave, v up the slope; 1 tile = one texture repeat)
-- `wood` – painted wooden shutter slats; provide `shutters` = **array of ≥ 4** colours (green,
-  blue-grey, brown, faded teal)
-- `door` – dark stained wood planks
-- `iron` – dark wrought iron (metalness ~0.6, rough)
-- `glass` – dark window glass with slight reflection (low roughness, no transparency needed)
-- `water` – fountain water (bluish, low roughness; may be `transparent` with opacity ~0.85)
-- `metalBright` – light grey metal (for props)
-- `plant` – leaf green for pots / climbing plants (vertexColors allowed)
-Any extra keys are welcome.
-
-## `city.js`
-```js
-export function buildCity(scene, materials) // -> City
-```
-Adds all static meshes to `scene` and returns:
-```js
-{
-  colliders: THREE.Box3[],      // axis-aligned boxes for everything solid (walls, fountain,
-                                // benches, arch pillars, arch tops at their real height...)
-  playerSpawn: THREE.Vector3,   // feet position, y = 0
-  playerYaw: number,            // radians, yaw 0 looks toward -Z
-  enemySpawns: THREE.Vector3[], // ≥ 5 feet positions, spread over the town, ≥ 15 m from player
-  navPoints: THREE.Vector3[],   // ≥ 20 walkable waypoints (streets, piazza, alleys) for patrols
-  bounds: { minX, maxX, minZ, maxZ } // walkable limits (outer walls must also be colliders)
+buildWorld(scene, materials, { renderer, camera }) -> {
+  heightAt(x, z)        // terrain height (below the town it is TOWN.y - 0.25)
+  groundAt(x, z)        // walkable ground (terrain, or TOWN.y inside the walls)
+  colliders: Box3[]     // all solid boxes (town + terrain props + landmarks)
+  navPoints: Vector3[]  // feet positions for enemy navigation
+  enemySites: [{ id, name, x, y, z, r, spawns: Vector3[] }]   // where robot squads live
+  viewpoints: [{ id, name, base: Vector3, top: Vector3, yaw }] // climbable lookout points
+  markers: [{ id, name, type, x, z }]                          // map labels
+  playerSpawn: Vector3, playerYaw, bounds: { minX, maxX, minZ, maxZ },
+  parts: { terrain, city, landmarks }, update(dt, camera)
 }
 ```
-The whole outer boundary must be closed by buildings/walls (no gaps to the void). Beyond the
-boundary, add cheap backdrop (distant roofs, hills, cypress trees, a bell tower) so the horizon
-is not empty.
+`Physics(colliders, groundAt)`: `moveCircle`, `groundHeight` (terrain + boxes you can step on),
+`raycast` (boxes + terrain), `lineOfSight`.
 
-## `physics.js` (integrator — available to everyone)
+## terrain.js — terrain agent
 ```js
-export class Physics {
-  constructor(colliders /* Box3[] */)
-  moveCircle(pos, delta, radius, height) // mutates pos (feet); slides along walls, steps up ≤ 0.45 m
-  groundHeight(x, z, radius, feetY)      // highest walkable surface under the circle
-  raycast(origin, dir /* normalized */, maxDist) // -> { point, normal, distance } | null
-  lineOfSight(a, b)                      // true if nothing blocks the segment a→b
+createTerrain(scene, { materials, renderer, camera }) -> {
+  heightAt(x, z),                 // fast (called thousands of times per frame by physics/AI)
+  colliders: Box3[],              // e.g. dry-stone walls, big rocks, hay bales, tree trunks near roads
+  navPoints: Vector3[],           // along every road (≤ 10 m apart) + open walkable ground grid
+  meshes: Object3D[],
+  update(dt, camera)              // LOD, vegetation streaming/culling, grass around the camera, water animation
 }
 ```
+Honour `layout.js`: flat plateau under the town at TOWN.y − 0.25 out to `plateauMargin`, then a
+natural hillside; every site pad flat at `site.y` within `site.r`; lake basin with water at `LAKE.y`;
+river channel following `RIVER`; roads graded (max ~12 % slope) and surfaced (white gravel). Build
+the countryside: rolling hills, vineyards (rows), olive groves, cypress avenues along some roads and
+around sites, wheat/ fallow fields in patchwork, woods on far hills, dry-stone walls, hay bales, rocks,
+near-player grass with wind. Own materials in `js/terrain-*.js`; you may read `textures.js` materials.
 
-## `audio.js`
+## city.js — town agent
 ```js
-export class GameAudio {
-  constructor()
-  resume()                       // call from a user gesture
-  play(name, { volume = 1, pan = 0, rate = 1 } = {})
-  setMuted(bool)
+buildCity(scene, materials, { backdrop: false, heightAt }) -> {
+  colliders, navPoints,
+  enemySites: [...],              // 4–6 squad locations inside the walls (piazze, streets)
+  viewpoints: [...],              // at least the tallest civic tower (Torre Grossa-like) with a walkable top
+  markers: [...],                 // piazze, duomo, towers, rocca, gates…
+  playerSpawn, playerYaw,         // may be ignored (world uses PLAYER_START)
+  update(dt, camera)              // detail LOD per chunk
 }
 ```
-Names: `shot`, `empty`, `reload`, `hitRobot`, `hitWorld`, `robotShot`, `robotHurt`, `robotDie`,
-`robotAlert`, `playerHurt`, `step`, `win`, `lose`, `uiClick`. All synthesised with Web Audio.
+Fill the whole `TOWN.rect` (walls included) with a flat paved/cobbled town at y = 0: city walls with
+the four gates (open, walk-through), a denser and more varied fabric (palazzi, houses, shops, 12–15
+stone tower houses, duomo/collegiata with piazza and stairs, other churches with façades and
+campanili, convent/cloister, loggia, the rocca with a garden at a high corner, wells, fountains,
+steps, arches, alleys, gardens). Extend walls/foundations below y = 0 (to −30 m) where the hill drops
+outside. Remove the old backdrop (the terrain replaces it). Keep the existing façade quality and push it further.
 
-## `weapon.js`
+## landmarks.js — landmarks agent
 ```js
-export class Weapon {
-  constructor({ renderer, audio })
-  viewScene; viewCamera           // rendered on top of the world after renderer.clearDepth()
-  magSize; ammo; reserve; isReloading
-  currentSpread                   // radians, current bloom (main draws the crosshair from it)
-  reset()
-  update(dt, { moving, speed01, grounded, lookDX, lookDY }) // bob, sway, recoil recovery, reload anim
-  tryFire() // -> null or { pitchKick, yawKick, spread } ; handles ammo, fire rate, muzzle flash, sound
-  reload()  // starts reload if possible
-  getMuzzleWorld(camera, target /*Vector3*/) // approx. muzzle position in world space for tracers
-  spawnImpact(scene, point, normal, kind /* 'world' | 'robot' */)
-  spawnTracer(scene, from, to)
-  updateEffects(dt)               // world-space effects (impacts, decals, tracers)
-  resize(aspect)
+buildLandmarks(scene, materials, { heightAt }) -> { colliders, navPoints, enemySites, viewpoints, markers, update(dt, camera) }
+```
+One detailed landmark per `SITES` entry built on its pad (`site.y`): Romanesque pieve with campanile
+and cemetery, hilltop rocca (walls, keep = viewpoint), abbey with cloister and church, villa with
+formal Italian garden and cypress avenue, watermill + multi-arch stone bridge carrying the south road
+over the river, farmhouse clusters (podere with barn, dovecote tower, haystacks), hilltop chapel,
+watchtower (viewpoint), travertine quarry (terraced cuts, blocks, crane). Each site gets an
+enemySite with ≥ 4 spawns and nav points. Build so it looks good from 500 m away (silhouettes) and
+up close. Reuse `materials` from textures.js; add own materials in `js/landmarks-*.js` if needed.
+
+## render.js — graphics agent
+```js
+createGraphics(canvas, { isTouch, params }) -> {
+  renderer, scene, camera, sun, sunDir,
+  quality, setQuality('low'|'medium'|'high'), onResize(cb), resize(),
+  updateSun(focus), update(dt, { adaptive }), render(viewScene?, viewCamera?), compile(extra) -> Promise
 }
 ```
-Semi-auto carbine feel: fire interval 0.11 s while held, mag 24, reserve 96, reload 1.6 s,
-auto-reload when empty and fire held. Viewmodel: gun plus two arms (sleeves + gloves), lit by its
-own lights in `viewScene` matching the daylight. Muzzle flash: tiny, ~50 ms, warm, not neon.
+Beautiful daytime Tuscany: physically based sky with soft clouds, sun, image-based light from the
+sky, cascaded or otherwise large-world shadows (crisp near, stable), aerial perspective haze by
+distance/height (light!), post-processing chain per quality (AO on high, anti-aliasing, very subtle
+bloom, warm colour grade, gentle vignette), correct handling of the first-person viewmodel pass.
 
-## `enemies.js`
+## enemies.js — enemy agent
 ```js
-export class EnemyManager {
-  constructor({ scene, physics, audio, spawns, navPoints })
-  total; remaining
-  reset()                          // (re)spawn 5 robots at spawns
-  update(dt, ctx)                  // ctx: { playerPos /*feet*/, playerEye, playerAlive, onPlayerHit(damage, fromPos) }
-  raycast(origin, dir, maxDist)    // -> { enemy, point, normal, distance, part: 'head'|'body' } | null
-  damage(hit, amount)              // -> { killed: boolean }  (head = 2x handled by caller: amount already scaled)
-}
+new EnemyManager({ scene, physics, audio, world, difficulty })   // world: see world.js above
+reset(difficultyPreset)            // (re)spawn all squads for this difficulty (js/difficulty.js)
+total, remaining
+update(dt, ctx)                    // ctx: { playerPos, playerEye, playerAlive, onPlayerHit(damage, fromPos), camera }
+raycast(origin, dir, maxDist), damage(hit, amount)
+getMapMarkers() -> [{ x, z, alive, siteId, alerted }]   // for map/minimap
 ```
-Robots: 100 HP, body shot 25, head 50. States: patrol → alert (sees player) → chase / strafe →
-shoot (needs line of sight, uses `physics.lineOfSight`). Damage to the player ~8 per hit with
-distance-based accuracy so a careful player can win. They must collide with the town via
-`physics.moveCircle`. Visible hit reaction (flinch, sparks, brief white flash), death = collapse
-and power-down (no blood).
+Squads per `world.enemySites` (count scaled by difficulty; ~20 robots on normal), 2–3 robot types
+(standard trooper, heavy with more HP, a light fast scout), simulation LOD (far squads sleep / tick
+slowly, no LOS checks beyond ~120 m, animation skipped when off-screen or far).
 
-## `input.js`
-```js
-export class Input {
-  constructor(canvas, { isTouch })
-  enabled                          // false while menus are open
-  move                             // { x, y } strafe/forward in [-1,1]
-  sprint                           // bool
-  fireHeld                         // bool
-  consumeLook()                    // -> { dx, dy } radians since last call (yaw right +, pitch up +)
-  consumeReload(); consumeJump()   // -> bool (edge-triggered)
-  lockPointer()                    // desktop: request pointer lock (call from a user gesture)
-  reset()
-}
-```
-Touch layout: left half = floating virtual joystick, right half = drag to look, big FIRE button
-(bottom right, also allows dragging to look while held), RELOAD and JUMP buttons. Must handle
-multi-touch, ignore the browser's default gestures (no scroll, zoom, text select). Desktop: WASD,
-mouse look with pointer lock, left click fire, R reload, Space jump, Shift sprint.
+## Systems (game logic, UI, map) — systems agent
+Difficulty selection on the start screen and in settings; settings menu (difficulty, graphics quality
+→ `gfx.setQuality`, look sensitivity); HP regen per difficulty; objectives HUD (robots remaining,
+nearest site); **full-screen map** (top-down render of the actual world made once at load, with
+markers, player arrow, robot squads, viewpoints) and a **minimap**/compass; **viewpoints**: walk to a
+viewpoint base, a 「登る」 button appears, the player is taken to the top (short camera move), can look
+around/shoot and 「降りる」; **俯瞰モード** (overview/drone camera in the pause menu: orbit & zoom over the
+town/world with touch drag/pinch or mouse); supply pickups (ammo/health) at sites; a cinematic menu
+flyover over the town. Keep the existing weapon/HUD quality.
 
-## `ui.js`
-```js
-export class UI {
-  constructor(root /* #ui element */, { isTouch })
-  showStart(onStart)               // title + instructions (touch or desktop variant), start button
-  showPause(onResume)
-  showWin(stats, onRestart)        // stats: { time, accuracy, hpLeft }
-  showLose(stats, onRestart)
-  hideOverlays()
-  setHUDVisible(bool)
-  setHP(hp, max); setAmmo(mag, reserve, reloading); setEnemies(remaining, total)
-  hitMarker(killed)
-  damageIndicator(angle)           // angle of attacker relative to view, radians (0 = in front)
-  setCrosshairSpread(px)
-  toast(text)
-}
-```
-The touch-control DOM (joystick, buttons) is created by `input.js` inside `#touch`; `ui.js`
-owns `#ui` (HUD + overlays). Text must stay readable (dark translucent panels behind light text,
-contrast ≥ 4.5:1). Japanese UI text.
+## Aim down sights and lean
+- Input (systems): right mouse / touch AIM toggle → `input.aim`; Q/E / touch peek buttons → `input.lean` (-1/0/1).
+- main.js (systems): FOV zoom toward `weapon.aimFov`, slower movement and look while aiming, camera lean
+  (~0.45 m sideways, ~12° roll, collision-checked), hitscan from the camera, `ctx.playerEye` = camera position.
+- weapon.js (weapon agent): `update(dt, { moving, speed01, grounded, lookDX, lookDY, aim, lean })`,
+  sights aligned at screen centre at aim = 1, `currentSpread` smaller when aiming, `aimFov`.
+- Difficulty: `DIFFICULTY_ORDER` (story, easy, normal, hard, expert) + `makeCustomDifficulty()` for カスタム.
+
+## Testing
+`node tools/shot.mjs <out.png> --port <yours> --wait 12000 --query "autostart" --eval "<js>" [--mobile] [--raw]`
+loads `?q=low`, freezes the loop, runs the eval, renders one frame (skip with `--raw` if your eval
+already rendered, e.g. an overhead view via `__game.gfx.render()`), screenshots. Headless GL is
+software (seconds per frame). `window.__game` exposes scene, camera, player, enemies, weapon, world,
+physics, renderer, gfx, input, ui, audio, step(n, dt, draw), freeze(v).

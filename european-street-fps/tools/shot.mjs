@@ -48,7 +48,8 @@ if (evalJs) {
   const r = await page.evaluate(evalJs);
   if (r !== undefined) console.log('eval:', JSON.stringify(r));
 }
-await page.evaluate(() => window.__game?.step(1, 1 / 60));
+// --raw: keep whatever the eval rendered (e.g. an overhead view drawn with gfx.render()).
+if (!args.includes('--raw')) await page.evaluate(() => window.__game?.step(1, 1 / 60));
 await page.waitForTimeout(300);
 await page.screenshot({ path: out, timeout: 120000 });
 console.log(logs.join('\n'));
