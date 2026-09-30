@@ -14,7 +14,7 @@ import { createKit, makeFace } from './city-kit.js';
 import { createBuilders } from './city-buildings.js';
 import { createMonuments } from './city-monuments.js';
 import { createProps } from './city-props.js';
-import { buildGrid, makeLots, SPACES, MON, TOWERS, PASSAGES, ALLEY_ARCHES, GROUND_KINDS, GW, WALK, COURT, TX0, TX1, TZ0, TZ1 } from './city-plan.js';
+import { buildGrid, makeLots, insetLots, SPACES, MON, TOWERS, PASSAGES, ALLEY_ARCHES, GROUND_KINDS, GW, WALK, COURT, TX0, TX1, TZ0, TZ1 } from './city-plan.js';
 
 let DETAIL_DIST = 90, FAR_DIST = 190;
 
@@ -24,6 +24,7 @@ export function buildCity(scene, M, opts = {}) {
   const rr = (a, b) => a + (b - a) * R();
   const grid = buildGrid();
   const lots = makeLots(grid, R);
+  insetLots(grid, lots, R);
   const NX = 6, NZ = 8, GX0 = TX0 - 8, GZ0 = TZ0 - 8;
   const geo = new Geo(M.town, { x0: GX0, z0: GZ0, cw: (TX1 - TX0 + 16) / NX, ch: (TZ1 - TZ0 + 16) / NZ, nx: NX, nz: NZ });
   const colliders = [];

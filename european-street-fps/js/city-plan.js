@@ -255,3 +255,39 @@ export function makeLots(g, R) {
   }
   return lots;
 }
+
+// Medieval street fronts are never straight: set some façades back from the street line by
+// 0.3–0.9 m (the strip becomes part of the street, with the street's paving).
+export function insetLots(g, lots, R) {
+  const probe = (x, z) => { const i = g.ix(x), j = g.iz(z); return i < 0 || j < 0 || i >= GW || j >= GH ? -1 : j * GW + i; };
+  for (const l of lots) {
+    if (R() > 0.4) continue;
+    const w = l.x1 - l.x0, d = l.z1 - l.z0;
+    const sides = [];
+    // [dir, outward probe fn]
+    const test = (dir) => {
+      let n = 0, k = 0, kind = 0;
+      const L = dir === 'N' || dir === 'S' ? w : d;
+      for (let t = 0.25; t < L; t += 0.5) {
+        k++;
+        const x = dir === 'N' || dir === 'S' ? l.x0 + t : dir === 'W' ? l.x0 - 0.25 : l.x1 + 0.25;
+        const z = dir === 'W' || dir === 'E' ? l.z0 + t : dir === 'N' ? l.z0 - 0.25 : l.z1 + 0.25;
+        const c = probe(x, z);
+        if (c >= 0 && g.a[c] === WALK) { n++; kind = g.k[c]; }
+      }
+      return n === k && k > 0 ? kind : -1;
+    };
+    for (const dir of ['N', 'S', 'W', 'E']) { const kd = test(dir); if (kd >= 0) sides.push([dir, kd]); }
+    if (!sides.length) continue;
+    const [dir, kd] = sides[Math.floor(R() * sides.length)];
+    const depth = dir === 'N' || dir === 'S' ? d : w;
+    if (depth < 9) continue;
+    const s = [0.5, 0.5, 1.0][Math.floor(R() * 3)];
+    let strip;
+    if (dir === 'N') { strip = [l.x0, l.x1, l.z0, l.z0 + s]; l.z0 += s; }
+    else if (dir === 'S') { strip = [l.x0, l.x1, l.z1 - s, l.z1]; l.z1 -= s; }
+    else if (dir === 'W') { strip = [l.x0, l.x0 + s, l.z0, l.z1]; l.x0 += s; }
+    else { strip = [l.x1 - s, l.x1, l.z0, l.z1]; l.x1 -= s; }
+    g.fill(strip, WALK, kd);
+  }
+}
