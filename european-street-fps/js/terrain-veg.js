@@ -70,7 +70,7 @@ const BARK = [0.3, 0.26, 0.21];
 function blob(b, cx, cy, cz, r, sy, colBase, seed, detail = 0, ctr = null) {
   const g = jitter(new THREE.IcosahedronGeometry(1, detail), 0.35, seed);
   b.add(g, mat(cx, cy, cz, seed * 0.3, seed * 0.7, 0, r, r * sy, r), shade(colBase, 0.55, cy - r * sy, cy + r * sy),
-    { center: new THREE.Vector3(cx, cy - r * 0.2, cz), sphereN: 0.7, uvMode: 'sphere', ctr });
+    { center: new THREE.Vector3(cx, cy - r * 0.2, cz), sphereN: 0.92, uvMode: 'sphere', ctr });
 }
 function lathe(b, prof, seg, col, lo, jit, seed, ctr = null, h = 1) {
   const pts = prof.map(([r, y]) => new THREE.Vector2(r, y));
@@ -165,7 +165,7 @@ function geoBale() {
 function geoRock() {
   const b = new Builder();
   const g = jitter(new THREE.IcosahedronGeometry(1, 1), 0.5, 51);
-  b.add(g, mat(0, 0.25, 0), (x, y, z) => { const k = 0.85 + 0.15 * y; return [0.56 * k, 0.53 * k, 0.47 * k]; });
+  b.add(g, mat(0, 0.25, 0), (x, y, z) => { const k = 0.8 + 0.15 * y; return [0.44 * k, 0.42 * k, 0.37 * k]; });
   return b.build();
 }
 
@@ -216,8 +216,8 @@ function vegMaterial(uniforms, kind, fol) {
 // ------------------------------------------------------------------ main
 export function createVegetation(scene, land, { quality = 'high', heightAt }) {
   const t0 = performance.now();
-  const nearR = { low: 130, medium: 180, high: 230 }[quality] || 180;
-  const vineR = { low: 70, medium: 100, high: 120 }[quality] || 100;
+  const nearR = { low: 120, medium: 160, high: 230 }[quality] || 180;
+  const vineR = { low: 70, medium: 90, high: 120 }[quality] || 100;
   const fol = makeFoliageTextures(128);
   const bark = makeBarkTextures(64); void bark;
   const uTree = { uTime: { value: 0 }, uNearR: { value: nearR }, uFarR: { value: nearR }, uWind: { value: 1 } };
@@ -394,7 +394,7 @@ export function createVegetation(scene, land, { quality = 'high', heightAt }) {
     refill(p, camera);
   }
   function setQuality(q) {
-    reachR = { low: 130, medium: 180, high: 230 }[q] || 180; reachV = { low: 70, medium: 100, high: 120 }[q] || 100;
+    reachR = { low: 120, medium: 160, high: 230 }[q] || 180; reachV = { low: 70, medium: 90, high: 120 }[q] || 100;
     uTree.uNearR.value = uTree.uFarR.value = reachR;
     uSmall.uNearR.value = uSmall.uFarR.value = reachR * 0.8;
     uVine.uNearR.value = uVine.uFarR.value = reachV;

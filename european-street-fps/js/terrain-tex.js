@@ -273,14 +273,14 @@ export function makeBarkTextures(n = 128) {
 
 // Dry-stone rubble (irregular limestone blocks, dark joints): colour + normal, 1 texture = 3 m.
 export function makeRubbleTextures(n = 256) {
-  const w = worley(n, 14, 1001, 0.9), f = fbmField(n, 8, 4, 1003), g = fbmField(n, 48, 2, 1005);
+  const w = worley(n, 16, 1001, 0.9), f = fbmField(n, 8, 4, 1003), g = fbmField(n, 48, 2, 1005);
   const H = new Float32Array(n * n);
   const cd = new Uint8Array(n * n * 4);
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
     const k = y * n + x;
     // stones stretched horizontally: sample the cell field with squashed y
     const k2 = ((Math.floor(y * 0.62) % n) * n + x);
-    const edge = smooth(0.02, 0.16, w.F2[k2] - w.F1[k2]);
+    const edge = smooth(0.01, 0.09, w.F2[k2] - w.F1[k2]);
     const id = w.ID[k2];
     H[k] = edge * (0.6 + 0.3 * f[k] + 0.1 * g[k]);
     const l = (0.55 + 0.35 * id + 0.2 * (f[k] - 0.5) + 0.08 * (g[k] - 0.5)) * (0.25 + 0.75 * edge);

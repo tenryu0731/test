@@ -89,7 +89,7 @@ export function createTerrainSurface(scene, { heightAt, fieldTex, ground, noiseT
     return m;
   }
 
-  const KQ = { low: 0.5, medium: 0.6, high: 0.72 };
+  const KQ = { low: 0.5, medium: 0.56, high: 0.72 };
   let K = KQ[quality] || 0.6;
   const active = new Set(), next = new Set();
   const last = new THREE.Vector3(1e9, 0, 0);

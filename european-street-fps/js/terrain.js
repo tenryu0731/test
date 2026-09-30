@@ -115,7 +115,7 @@ function buildWalls(scene, list, heightAt, stoneMat) {
   const colliders = [];
   const quad = (a, b, c, d, n, ua, ub, va, vb, shadeK) => {
     for (const [p, u, v] of [[a, ua, va], [b, ub, va], [c, ub, vb], [a, ua, va], [c, ub, vb], [d, ua, vb]]) {
-      pos.push(p[0], p[1], p[2]); nor.push(n[0], n[1], n[2]); uv.push(u / 3, v / 3); col.push(shadeK, shadeK, shadeK);
+      pos.push(p[0], p[1], p[2]); nor.push(n[0], n[1], n[2]); uv.push(u / 2.2, v / 2.2); col.push(shadeK, shadeK, shadeK);
     }
   };
   let s = 0;
