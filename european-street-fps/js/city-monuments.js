@@ -200,6 +200,16 @@ export function createMonuments(ctx) {
       setLod(LOD.FAR); geo.box(mat, x0, 0, z0, x1, H, z1, { tint, gao: false, skip: 4 }); roof(x0, x1, z0, z1, H, { pitch, wall: mat, tint }, 0.4, { axis: along, gable: true, noFar: true }); setLod(LOD.BASE);
     }
     collide(x0, 0, z0, x1, H + 2, z1);
+    // The body sits FAC behind the façade slab: close both ends of that gap on the side walls.
+    if (faceDir === 'N' || faceDir === 'S') {
+      const zz = faceDir === 'N' ? [z0, z0 + FAC] : [z1 - FAC, z1];
+      geo.box(mat, x0, 0, zz[0], x0 + FAC, H, zz[1], { tint, top: H, skip: 63 & ~2 });
+      geo.box(mat, x1 - FAC, 0, zz[0], x1, H, zz[1], { tint, top: H, skip: 63 & ~1 });
+    } else {
+      const xx = faceDir === 'W' ? [x0, x0 + FAC] : [x1 - FAC, x1];
+      geo.box(mat, xx[0], 0, z0, xx[1], H, z0 + FAC, { tint, top: H, skip: 63 & ~32 });
+      geo.box(mat, xx[0], 0, z1 - FAC, xx[1], H, z1, { tint, top: H, skip: 63 & ~16 });
+    }
 
     // Façade: portals and a rose window / oculus in the gable field.
     const portal = { kind: 'door', t0: c - o.portalW / 2, t1: c + o.portalW / 2, y0: 0, y1: o.portalSpring, shape: o.pointed ? 'pointed' : 'round', ring: 0.5 };

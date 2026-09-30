@@ -194,6 +194,14 @@ export function createBuilders(ctx) {
     // Close the ends of each façade slab on party-wall sides: the slab stands FAC in front of the
     // body, and without a cap the gap shows light through the building wherever the neighbour is lower.
     // Box face bits: 1 +x, 2 -x, 4 top, 8 bottom, 16 +z, 32 -z; only the outward side face is kept.
+    // Corners where two façades meet: the N/S slab runs the full width but the W/E slab starts FAC
+    // in from the corner (ts/te below), so the corner square needs its W/E face or it is an open
+    // slot through which the inside of the building shows.
+    for (const e of ['W', 'E']) for (const d of ['N', 'S']) {
+      if (!facade(e) || !facade(d)) continue;
+      const px = e === 'W' ? [x0, x0 + FAC] : [x1 - FAC, x1], pz = d === 'N' ? [z0, z0 + FAC] : [z1 - FAC, z1];
+      geo.box(S.wall, px[0], y0, pz[0], px[1], S.H, pz[1], { tint: S.tint, uvOff: S.uvOff, top: S.H, skip: 63 & ~(e === 'W' ? 2 : 1) });
+    }
     for (const [d, ends] of [['N', ['W', 'E']], ['S', ['W', 'E']], ['W', ['N', 'S']], ['E', ['N', 'S']]]) {
       if (!facade(d)) continue;
       for (const e of ends) {
@@ -321,6 +329,10 @@ export function createBuilders(ctx) {
     geo.lock((x0 + x1) / 2, (z0 + z1) / 2);
     let prev = setLod(LOD.BASE);
     geo.box(mat, x0 + FAC, 0, z0 + FAC, x1 - FAC, H, z1 - FAC, { tint, uvOff: S.uvOff, skip: 1 | 2 | 16 | 32 | 4 });
+    // Corner posts: the W/E slabs stop FAC short of each corner (ts/te below); close those squares.
+    for (const [cx, keep] of [[x0, 2], [x1 - FAC, 1]]) for (const cz of [z0, z1 - FAC]) {
+      geo.box(mat, cx, 0, cz, cx + FAC, H, cz + FAC, { tint, uvOff: S.uvOff, skip: 63 & ~keep });
+    }
     setLod(LOD.FAR);
     geo.box(mat, x0, 0, z0, x1, H + (t.top === 'parapet' ? 1.0 : 0), z1, { tint, gao: false });
     setLod(LOD.BASE);
@@ -373,6 +385,10 @@ export function createBuilders(ctx) {
     const o = { tint, gao: false };
     // Flat terrace (walkable for viewpoints).
     geo.box(mat, x0 + 0.3, H - 0.2, z0 + 0.3, x1 - 0.3, H, z1 - 0.3, { ...o, skip: 8 | 1 | 2 | 16 | 32 });
+    // Lid over the gap between the façade slabs and the core (open from above otherwise).
+    for (const [a, b, c, d] of [[x0, x1, z0, z0 + FAC], [x0, x1, z1 - FAC, z1], [x0, x0 + FAC, z0 + FAC, z1 - FAC], [x1 - FAC, x1, z0 + FAC, z1 - FAC]]) {
+      geo.box(mat, a, H - 0.05, c, b, H, d, { ...o, skip: 63 & ~4 });
+    }
     if (t.top === 'parapet' || t.top === 'flat') {
       const big = t.top === 'parapet';
       if (big) {

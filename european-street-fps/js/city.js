@@ -346,7 +346,7 @@ export function buildCity(scene, M, opts = {}) {
     playerSpawn: new THREE.Vector3(0, 0, 128), playerYaw: 0,
     enemySpawns: enemySites.flatMap((s) => s.spawns),
     bounds: { minX: TX0, maxX: TX1, minZ: TZ0, maxZ: TZ1 },
-    meshes, chunks, stats, update,
+    meshes, chunks, stats, update, grid,
     setDetailDistance(d, far) { DETAIL_DIST = d; if (far) FAR_DIST = far; lastX = 1e9; },
   };
 }
