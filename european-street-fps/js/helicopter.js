@@ -245,7 +245,17 @@ export class Helicopter {
         tvx = (-s * mv.y + c * mv.x) * vmax;
         tvz = (-c * mv.y - s * mv.x) * vmax;
       }
-      tvy = ((ctl.up ? 1 : 0) - (ctl.down ? 1 : 0)) * CLIMB * (ctl.boost ? 1.4 : 1);
+      const vin = (ctl.up ? 1 : 0) - (ctl.down ? 1 : 0);
+      tvy = vin * CLIMB * (ctl.boost ? 1.4 : 1);
+      // Altitude hold: with neither climb nor descend held, keep the height above the ground the pilot
+      // left it at (follows hills and valleys), so the right thumb is free for the guns.
+      if (vin || this.landed) this.holdAGL = this.landed ? 0 : this.altitude;
+      else if (this.holdAGL > 0.4) {
+        this.holdAGL = Math.max(this.holdAGL, 3);          // never skim the ground on autopilot
+        const surf = (x, z) => Math.max(this.world.groundAt(x, z), this.waterAt(x, z));   // same reference as `altitude`
+        const floor = Math.max(surf(this.pos.x, this.pos.z), surf(this.pos.x + this.vel.x * 2.5, this.pos.z + this.vel.z * 2.5));
+        tvy = THREE.MathUtils.clamp((floor + this.holdAGL - this.pos.y) * 0.8, -CLIMB, CLIMB);
+      }
     } else if (!this.landed) tvy = lift ? -1.5 : -9;                 // unmanned / spooling down: settle
     const kh = Math.min(1, dt * (flying ? 0.95 : 0.6)), kv = Math.min(1, dt * 2.4);
     this.vel.x += (tvx - this.vel.x) * kh;

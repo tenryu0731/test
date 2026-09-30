@@ -552,7 +552,7 @@ export class UI {
 
   toast(text, kind = '') {
     const box = this.el.toasts;
-    while (box.childElementCount >= 3) box.firstElementChild.remove();
+    while (box.childElementCount >= (this.isTouch ? 2 : 3)) box.firstElementChild.remove();
     const t = document.createElement('div');
     t.className = `toast${kind ? ` toast-${kind}` : ''}`;
     t.innerHTML = esc(text);
@@ -578,7 +578,7 @@ export class UI {
       this._titleAnim = el.animate([
         { opacity: 0, transform: 'translate(-50%, 8px)' }, { opacity: 1, transform: 'translate(-50%, 0)', offset: 0.1 },
         { opacity: 1, transform: 'translate(-50%, 0)', offset: 0.8 }, { opacity: 0, transform: 'translate(-50%, -4px)' },
-      ], { duration: 3600, easing: 'ease-out' });
+      ], { duration: this.isTouch ? 2600 : 3600, easing: 'ease-out' });
       this._titleAnim.onfinish = () => { el.hidden = true; };
     } else { clearTimeout(this._titleT); this._titleT = setTimeout(() => { el.hidden = true; }, 3600); }
   }

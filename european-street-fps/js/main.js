@@ -712,10 +712,10 @@ function enterVehicle(kind) {
   audio.play('vehicleEnter');
   if (kind === 'heli') {
     hh.hint.textContent = isTouch ? '' : 'WASD 移動 · Space/C 上昇/下降 · 左クリック 機関砲 · 右クリック ロケット · 着陸して F';
-    ui.toast('ヘリコプターに搭乗 — ローターが回り始めます');
+    ui.toast(isTouch ? 'ヘリに搭乗' : 'ヘリコプターに搭乗 — ローターが回り始めます');
   } else {
     hh.hint.textContent = isTouch ? '' : 'W/S 前進・後退 · A/D 旋回 · マウスで砲塔 · 左クリック 主砲 · 右クリック 機銃 · F で降りる';
-    ui.toast('戦車に搭乗 — 砲塔は視点の向きに回ります');
+    ui.toast(isTouch ? '戦車に搭乗 — 右側ドラッグで砲塔' : '戦車に搭乗 — 砲塔は視点の向きに回ります');
   }
 }
 function tankExitSpot(out) {
@@ -831,6 +831,9 @@ function updateVehicle(dt) {
   _cp.y = Math.max(_cp.y, terr + 0.6, !tank && top > terr + 0.8 ? top + 4 : -Infinity);
   camera.position.copy(_cp);
   camera.lookAt(_ct.x + _cd.x * 30, _ct.y + _cd.y * 30, _ct.z + _cd.z * 30);
+  // Tilt the view up a little so the vehicle sits in the lower part of the frame and the way ahead
+  // (and the crosshair) stays clear; more on short landscape screens.
+  camera.rotateX((tank ? 0.07 : 0.13) * (camera.aspect > 1.6 ? 1.25 : 1));
   camera.updateMatrixWorld();
 
   // Weapons converge on the point under the crosshair.

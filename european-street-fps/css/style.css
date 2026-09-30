@@ -634,3 +634,26 @@ body.in-vehicle #ui .hud-ammo { display: none; }
 body.in-vehicle .heli-hud { display: flex; }
 @media (pointer: coarse) { .heli-hud { bottom: auto; top: calc(var(--st, 0px) + 92px); max-width: calc(100vw - 300px); font-size: 12px; gap: 10px; } .heli-hud small { display: none; } }
 .heli-hud small { flex-basis: 100%; text-align: center; font-size: 12px; }
+
+/* ------------------------------------------------------------ touch landscape: keep the forward view clear
+   Short screens: nothing sits in the middle band of the screen. Toasts go to the bottom centre (between
+   the stick and the buttons), the title card is a slim strip under the compass, the vehicle readout
+   takes the lean buttons' place top-left (they are hidden in a vehicle). */
+@media (orientation: landscape) {
+  .is-touch .toasts { top: auto; bottom: calc(var(--sb) + 8px); max-width: min(44vw, 420px); gap: 4px; }
+  .is-touch .toast { font-size: 12px; padding: 3px 12px; }
+  .is-touch .titlecard { top: calc(var(--st) + 74px); width: min(440px, 56vw); padding: 4px 28px 6px; gap: 0; }
+  .is-touch .titlecard small { font-size: 10px; letter-spacing: 0.2em; }
+  .is-touch .titlecard b { font-size: 18px; }
+  .is-touch .titlecard span { font-size: 11px; }
+  .is-touch .heli-hud {
+    top: calc(var(--st) + 62px); bottom: auto; left: calc(var(--sl) + 76px); transform: none; max-width: none;
+    flex-direction: column; align-items: flex-start; gap: 0; padding: 4px 10px; border-radius: 10px; font-size: 11px; line-height: 1.25;
+  }
+  .is-touch .heli-hud b { font-size: 15px; }
+  /* HP panel: low enough to clear the objective pill under the compass, narrow enough to clear the compass. */
+  .is-touch .hud-hp { top: calc(var(--st) + 8px); height: 34px; }
+  .is-touch .hp-bar { width: clamp(56px, 9vw, 150px); }
+  /* 登る / 乗る / 降りる: below the middle of the screen, left of the button cluster. */
+  #touch .tbtn-interact { bottom: calc(var(--by) + var(--small) + 4px); height: 50px; min-width: 100px; font-size: 16px; }
+}
