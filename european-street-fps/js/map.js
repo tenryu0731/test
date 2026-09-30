@@ -70,6 +70,14 @@ function robotDot(g, x, y, r) {
   g.fillStyle = C.robot; g.fill();
   g.lineWidth = Math.max(1.5, r * 0.45); g.strokeStyle = C.robotEdge; g.stroke();
 }
+// Enemy vehicles: a square (tank) or a diamond (helicopter) in the robot red.
+function vehicleIcon(g, x, y, s, kind) {
+  g.beginPath();
+  if (kind === 'heli') { g.moveTo(x, y - s * 1.2); g.lineTo(x + s * 1.2, y); g.lineTo(x, y + s * 1.2); g.lineTo(x - s * 1.2, y); g.closePath(); }
+  else g.rect(x - s, y - s * 0.75, s * 2, s * 1.5);
+  g.fillStyle = C.robot; g.fill();
+  g.lineWidth = Math.max(1.5, s * 0.35); g.strokeStyle = C.robotEdge; g.stroke();
+}
 function towerBadge(g, x, y, s, climbed) {
   g.save(); g.translate(x, y);
   g.beginPath(); g.roundRect(-s, -s, s * 2, s * 2, s * 0.4);
@@ -488,7 +496,7 @@ export class WorldMap {
     for (const r of this._uiRects || []) lay.reserve(...r);
     // Robots, pickups and viewpoints are drawn first; labels keep clear of their icons.
     const rr = clamp(v.s * 2.2, 3.2, 6);
-    for (const r of st.robots) robotDot(g, sx(r.x), sy(r.z), rr);
+    for (const r of st.robots) { if (r.kind) vehicleIcon(g, sx(r.x), sy(r.z), rr * 1.6, r.kind); else robotDot(g, sx(r.x), sy(r.z), rr); }
     const ic = clamp(v.s * 6, 5, 9);
     for (const p of st.pickups) if (p.active) { const x = sx(p.x), y = sy(p.z); crateIcon(g, x, y, ic, p.type); lay.reserve(x - ic, y - ic, x + ic, y + ic); }
     for (const vp of st.viewpoints) { const x = sx(vp.x), y = sy(vp.z), k = ic + 2; towerBadge(g, x, y, k, vp.climbed); lay.reserve(x - k, y - k, x + k, y + k); }
@@ -604,7 +612,7 @@ export class WorldMap {
     }
     for (const it of st.pickups) { if (!it.active) continue; toS(it.x, it.z, q); if (q.d < R - 4) crateIcon(g, q.x, q.y, 4.5, it.type); }
     for (const vp of st.viewpoints) { toS(vp.x, vp.z, q); if (q.d < R - 5) towerBadge(g, q.x, q.y, 6, vp.climbed); }
-    for (const r of st.robots) { toS(r.x, r.z, q); if (q.d < R - 3) robotDot(g, q.x, q.y, 3.2); }
+    for (const r of st.robots) { toS(r.x, r.z, q); if (q.d < R - 3) { if (r.kind) vehicleIcon(g, q.x, q.y, 4.2, r.kind); else robotDot(g, q.x, q.y, 3.2); } }
     const edge = (x, z, draw) => {
       toS(x, z, q);
       if (q.d <= R - 8) { draw(q.x, q.y, false); return; }

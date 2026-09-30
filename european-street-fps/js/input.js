@@ -106,8 +106,19 @@ export class Input {
   get upHeld() { return this._enabled && (this._keys.has('Space') || this._held('up')); }
   get downHeld() { return this._enabled && (this._keys.has('KeyC') || this._keys.has('ControlLeft') || this._held('down')); }
   _held(role) { for (const p of this._pointers.values()) if (p.role === role) return true; return false; }
-  /** Flying: swap the on-foot touch buttons (fire, aim, reload, jump, lean) for climb / descend. */
-  setFlying(v) { this.flying = !!v; this.touchRoot?.classList.toggle('fly', this.flying); }
+  /** Secondary weapon in a vehicle (rockets / machine gun): right mouse button or the touch button. */
+  get fire2Held() { return this._enabled && (this._mouseAim || this._held('fire2')); }
+  /** In a vehicle ('heli' | 'tank' | null): swap the on-foot touch buttons for the vehicle's. */
+  setVehicle(kind) {
+    this.vehicle = kind || null;
+    const r = this.touchRoot;
+    if (!r) return;
+    r.classList.toggle('veh', !!kind); r.classList.toggle('fly', kind === 'heli'); r.classList.toggle('drive', kind === 'tank');
+    const fire = r.querySelector('.tbtn-fire span'), f2 = r.querySelector('.tbtn-fire2 span');
+    if (fire) fire.textContent = kind === 'heli' ? '機関砲' : kind === 'tank' ? '主砲' : '射撃';
+    if (f2) f2.textContent = kind === 'heli' ? 'ロケット' : '機銃';
+  }
+  setFlying(v) { this.setVehicle(v ? 'heli' : null); }
 
   /** Drop the touch toggles (e.g. when a round restarts or the player climbs a tower). */
   clearToggles() {
@@ -253,6 +264,7 @@ export class Input {
         <button type="button" class="tbtn tbtn-lean" data-role="leanR" aria-label="右に覗く" aria-pressed="false">${ICONS.leanR}<span>右</span></button>
         <em class="lean-cap">覗く</em>
       </div>
+      <button type="button" class="tbtn tbtn-veh tbtn-fire2" data-role="fire2" aria-label="副武装">${ICONS.fire}<span>機銃</span></button>
       <button type="button" class="tbtn tbtn-fly tbtn-up" data-role="up" aria-label="上昇">${ICONS.jump}<span>上昇</span></button>
       <button type="button" class="tbtn tbtn-fly tbtn-down" data-role="down" aria-label="下降"><span class="flip">${ICONS.jump}</span><span>下降</span></button>
       <button type="button" class="tbtn tbtn-interact" data-role="interact" aria-hidden="true">${ICONS.climb}<span>登る</span></button>
@@ -327,7 +339,7 @@ export class Input {
     if (e.cancelable) e.preventDefault();
     if (p.role === 'joy') { this._updateJoystick(e.clientX, e.clientY); return; }
     // FIRE and AIM double as look pads: keep the thumb down and slide to adjust the aim.
-    if (p.role === 'look' || p.role === 'fire' || p.role === 'aim') {
+    if (p.role === 'look' || p.role === 'fire' || p.role === 'aim' || p.role === 'fire2') {
       // Raw deltas, no smoothing: the camera follows the finger 1:1.
       const k = TOUCH_LOOK / Math.max(innerWidth, innerHeight) * this.sensitivity;
       this._lookX += (e.clientX - p.x) * k;

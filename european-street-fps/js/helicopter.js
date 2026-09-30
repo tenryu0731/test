@@ -1,13 +1,16 @@
-// Light utility helicopter the player can board on the helipad outside the south gate and fly over
-// the town and the countryside (arcade flight model, third-person chase camera driven by main.js).
+// Light armed helicopter: the player's (on the helipad outside the south gate) and the enemy
+// training helicopters (grey with orange bands, flown by enemy-vehicles.js). Arcade flight model;
+// main.js drives the chase camera.
 //
-//   const heli = new Helicopter({ scene, physics, world, pad })
-//   heli.reset()                         back on the pad, rotor stopped
-//   heli.canBoard(pos) / heli.canExit()  interaction checks
-//   heli.update(dt, ctl)                 ctl = { move {x, y}, up, down, boost, heading } while piloted, null otherwise
-//   heli.exitSpot(out)                   a free spot beside the cabin to put the pilot down
+//   const heli = new Helicopter({ scene, physics, world, pad, livery: 'player' | 'enemy' })
+//   heli.reset() / heli.resetAt(x, y, z, yaw)   on the pad with the rotor stopped / airborne
+//   heli.canBoard(pos) / heli.canExit()          interaction checks
+//   heli.update(dt, ctl)   ctl = { move {x, y}, up, down, boost, heading, vel? } while flown, null otherwise
+//                          (vel: a world-space target velocity used by the AI instead of move/up/down)
+//   heli.fireCannon() / heli.fireRocket() -> muzzle position (rate gated) or null
+//   heli.damage(amount) — at 0 HP it crashes; `justCrashed` is set for one update when it hits the ground
 import * as THREE from 'three';
-import { LAKE } from './layout.js';
+import { makeWaterAt, mergeByMaterial } from './vehicle-util.js';
 
 const ROTOR_R = 5.2;
 const BODY_R = 4.2;           // collision radius (rotor disc, slightly inside the tips)
@@ -20,10 +23,12 @@ function mat(color, rough, metal = 0, extra = {}) {
 }
 
 // ------------------------------------------------------------------ model (nose toward -z)
-function buildModel() {
+const LIVERY = { player: [0xe8e3d6, 0xa3342b], enemy: [0x6f7376, 0xd9772b] };
+function buildModel(livery) {
   const g = new THREE.Group();
-  g.name = 'helicopter';
-  const paint = mat(0xe8e3d6, 0.42, 0.1), band = mat(0xa3342b, 0.45, 0.1), dark = mat(0x3b3e41, 0.55, 0.5);
+  g.name = `helicopter-${livery}`;
+  const [pc, bc] = LIVERY[livery] || LIVERY.player;
+  const paint = mat(pc, 0.42, 0.1), band = mat(bc, 0.45, 0.1), dark = mat(0x3b3e41, 0.55, 0.5);
   const glass = mat(0x1a242c, 0.06, 0.6, { envMapIntensity: 1.3 });
   const add = (geo, m, x, y, z, rx = 0, ry = 0, rz = 0) => {
     const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.rotation.set(rx, ry, rz);
@@ -63,6 +68,13 @@ function buildModel() {
     add(new THREE.SphereGeometry(0.06, 8, 6), dark, s * 1.15, 0.07, -1.9);
     for (const z of [-0.85, 0.75]) add(new THREE.CylinderGeometry(0.05, 0.05, 1.25, 6), dark, s * 0.95, 0.62, z, 0, 0, s * 0.35);
   }
+  // Weapons: chin cannon and a rocket pod on each side.
+  add(new THREE.CylinderGeometry(0.07, 0.07, 1.0, 8), dark, 0, 0.72, -1.55, Math.PI / 2);
+  add(new THREE.BoxGeometry(0.3, 0.26, 0.4), dark, 0, 0.82, -1.1);
+  for (const sx of [-1, 1]) {
+    add(new THREE.CylinderGeometry(0.2, 0.2, 1.3, 10), dark, sx * 1.55, 0.95, -0.2, Math.PI / 2);
+    add(new THREE.BoxGeometry(0.5, 0.06, 0.12), dark, sx * 1.3, 1.15, -0.2);
+  }
   // Main rotor: mast, hub, three blades + a faint blur disc when spinning fast.
   add(new THREE.CylinderGeometry(0.09, 0.12, 0.55, 10), dark, 0, 3.05, 0.15);
   const main = new THREE.Group(); main.position.set(0, 3.32, 0.15); g.add(main);
@@ -75,7 +87,8 @@ function buildModel() {
   const tail = new THREE.Group(); tail.position.set(0.16, 2.45, 6.72); g.add(tail);
   const tb = new THREE.BoxGeometry(0.04, 1.1, 0.12);
   for (let k = 0; k < 2; k++) { const b = new THREE.Mesh(tb, dark); b.rotation.x = k * Math.PI / 2; tail.add(b); }
-  return { group: g, main, tail, blur, blades: main.children.filter((c) => c !== hub && c !== blur) };
+  mergeByMaterial(g);   // one mesh per material for the airframe (rotors stay separate groups)
+  return { group: g, main, tail, blur, mats: { paint, band } };
 }
 
 function buildPad(scene, pad, groundAt) {
@@ -100,21 +113,23 @@ function buildPad(scene, pad, groundAt) {
 
 // ------------------------------------------------------------------ helicopter
 export class Helicopter {
-  constructor({ scene, physics, world, pad }) {
-    this.physics = physics; this.world = world; this.pad = pad;
-    const m = buildModel();
-    Object.assign(this, { group: m.group, mainRotor: m.main, tailRotor: m.tail, blur: m.blur });
+  constructor({ scene, physics, world, pad = null, livery = 'player', hp = 450 }) {
+    this.physics = physics; this.world = world; this.pad = pad; this.livery = livery;
+    const m = buildModel(livery);
+    Object.assign(this, { group: m.group, mainRotor: m.main, tailRotor: m.tail, blur: m.blur, mats: m.mats });
     scene.add(this.group);
-    this.padTop = buildPad(scene, pad, world.groundAt);
+    this.padTop = pad ? buildPad(scene, pad, world.groundAt) : 0;
+    this.team = livery === 'player' ? 'player' : 'enemy';
+    this.hpMax = hp; this.hp = hp; this.alive = true; this.radius = 3.3; this.cy = 1.7;
+    this.cannonT = 0; this.rocketT = 0; this.rockets = 16; this.rocketMax = 16; this.rocketRegen = 0; this.pod = 1;
     this.pos = new THREE.Vector3(); this.vel = new THREE.Vector3();
     this.yaw = 0; this.pitch = 0; this.roll = 0; this.rotor = 0; this.spin = 0;
     this.piloted = false; this.landed = true; this.altitude = 0;
     this._d = new THREE.Vector3(); this._p = new THREE.Vector3();
-    // Water: the lake and the river (surface polyline from the terrain), where it cannot set down.
-    const rv = world.parts?.terrain?.river;
-    this._river = rv ? { pts: rv.points, hw: rv.halfWidth + 1 } : null;
+    // Water: the lake and the river, where it cannot set down.
+    this.waterAt = makeWaterAt(world);
     this.noLand = false;
-    this.reset();
+    if (pad) this.reset();
   }
 
   get speed() { return Math.hypot(this.vel.x, this.vel.z); }
@@ -124,22 +139,47 @@ export class Helicopter {
     this.vel.set(0, 0, 0);
     this.yaw = this.pad.yaw || 0; this.pitch = this.roll = 0;
     this.rotor = 0; this.piloted = false; this.landed = true; this.altitude = 0;
+    this._revive();
     this._pose(0);
   }
-
-  /** Water surface under (x, z), or -Infinity. */
-  waterAt(x, z) {
-    if (Math.hypot(x - LAKE.x, z - LAKE.z) < LAKE.r + 4) return LAKE.y;
-    const r = this._river;
-    if (!r) return -Infinity;
-    const P = r.pts;
-    for (let i = 0; i < P.length - 1; i++) {
-      const [ax, ay, az] = P[i], [bx, by, bz] = P[i + 1], vx = bx - ax, vz = bz - az, vv = vx * vx + vz * vz || 1;
-      const t = Math.max(0, Math.min(1, ((x - ax) * vx + (z - az) * vz) / vv));
-      if (Math.hypot(x - ax - vx * t, z - az - vz * t) < r.hw) return ay + (by - ay) * t;
-    }
-    return -Infinity;
+  /** Airborne at (x, y, z) with the rotor at speed (enemy helicopters). */
+  resetAt(x, y, z, yaw = 0) {
+    this.pos.set(x, y, z); this.vel.set(0, 0, 0); this.yaw = yaw; this.pitch = this.roll = 0;
+    this.rotor = 1; this.piloted = false; this.landed = false; this.altitude = 0;
+    this._revive();
+    this._pose(0);
   }
+  _revive() {
+    this.hp = this.hpMax; this.alive = true; this.crashed = false; this.justCrashed = false;
+    this.rockets = this.rocketMax; this.cannonT = this.rocketT = 0; this.group.visible = true;
+    const [pc, bc] = LIVERY[this.livery] || LIVERY.player;
+    this.mats.paint.color.setHex(pc); this.mats.band.color.setHex(bc);
+  }
+
+  damage(amount) {
+    if (!this.alive) return;
+    this.hp -= amount;
+    if (this.hp <= 0) {
+      this.hp = 0; this.alive = false; this.piloted = false;
+      this.mats.paint.color.setHex(0x3a3634); this.mats.band.color.setHex(0x2a2725);   // scorched
+      this.spinOut = (Math.random() < 0.5 ? -1 : 1) * 2.4;
+    }
+  }
+
+  // ---- weapons (the caller picks the direction; these gate the rate and give the muzzle)
+  fireCannon() {
+    if (!this.alive || this.cannonT > 0) return null;
+    this.cannonT = 0.11;
+    this.group.updateMatrixWorld(true);
+    return new THREE.Vector3(0, 0.72, -2.1).applyMatrix4(this.group.matrixWorld);
+  }
+  fireRocket() {
+    if (!this.alive || this.rocketT > 0 || this.rockets <= 0) return null;
+    this.rocketT = 0.35; this.rockets--; this.pod = -this.pod;
+    this.group.updateMatrixWorld(true);
+    return new THREE.Vector3(this.pod * 1.55, 0.95, -1.0).applyMatrix4(this.group.matrixWorld);
+  }
+  forward(out) { return out.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)); }
 
   /** Lowest safe height under the airframe. Sets noLand over buildings (the colliders stop at the
    *  eaves, the pitched roof rises above them) and over water: it hovers there instead of landing. */
@@ -150,12 +190,12 @@ export class Helicopter {
     if (h > terr + 0.8) { h += ROOF_CLEAR; this.noLand = true; }
     const w = this.waterAt(x, z);
     if (w + 0.6 > h) { h = w + 0.6; this.noLand = true; }
-    if (Math.hypot(x - this.pad.x, z - this.pad.z) < this.pad.r) { h = Math.max(h, this.padTop); this.noLand = false; }
+    if (this.pad && Math.hypot(x - this.pad.x, z - this.pad.z) < this.pad.r) { h = Math.max(h, this.padTop); this.noLand = false; }
     return h;
   }
 
   canBoard(p) {
-    return !this.piloted && Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < 5.5 && Math.abs(p.y - this.pos.y) < 3;
+    return this.alive && !this.piloted && Math.hypot(p.x - this.pos.x, p.z - this.pos.z) < 5.5 && Math.abs(p.y - this.pos.y) < 3;
   }
   canExit() { return this.piloted && this.landed && this.speed < 3; }
 
@@ -176,6 +216,11 @@ export class Helicopter {
   }
 
   update(dt, ctl) {
+    if (this.cannonT > 0) this.cannonT -= dt;
+    if (this.rocketT > 0) this.rocketT -= dt;
+    if (this.rockets < this.rocketMax && (this.rocketRegen += dt) > 3) { this.rocketRegen = 0; this.rockets++; }
+    this.justCrashed = false;
+    if (!this.alive) { this._crashUpdate(dt); return; }
     const flying = !!ctl;
     // Rotor spools up while someone is at the controls, down otherwise.
     this.rotor = THREE.MathUtils.clamp(this.rotor + (flying ? dt / 2.2 : -dt / 5), 0, 1);
@@ -191,7 +236,9 @@ export class Helicopter {
     // Target velocities.
     const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
     let tvx = 0, tvz = 0, tvy = 0;
-    if (flying && lift) {
+    if (flying && lift && ctl.vel) {
+      tvx = ctl.vel.x; tvz = ctl.vel.z; tvy = ctl.vel.y;
+    } else if (flying && lift) {
       const vmax = ctl.boost ? BOOST_SPEED : MAX_SPEED;
       const mv = ctl.move || { x: 0, y: 0 };
       if (!this.landed) {
@@ -228,7 +275,29 @@ export class Helicopter {
     this._pose(dt);
   }
 
+  // Shot down: autorotation spin and fall; stays as a wreck where it hits the ground.
+  _crashUpdate(dt) {
+    if (this.crashed) { this.rotor = Math.max(0, this.rotor - dt / 3); this._pose(dt); return; }
+    this.rotor = Math.max(0.3, this.rotor - dt / 4);
+    this.vel.y -= 9.8 * dt;
+    this.vel.x *= Math.exp(-dt * 0.4); this.vel.z *= Math.exp(-dt * 0.4);
+    this.yaw += this.spinOut * dt;
+    const p = this.pos;
+    this.physics.moveCircle(p, this._d.set(this.vel.x * dt, this.vel.y * dt, this.vel.z * dt), 2.5, 3);
+    const g = Math.max(this.physics.groundHeight(p.x, p.z, 2, p.y + 0.5), this.waterAt(p.x, p.z) - 1.2);
+    if (p.y <= g) {
+      p.y = g; this.vel.set(0, 0, 0); this.crashed = true; this.justCrashed = true; this.landed = true;
+      this.pitch = 0.18; this.roll = 0.35 * Math.sign(this.spinOut);
+      this.group.position.copy(p); this.group.rotation.set(this.pitch, this.yaw, this.roll, 'YXZ');
+      return;
+    }
+    this.group.position.copy(p);
+    this.group.rotation.set(0.25, this.yaw, 0.3 * Math.sign(this.spinOut), 'YXZ');
+    this.spin += dt * this.rotor * 30; this.mainRotor.rotation.y = -this.spin;
+  }
+
   _pose(dt) {
+    if (!this.alive && this.crashed) { this.group.position.copy(this.pos); return; }
     // Attitude from the velocity in the helicopter's frame: nose down to fly forward, bank to strafe/turn.
     const s = Math.sin(this.yaw), c = Math.cos(this.yaw);
     const fwd = -s * this.vel.x - c * this.vel.z, right = c * this.vel.x - s * this.vel.z;

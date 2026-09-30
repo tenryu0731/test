@@ -63,5 +63,8 @@ export const ROADS = [
 // Helipad on the flat ring outside the south wall, west of the gate road (the helicopter starts there).
 export const HELIPAD = { x: -32, z: 161, r: 8, yaw: Math.PI * 0.8 };
 
+// Motor pool on the flat ring outside the east wall, south of the east road (the player's tank).
+export const TANK_DEPOT = { x: 133, z: -26, r: 9, yaw: -Math.PI / 2 };
+
 // Where the player starts: inside the south gate, looking north up the main street.
 export const PLAYER_START = { x: 0, z: 128, yaw: 0 };

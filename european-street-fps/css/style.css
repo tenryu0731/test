@@ -606,29 +606,31 @@ kbd {
   .tbtn-interact.shown { transform: translateX(50%); }
 }
 
-/* ------------------------------------------------------------ helicopter */
-/* Touch: climb / descend replace the on-foot buttons while flying. */
-#touch.active:not(.fly) > .tbtn-fly { display: none; }
-#touch.active.fly > .tbtn-fire, #touch.active.fly > .tbtn-aim, #touch.active.fly > .tbtn-reload,
-#touch.active.fly > .tbtn-jump, #touch.active.fly > .lean-pad { display: none; }
-.tbtn-fly { width: var(--fire); height: var(--fire); right: var(--bx); font-size: 14px; }
-/* Side by side along the bottom edge (stacked they reached the minimap on short landscape screens). */
-.tbtn-up { bottom: var(--by); background: rgba(240, 176, 74, 0.5); border-color: rgba(255, 236, 200, 0.85); }
-.tbtn-down { right: calc(var(--bx) + var(--fire) + 14px); bottom: var(--by); }
-/* 「降りる」 sits above the two flight buttons instead of on top of ▼. */
-@media (orientation: landscape) { #touch.fly .tbtn-interact { right: var(--bx); bottom: calc(var(--by) + var(--fire) + 16px); } }
+/* ------------------------------------------------------------ vehicles (helicopter / tank) */
+/* Touch: in a vehicle FIRE stays (cannon / main gun), the secondary weapon takes RELOAD's place;
+   the helicopter's climb / descend take the AIM and JUMP places. Aim, reload, jump, lean hide. */
+#touch.active:not(.veh) > .tbtn-veh, #touch.active:not(.fly) > .tbtn-fly { display: none; }
+#touch.active.veh > .tbtn-aim, #touch.active.veh > .tbtn-reload,
+#touch.active.veh > .tbtn-jump, #touch.active.veh > .lean-pad { display: none; }
+.tbtn-fire2 { width: var(--small); height: var(--small); right: calc(var(--bx) + (var(--fire) - var(--small)) / 2); bottom: calc(var(--by) + var(--fire) + 14px); }
+.tbtn-fire2 svg { width: 38%; height: 38%; }
+.tbtn-fly { width: var(--small); height: var(--small); }
+.tbtn-up { right: calc(var(--bx) + var(--fire) + 2px); bottom: calc(var(--by) + var(--small) + 18px); background: rgba(240, 176, 74, 0.5); border-color: rgba(255, 236, 200, 0.85); }
+.tbtn-down { right: calc(var(--bx) + var(--fire) + 16px); bottom: var(--by); }
 .tbtn-fly svg { width: 38%; height: 38%; }
 .tbtn-down .flip { display: flex; width: 38%; height: 38%; transform: rotate(180deg); }
 .tbtn-down .flip svg { width: 100%; height: 100%; }
-/* No weapon while flying: hide the crosshair and ammo. */
-body.flying #ui .crosshair, body.flying #ui .hud-ammo { display: none; }
+/* In a vehicle: the rifle's ammo counter hides (the vehicle HUD shows the weapons). */
+body.in-vehicle #ui .hud-ammo { display: none; }
 .heli-hud {
-  position: absolute; left: 50%; top: calc(var(--st, 0px) + 92px); transform: translateX(-50%);
+  position: absolute; left: 50%; bottom: calc(var(--sb, 0px) + 18px); transform: translateX(-50%); max-width: calc(100vw - 560px);
+  flex-wrap: wrap; justify-content: center; row-gap: 2px;
   display: none; gap: 14px; align-items: baseline; padding: 8px 16px; border-radius: 999px;
   background: rgba(20, 16, 12, 0.72); border: 1px solid rgba(255, 236, 205, 0.35); color: #fff6e6;
   font: 700 14px/1.2 var(--font); pointer-events: none; white-space: nowrap;
 }
 .heli-hud b { font-size: 20px; font-variant-numeric: tabular-nums; }
 .heli-hud small { color: #e9d9bd; font-weight: 600; }
-body.flying .heli-hud { display: flex; }
-@media (pointer: coarse) { .heli-hud { font-size: 12px; gap: 10px; } .heli-hud small { display: none; } }
+body.in-vehicle .heli-hud { display: flex; }
+@media (pointer: coarse) { .heli-hud { bottom: auto; top: calc(var(--st, 0px) + 92px); max-width: calc(100vw - 300px); font-size: 12px; gap: 10px; } .heli-hud small { display: none; } }
+.heli-hud small { flex-basis: 100%; text-align: center; font-size: 12px; }

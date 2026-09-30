@@ -13,7 +13,10 @@ import { WorldMap } from './map.js';
 import { ViewpointSystem, OverviewCam, Flyover } from './viewpoints.js';
 import { Pickups } from './pickups.js';
 import { Helicopter } from './helicopter.js';
-import { HELIPAD } from './layout.js';
+import { Tank, buildDepot } from './tank.js';
+import { Combat } from './combat.js';
+import { EnemyVehicles } from './enemy-vehicles.js';
+import { HELIPAD, TANK_DEPOT } from './layout.js';
 
 const isTouch = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
 const params = new URLSearchParams(location.search);
@@ -55,12 +58,17 @@ const worldMap = new WorldMap({ gfx, world, root: ui.root, isTouch: ui.isTouch }
 worldMap.attachHUD({ minimap: ui.el.minimapCanvas, compass: ui.el.compass });
 const overviewCam = new OverviewCam({ camera, world, element: ui.el.overview });
 const flyover = new Flyover({ world });
-const heli = new Helicopter({ scene, physics, world, pad: HELIPAD });
+const heli = new Helicopter({ scene, physics, world, pad: HELIPAD, hp: 520 });
+buildDepot(scene, TANK_DEPOT, world.groundAt);
+const ptank = new Tank({ scene, physics, world, livery: 'player', hp: 1600 });
+ptank.reset(TANK_DEPOT.x, TANK_DEPOT.z, TANK_DEPOT.yaw);
+const combat = new Combat({ scene, physics, world, enemies, audio });
+const ev = new EnemyVehicles({ scene, physics, world, combat, audio });
 const heliHud = document.createElement('div');
 heliHud.className = 'heli-hud';
-heliHud.innerHTML = '<span>高度 <b class="hh-alt">0</b> m</span><span>速度 <b class="hh-spd">0</b> km/h</span><small class="hh-hint"></small>';
+heliHud.innerHTML = '<span>装甲 <b class="hh-hp">100</b>%</span><span class="hh-alt-w">高度 <b class="hh-alt">0</b> m</span><span>速度 <b class="hh-spd">0</b> km/h</span><span class="hh-wpn"></span><small class="hh-hint"></small>';
 ui.root.appendChild(heliHud);
-const hh = { alt: heliHud.querySelector('.hh-alt'), spd: heliHud.querySelector('.hh-spd'), hint: heliHud.querySelector('.hh-hint') };
+const hh = { hp: heliHud.querySelector('.hh-hp'), altW: heliHud.querySelector('.hh-alt-w'), alt: heliHud.querySelector('.hh-alt'), spd: heliHud.querySelector('.hh-spd'), wpn: heliHud.querySelector('.hh-wpn'), hint: heliHud.querySelector('.hh-hint') };
 console.log(`[boot] weapon ${(t2 - t1).toFixed(0)} ms, enemies ${(t3 - t2).toFixed(0)} ms, ui+systems ${(performance.now() - t3).toFixed(0)} ms, ` +
   `${pickups.items.length} crates, ${viewpoints.list.length} viewpoints`);
 
@@ -81,8 +89,10 @@ let winTimer = -1;
 let roundDirty = false;              // the current round has been played (start must reset)
 let appliedKey = '';
 let climb = null;                    // viewpoint transition in progress
-let flying = false;                  // piloting the helicopter
-const fcam = { yaw: 0, pitch: -0.12 };  // chase-camera orientation while flying
+let vehicle = null;                  // null | 'heli' | 'tank' — the vehicle the player is in
+const fcam = { yaw: 0, pitch: -0.12 };  // chase-camera orientation in a vehicle
+const respawnT = { heli: -1, tank: -1 }; // destroyed player vehicles come back at the pad / depot
+let shake = 0;                         // camera shake from nearby explosions
 let mapReturn = 'playing';
 let lockFailed = false;
 let intelT = 0, hudT = 0;
@@ -148,7 +158,13 @@ function updateIntel(silent = false) {
     mapSites.push(s);
     if (s.alive > 0 && d < od) { od = d; objective = { x: s.x, z: s.z, name: s.name, dist: d, alive: s.alive, inside: d < s.r + 10 }; }
   }
+  // Squads cleared: the nearest enemy vehicle becomes the objective.
+  if (!objective && typeof ev !== 'undefined') {
+    const n = ev.nearest(px, pz);
+    if (n) objective = { x: n.x, z: n.z, name: n.name, dist: n.dist, alive: 1, inside: false };
+  }
   mapRobots.length = 0;
+  if (typeof ev !== 'undefined') for (const m of ev.markers()) mapRobots.push({ x: m.x, z: m.z, kind: m.kind });
   ms.forEach((m, k) => {
     if (!m.alive) return;
     const s = sites[idx[k]];
@@ -188,14 +204,19 @@ function resetGame() {
   stats.time = 0; stats.shots = 0; stats.hits = 0; stats.pickups = 0;
   winTimer = -1;
   climb = null;
-  setFlying(false);
+  setVehicle(null);
   heli.reset();
+  ptank.reset(TANK_DEPOT.x, TANK_DEPOT.z, TANK_DEPOT.yaw);
+  respawnT.heli = respawnT.tank = -1; shake = 0;
+  combat.reset();
   weapon.reset();
   const scale = preset.ammoScale || 1;
   weapon.reserve = Math.round(weapon.reserve * scale);
   maxReserve = Math.max(weapon.reserve, Math.round((weapon.magSize || 24) * 10 * scale));
   ammoPerCrate = Math.max(24, Math.round(48 * scale));
   enemies.reset(preset);
+  ev.reset(preset);
+  ev.solids = [ptank];
   pickups.reset();
   viewpoints.reset();
   for (const s of sites) { s.known = false; s.cleared = false; }
@@ -205,7 +226,7 @@ function resetGame() {
   ui.fade(false, 0); ui.hideTitleCard(); ui.setPrompt(null); ui.setRegen(false); ui.setAiming(0);
   ui.setHP(player.hp, player.maxHP);
   ui.setAmmo(weapon.ammo, weapon.reserve, weapon.isReloading);
-  ui.setEnemies(enemies.remaining, enemies.total);
+  ui.setEnemies(remainingEnemies(), totalEnemies());
   roundDirty = false;
   updateIntel(true);
 }
@@ -225,8 +246,9 @@ function startPlaying() {
   clock.getDelta();
   if (fresh) {
     const squads = mapSites.length;
-    ui.titleCard('任務開始', '全ロボットを停止せよ', `訓練ロボット ${enemies.total} 体 · ${squads} 部隊 · 難易度 ${preset.label}`);
-    setTimeout(() => { if (state === 'playing') ui.toast(ui.isTouch ? 'ミニマップをタップすると地図が開きます' : 'M キーで地図 · 塔の足元で F キーで登る'); }, 3800);
+    ui.titleCard('任務開始', '全ロボットと敵車両を撃破せよ', `訓練ロボット ${enemies.total} 体 · ${squads} 部隊 · 戦車とヘリ ${ev.total} 台 · 難易度 ${preset.label}`);
+    setTimeout(() => { if (state === 'playing') ui.toast('南門の外にヘリ、東門の外に戦車があります'); }, 3800);
+    setTimeout(() => { if (state === 'playing') ui.toast(ui.isTouch ? 'ミニマップをタップすると地図が開きます' : 'M キーで地図 · 塔の足元で F キーで登る'); }, 8000);
   }
 }
 
@@ -253,7 +275,7 @@ function endRound(won) {
     time: stats.time,
     accuracy: stats.shots ? stats.hits / stats.shots : 0,
     hpLeft: Math.max(0, Math.round(player.hp)),
-    killed: enemies.total - enemies.remaining, total: enemies.total,
+    killed: totalEnemies() - remainingEnemies(), total: totalEnemies(),
     difficulty: preset.label,
     viewpoints: viewpoints.list.length ? `${viewpoints.climbedCount}/${viewpoints.list.length}` : undefined,
     pickups: stats.pickups,
@@ -454,8 +476,21 @@ function shoot(shot) {
 
   const maxDist = 300;
   const worldHit = physics.raycast(_origin, _dir, maxDist);
-  const enemyHit = enemies.raycast(_origin, _dir, worldHit ? worldHit.distance : maxDist);
+  let enemyHit = enemies.raycast(_origin, _dir, worldHit ? worldHit.distance : maxDist);
   weapon.getMuzzleWorld(camera, _muzzle);
+  // Enemy tanks / helicopters: rifle rounds do little against armour.
+  const vHit = combat._trace(_origin, _dir, enemyHit ? enemyHit.distance : worldHit ? worldHit.distance : maxDist, 'player', null);
+  if (vHit && vHit.target) {
+    stats.hits++;
+    const t = vHit.target, was = t.alive;
+    t.damage(t.ref?.kind === 'tank' ? 8 : 22, _origin, 'bullet');
+    weapon.spawnImpact(scene, vHit.point, _dir.clone().negate(), 'robot');
+    audio.play('hitRobot', { volume: 0.8, rate: 0.7 });
+    ui.hitMarker(was && !t.alive);
+    if (was && !t.alive) onVehicleKill(t);
+    weapon.spawnTracer(scene, _muzzle, vHit.point);
+    return;
+  }
 
   if (enemyHit) {
     stats.hits++;
@@ -464,8 +499,8 @@ function shoot(shot) {
     weapon.spawnImpact(scene, enemyHit.point, enemyHit.normal, 'robot');
     audio.play('hitRobot', { volume: 0.9 });
     ui.hitMarker(killed);
-    if (killed) { ui.toast(`訓練ロボットを停止 — 残り ${enemies.remaining}`); intelT = 0; }
-    ui.setEnemies(enemies.remaining, enemies.total);
+    if (killed) { ui.toast(`訓練ロボットを停止 — 残り ${remainingEnemies()}`); intelT = 0; }
+    ui.setEnemies(remainingEnemies(), totalEnemies());
     _end.copy(enemyHit.point);
   } else if (worldHit) {
     weapon.spawnImpact(scene, worldHit.point, worldHit.normal, 'world');
@@ -477,9 +512,13 @@ function shoot(shot) {
   weapon.spawnTracer(scene, _muzzle, _end);
 }
 
+// Robot rifle fire: armour takes it while in a vehicle (the tank shrugs most of it off).
 function onPlayerHit(damage, fromPos) {
+  if (vehicle) { vehicleDamage(damage * (vehicle === 'tank' ? 0.15 : 0.9), fromPos); return; }
+  playerDamage(damage, fromPos);
+}
+function playerDamage(damage, fromPos) {
   if (state !== 'playing') return;
-  if (flying) damage *= 0.5;            // the cabin takes part of it
   player.hp = Math.max(0, player.hp - damage);
   player.sinceHit = 0;
   ui.setHP(player.hp, player.maxHP);
@@ -531,6 +570,7 @@ function updatePlayer(dt) {
   player.velY -= PLAYER.gravity * dt;
   _move.y = player.velY * dt;
   physics.moveCircle(player.pos, _move, PLAYER.radius, PLAYER.height);
+  pushOutOfTanks(player.pos, PLAYER.radius);
   const top = viewpoints.current;
   if (top) {
     // Stay on the lookout platform.
@@ -583,13 +623,14 @@ function updatePlayer(dt) {
   camera.rotation.set(player.pitch + player.kickPitch, player.yaw + player.kickYaw, -le * LEAN_ROLL);
   camera.updateMatrixWorld();
 
-  // Viewpoint / helicopter interaction.
-  const board = !climb && !viewpoints.current && heli.canBoard(player.pos);
+  // Viewpoint / vehicle interaction.
+  const free = !climb && !viewpoints.current;
+  const board = free && heli.canBoard(player.pos) ? 'heli' : free && canBoardTank(player.pos) ? 'tank' : null;
   const q = climb || board ? null : viewpoints.query(player.pos);
-  const label = board ? 'ヘリに乗る' : q ? (q.mode === 'climb' ? '登る' : '降りる') : null;
+  const label = board === 'heli' ? 'ヘリに乗る' : board === 'tank' ? '戦車に乗る' : q ? (q.mode === 'climb' ? '登る' : '降りる') : null;
   input.setInteract(label);
-  ui.setPrompt(label, board ? 'ヘリコプター' : q ? q.vp.name : '');
-  if (input.consumeInteract()) { if (board) { enterHeli(); return; } if (q) startClimb(q.vp, q.mode); }
+  ui.setPrompt(label, board === 'heli' ? 'ヘリコプター' : board === 'tank' ? '戦車' : q ? q.vp.name : '');
+  if (input.consumeInteract()) { if (board) { enterVehicle(board); return; } if (q) startClimb(q.vp, q.mode); }
 
   // Fire.
   if (input.fireHeld && !busy) {
@@ -612,66 +653,238 @@ function updatePlayer(dt) {
   regenerate(dt);
 }
 
-// ---------- helicopter ----------
-function setFlying(on) {
-  flying = on;
-  heli.piloted = on;
-  input.setFlying(on);
-  document.body.classList.toggle('flying', on);
+// ---------- vehicles (player helicopter and tank) ----------
+const _ct = new THREE.Vector3(), _cd = new THREE.Vector3(), _cp = new THREE.Vector3(), _ce = new THREE.Euler(0, 0, 0, 'YXZ');
+const _ap = new THREE.Vector3(), _ao = new THREE.Vector3(), _adir = new THREE.Vector3(), _vm = new THREE.Vector3(), _vd = new THREE.Vector3();
+const _pv = new THREE.Vector3(), _ppPrev = new THREE.Vector3();
+let hudHeliT = 0, heliBlocked = false, mgT = 0;
+const vehObj = () => (vehicle === 'heli' ? heli : vehicle === 'tank' ? ptank : null);
+const totalEnemies = () => enemies.total + ev.total;
+const remainingEnemies = () => enemies.remaining + ev.remaining;
+
+// Enemy fire (shells, rockets, cannon) finds the player through this target.
+combat.player = {
+  pos: new THREE.Vector3(), radius: 0.55, cy: 1.0, alive: true,
+  damage(amount, from, kind) { if (vehicle) vehicleDamage(amount, from); else playerDamage(kind === 'blast' ? amount * 0.8 : amount, from); },
+};
+combat.onKill = (t) => onVehicleKill(t);
+combat.onRobotKill = () => { intelT = 0; ui.hitMarker(true); ui.toast(`訓練ロボットを停止 — 残り ${remainingEnemies()}`); };
+combat.onExplosion = (pos, size) => {
+  const d = pos.distanceTo(camera.position);
+  shake = Math.max(shake, size * 0.9 * Math.max(0, 1 - d / 70));
+};
+function onVehicleKill(t) {
+  intelT = 0;
+  ui.hitMarker(true);
+  ui.toast(`${t.ref?.name || '敵車両'}を撃破 — 残り ${remainingEnemies()}`, 'ok');
+  audio.play('objective');
 }
-function enterHeli() {
-  setFlying(true);
+
+function canBoardTank(p) {
+  return ptank.alive && Math.hypot(p.x - ptank.pos.x, p.z - ptank.pos.z) < 4.6 && Math.abs(p.y - ptank.pos.y) < 2.5;
+}
+// Keep a body (the player on foot, the player's tank) out of the tanks' hulls.
+function pushOutOfTanks(pos, r, self = null) {
+  const list = [ptank, ...ev.tanks.filter((v) => v.inUse).map((v) => v.obj)];
+  for (const t of list) {
+    if (t === self || !t.group.visible) continue;
+    const dx = pos.x - t.pos.x, dz = pos.z - t.pos.z, d = Math.hypot(dx, dz), R = r + t.radius - 0.2;
+    if (d < R && d > 1e-4 && Math.abs(pos.y - t.pos.y) < 3) { pos.x = t.pos.x + dx / d * R; pos.z = t.pos.z + dz / d * R; }
+  }
+}
+
+function setVehicle(kind) {
+  vehicle = kind;
+  heli.piloted = kind === 'heli';
+  input.setVehicle(kind);
+  document.body.classList.toggle('flying', kind === 'heli');
+  document.body.classList.toggle('in-vehicle', !!kind);
+  hh.altW.style.display = kind === 'heli' ? '' : 'none';
+}
+function enterVehicle(kind) {
+  setVehicle(kind);
   input.clearToggles();
   player.aim = player.aimE = player.leanRaw = player.lean = 0;
-  fcam.yaw = heli.yaw; fcam.pitch = -0.12;
+  const v = vehObj();
+  fcam.yaw = kind === 'tank' ? v.yaw + v.turretYaw : v.yaw; fcam.pitch = kind === 'tank' ? -0.05 : -0.12;
   camera.fov = BASE_FOV; camera.updateProjectionMatrix();
   ui.setPrompt(null); input.setInteract(null);
-  audio.play('uiClick');
-  hh.hint.textContent = isTouch ? '左スティックで移動 · ▲▼で上昇/下降 · 着陸して「降りる」' : 'W/S 前後 · A/D 横 · マウスで向き · Space 上昇 · C 下降 · Shift 加速 · 着陸して F で降りる';
-  ui.toast('ヘリコプターに搭乗 — ローターが回り始めます');
+  audio.play('vehicleEnter');
+  if (kind === 'heli') {
+    hh.hint.textContent = isTouch ? '' : 'WASD 移動 · Space/C 上昇/下降 · 左クリック 機関砲 · 右クリック ロケット · 着陸して F';
+    ui.toast('ヘリコプターに搭乗 — ローターが回り始めます');
+  } else {
+    hh.hint.textContent = isTouch ? '' : 'W/S 前進・後退 · A/D 旋回 · マウスで砲塔 · 左クリック 主砲 · 右クリック 機銃 · F で降りる';
+    ui.toast('戦車に搭乗 — 砲塔は視点の向きに回ります');
+  }
 }
-function exitHeli() {
-  heli.exitSpot(player.pos);
-  setFlying(false);
-  player.yaw = heli.yaw; player.pitch = 0; player.velY = 0; player.grounded = true;
+function tankExitSpot(out) {
+  const t = ptank, s = Math.sin(t.yaw), c = Math.cos(t.yaw);
+  for (const [dx, dz] of [[-c, s], [c, -s], [s, c], [-s, -c]]) for (const d of [3.4, 4.6, 6]) {
+    const x = t.pos.x + dx * d, z = t.pos.z + dz * d;
+    _ao.set(x, t.pos.y + 0.3, z);
+    physics.moveCircle(_ao, _vd.set(0, 0, 0), 0.4, 1.7);
+    if (Math.hypot(_ao.x - x, _ao.z - z) > 0.05) continue;
+    const g = physics.groundHeight(x, z, 0.35, t.pos.y + 1.5);
+    if (Math.abs(g - t.pos.y) > 1.8) continue;
+    return out.set(x, g, z);
+  }
+  return out.set(t.pos.x + c * 3.4, t.pos.y, t.pos.z - s * 3.4);
+}
+function exitVehicle() {
+  const kind = vehicle, v = vehObj();
+  if (kind === 'heli') heli.exitSpot(player.pos); else tankExitSpot(player.pos);
+  setVehicle(null);
+  player.yaw = kind === 'tank' ? v.yaw + v.turretYaw : v.yaw; player.pitch = 0; player.velY = 0; player.grounded = true;
   audio.play('uiClick');
 }
-const _ct = new THREE.Vector3(), _cd = new THREE.Vector3(), _cp = new THREE.Vector3(), _ce = new THREE.Euler(0, 0, 0, 'YXZ');
-let hudHeliT = 0, heliBlocked = false;
-function updateFlight(dt) {
+function vehicleDamage(amount, fromPos) {
+  if (state !== 'playing' || !vehicle) return;
+  const v = vehObj();
+  v.damage(amount);
+  const ang = Math.atan2(fromPos.x - v.pos.x, fromPos.z - v.pos.z), fwd = Math.atan2(-Math.sin(fcam.yaw), -Math.cos(fcam.yaw));
+  ui.damageIndicator(THREE.MathUtils.euclideanModulo(fwd - ang + Math.PI, Math.PI * 2) - Math.PI);
+  if (amount > 20) audio.play('hitRobot', { volume: 0.7, rate: 0.6 });
+  if (!v.alive) vehicleDestroyed();
+}
+// The player's vehicle is knocked out: blast, burning wreck, the player thrown clear and hurt.
+function vehicleDestroyed() {
+  const kind = vehicle, v = vehObj();
+  combat.fireball(_ao.set(v.pos.x, v.pos.y + 1.5, v.pos.z), 1.6);
+  combat._sound('explosionBig', v.pos, 1.3);
+  combat.smokeColumn(v.pos, 40, 1.1);
+  shake = 1.5;
+  if (kind === 'heli') {
+    const g = physics.groundHeight(v.pos.x, v.pos.z, 0.4, v.pos.y + 1);
+    player.pos.set(v.pos.x + 3, Math.max(g, world.groundAt(v.pos.x + 3, v.pos.z)), v.pos.z);
+  } else tankExitSpot(player.pos);
+  setVehicle(null);
+  player.yaw = fcam.yaw; player.pitch = 0; player.velY = 0; player.grounded = true;
+  respawnT[kind] = 45;
+  ui.toast(kind === 'heli' ? 'ヘリコプターが撃墜された — 45 秒後にヘリポートに補充されます' : '戦車が撃破された — 45 秒後に補充されます', 'warn');
+  playerDamage(player.maxHP * (kind === 'heli' ? 0.45 : 0.3), v.pos);
+}
+function updateRespawns(dt) {
+  for (const k of ['heli', 'tank']) {
+    if (respawnT[k] < 0 || (respawnT[k] -= dt) > 0) continue;
+    const at = k === 'heli' ? HELIPAD : TANK_DEPOT;
+    if (Math.hypot(player.pos.x - at.x, player.pos.z - at.z) < 14) { respawnT[k] = 3; continue; }
+    respawnT[k] = -1;
+    if (k === 'heli') heli.reset(); else ptank.reset(TANK_DEPOT.x, TANK_DEPOT.z, TANK_DEPOT.yaw);
+    ui.toast(k === 'heli' ? 'ヘリコプターがヘリポートに補充された' : '戦車が東門の外に補充された');
+  }
+}
+
+/** The point under the crosshair (what the vehicle weapons converge on). An enemy vehicle close to
+ *  the crosshair pulls the aim onto its centre (aim assist; bumps in the ground often cross the ray). */
+function aimPoint(out) {
+  camera.getWorldPosition(_ao); camera.getWorldDirection(_adir);
+  let best = null, bestA = Infinity;
+  for (const t of combat.targets) {
+    if (!t.alive || t.team === 'player') continue;
+    const dx = t.pos.x - _ao.x, dy = t.pos.y + t.cy - _ao.y, dz = t.pos.z - _ao.z, d = Math.hypot(dx, dy, dz);
+    if (d > 600 || d < 3) continue;
+    const a = Math.acos(THREE.MathUtils.clamp((dx * _adir.x + dy * _adir.y + dz * _adir.z) / d, -1, 1));
+    if (a < Math.max(0.035, Math.atan(t.radius * 1.4 / d)) && a < bestA) { bestA = a; best = t; }
+  }
+  if (best) return out.set(best.pos.x, best.pos.y + best.cy, best.pos.z);
+  const h = combat._trace(_ao, _adir, 700, 'player', null);
+  return h ? out.copy(h.point) : out.copy(_ao).addScaledVector(_adir, 700);
+}
+
+function updateVehicle(dt) {
   const look = input.consumeLook();
   fcam.yaw -= look.dx;
-  fcam.pitch = THREE.MathUtils.clamp(fcam.pitch + look.dy, -1.1, 0.45);
+  fcam.pitch = THREE.MathUtils.clamp(fcam.pitch + look.dy, vehicle === 'heli' ? -1.1 : -0.5, 0.45);
   input.consumeJump(); input.consumeReload();
-  heli.update(dt, { move: input.move, up: input.upHeld, down: input.downHeld, boost: input.sprint, heading: fcam.yaw });
-  player.pos.copy(heli.pos);
-  player.yaw = heli.yaw;
-  // Land to get out (not on roofs or water: it holds a hover there).
-  if (heli.blocked && !heliBlocked) ui.toast('ここには着陸できません — 地面か広場に降りてください');
-  heliBlocked = heli.blocked;
-  const canExit = heli.canExit();
+  const v = vehObj();
+  if (vehicle === 'heli') {
+    heli.update(dt, { move: input.move, up: input.upHeld, down: input.downHeld, boost: input.sprint, heading: fcam.yaw });
+    if (heli.blocked && !heliBlocked) ui.toast('ここには着陸できません — 地面か広場に降りてください');
+    heliBlocked = heli.blocked;
+  } else {
+    ptank.drive(dt, input.move.y, input.move.x);
+    pushOutOfTanks(ptank.pos, ptank.radius, ptank);
+    ptank.update(dt);
+  }
+  _pv.copy(v.pos).sub(_ppPrev).divideScalar(Math.max(dt, 1e-3)); _ppPrev.copy(v.pos);
+  player.pos.copy(v.pos);
+  player.yaw = fcam.yaw;
+  // Get out: the helicopter has to be landed; the tank any time.
+  const canExit = vehicle === 'heli' ? heli.canExit() : true;
   input.setInteract(canExit ? '降りる' : null);
-  ui.setPrompt(canExit ? '降りる' : null, 'ヘリコプター');
-  if (input.consumeInteract() && canExit) { exitHeli(); return; }
-  // Chase camera: behind and above, pulled in when something is in the way.
-  _ct.set(heli.pos.x, heli.pos.y + 2.4, heli.pos.z);
+  ui.setPrompt(canExit ? '降りる' : null, vehicle === 'heli' ? 'ヘリコプター' : '戦車');
+  if (input.consumeInteract() && canExit) { exitVehicle(); return; }
+
+  // Chase camera: behind and above (over the turret for the tank), pulled in when blocked.
+  const tank = vehicle === 'tank';
+  _ct.set(v.pos.x, v.pos.y + (tank ? 3.3 : 2.4), v.pos.z);
   _ce.set(fcam.pitch, fcam.yaw, 0);
   _cd.set(0, 0, -1).applyEuler(_ce);
-  const dist = 13 + heli.speed * 0.12;
-  _cp.copy(_ct).addScaledVector(_cd, -dist); _cp.y += 1.4;
+  const dist = tank ? 9 : 13 + heli.speed * 0.12;
+  _cp.copy(_ct).addScaledVector(_cd, -dist); _cp.y += tank ? 1.2 : 1.4;
   _ld.copy(_cp).sub(_ct); const L = _ld.length(); _ld.divideScalar(L);
   const hit = physics.raycast(_ct, _ld, L);
   if (hit) _cp.copy(_ct).addScaledVector(_ld, Math.max(1.5, hit.distance - 0.5));
   // Stay out of the ground and out of pitched roofs (building colliders end at the eaves).
   const terr = world.groundAt(_cp.x, _cp.z), top = physics.groundHeight(_cp.x, _cp.z, 0.6, _cp.y + 20);
-  _cp.y = Math.max(_cp.y, terr + 0.6, top > terr + 0.8 ? top + 4 : -Infinity);
+  _cp.y = Math.max(_cp.y, terr + 0.6, !tank && top > terr + 0.8 ? top + 4 : -Infinity);
   camera.position.copy(_cp);
   camera.lookAt(_ct.x + _cd.x * 30, _ct.y + _cd.y * 30, _ct.z + _cd.z * 30);
   camera.updateMatrixWorld();
+
+  // Weapons converge on the point under the crosshair.
+  aimPoint(_ap);
+  if (tank) {
+    ptank.aimAt(dt, _ap);
+    if (input.fireHeld) {
+      const shot = ptank.fireMain();
+      if (shot) {
+        combat.projectile({ pos: shot.pos, dir: shot.dir, speed: 240, gravity: 3, damage: 520, splash: 7, splashDmg: 260, team: 'player', kind: 'shell' });
+        audio.play('tankGun'); shake = Math.max(shake, 0.6); stats.shots++;
+        enemies.noise?.(ptank.pos, 90);
+      }
+    }
+    if (input.fire2Held && (mgT -= dt) <= 0) {
+      mgT = 0.09;
+      ptank.muzzle(_vm, _vd);
+      _vm.addScaledVector(_vd, -3.6); _vm.x += Math.cos(ptank.yaw + ptank.turretYaw) * 0.45; _vm.z -= Math.sin(ptank.yaw + ptank.turretYaw) * 0.45;
+      _vd.copy(_ap).sub(_vm).normalize();
+      _vd.x += (Math.random() - 0.5) * 0.02; _vd.y += (Math.random() - 0.5) * 0.015; _vd.z += (Math.random() - 0.5) * 0.02; _vd.normalize();
+      combat.hitscan({ origin: _vm, dir: _vd, range: 350, damage: 14, robotDamage: 30, team: 'player' });
+      audio.play('mg', { volume: 0.7 }); stats.shots++;
+      enemies.noise?.(ptank.pos, 60);
+    }
+  } else if (heli.alive) {
+    if (input.fireHeld) {
+      const m = heli.fireCannon();
+      if (m) {
+        _vd.copy(_ap).sub(m).normalize();
+        heli.forward(_vm);
+        if (_vd.dot(_vm) < 0.55) _vd.lerp(_vm, 0.6).normalize();   // outside the gun's arc
+        _vd.x += (Math.random() - 0.5) * 0.012; _vd.y += (Math.random() - 0.5) * 0.012; _vd.z += (Math.random() - 0.5) * 0.012; _vd.normalize();
+        combat.hitscan({ origin: m, dir: _vd, range: 450, damage: 30, robotDamage: 45, team: 'player' });
+        combat.puff(m, 2, 0.5, 0.05, 0.8);
+        audio.play('heliCannon', { volume: 0.8 }); stats.shots++;
+        enemies.noise?.(heli.pos, 80);
+      }
+    }
+    if (input.fire2Held) {
+      const m = heli.fireRocket();
+      if (m) {
+        _vd.copy(_ap).sub(m).normalize();
+        combat.projectile({ pos: m, dir: _vd, speed: 150, gravity: 0.3, damage: 300, splash: 7, splashDmg: 190, team: 'player', kind: 'rocket' });
+        audio.play('rocket'); stats.shots++;
+      }
+    }
+  }
+
   if ((hudHeliT -= dt) <= 0) {
     hudHeliT = 0.1;
+    hh.hp.textContent = String(Math.max(0, Math.round(v.hp / v.hpMax * 100)));
     hh.alt.textContent = String(Math.max(0, Math.round(heli.altitude)));
-    hh.spd.textContent = String(Math.round(heli.speed * 3.6));
+    hh.spd.textContent = String(Math.round((tank ? Math.abs(ptank.speed) : heli.speed) * 3.6));
+    hh.wpn.textContent = tank ? (ptank.reload > 0 ? `主砲 装填中 ${ptank.reload.toFixed(1)}s` : '主砲 発射可') : `ロケット ${heli.rockets}`;
   }
   regenerate(dt);
 }
@@ -700,12 +913,22 @@ function update(dt) {
   if (state === 'playing') {
     stats.time += dt;
     if (climb) updateClimb(dt);
-    if (flying) updateFlight(dt); else { updatePlayer(dt); heli.update(dt, null); }
-    // Enemies see / shoot at the real (leaned) head position, or at the cabin while flying.
-    if (flying) _eye.set(heli.pos.x, heli.pos.y + 1.6, heli.pos.z); else _eye.copy(camera.position);
+    if (vehicle) updateVehicle(dt);
+    else { updatePlayer(dt); _pv.copy(player.pos).sub(_ppPrev).divideScalar(Math.max(dt, 1e-3)); _ppPrev.copy(player.pos); }
+    if (vehicle !== 'heli') heli.update(dt, null);
+    if (vehicle !== 'tank') { ptank.drive(dt, 0, 0); ptank.update(dt); }
+    if (heli.justCrashed) { combat.fireball(heli.pos, 1.3); combat.smokeColumn(heli.pos, 30, 1); }
+    updateRespawns(dt);
+    // Enemies see / shoot at the real (leaned) head position, or at the vehicle the player is in.
+    const vo = vehObj();
+    if (vo) _eye.set(vo.pos.x, vo.pos.y + (vehicle === 'tank' ? 2.2 : 1.6), vo.pos.z); else _eye.copy(camera.position);
     enemies.update(dt, { playerPos: player.pos, playerEye: _eye, playerAlive: player.hp > 0, onPlayerHit, camera });
-    if (!flying) pickups.update(dt, player.pos, collect);
-    ui.setEnemies(enemies.remaining, enemies.total);
+    const cp = combat.player;
+    cp.pos.copy(vo ? vo.pos : player.pos); cp.radius = vehicle === 'tank' ? 2.9 : vehicle === 'heli' ? 3.3 : 0.55; cp.cy = vehicle ? 1.4 : 1.0; cp.alive = player.hp > 0;
+    ev.update(dt, { target: { pos: cp.pos, cy: cp.cy, vel: _pv, kind: vehicle || 'foot', alive: player.hp > 0 } });
+    combat.update(dt, camera);
+    if (!vehicle) pickups.update(dt, player.pos, collect);
+    ui.setEnemies(remainingEnemies(), totalEnemies());
     ui.setCrosshairSpread(4 + weapon.currentSpread * 900);
     ui.setAiming(player.aimE);
     ui.setLockHint(!isTouch && lockFailed && !document.pointerLockElement && !params.has('autostart'));
@@ -713,11 +936,13 @@ function update(dt) {
     if ((hudT -= dt) <= 0) { hudT = 1 / 30; worldMap.drawHUD(getMapState(), 1 / 30); }
     const wp = worldMap.waypoint;
     if (wp && Math.hypot(wp.x - player.pos.x, wp.z - player.pos.z) < 10) { worldMap.setWaypoint(null); ui.toast('目的地に到着しました'); }
-    if (enemies.total > 0 && enemies.remaining === 0 && winTimer < 0) winTimer = 1.2;
+    if (totalEnemies() > 0 && remainingEnemies() === 0 && winTimer < 0) winTimer = 1.2;
     if (winTimer > 0 && (winTimer -= dt) <= 0) endRound(true);
     _focus.copy(player.pos);
   } else if (state === 'menu') {
     heli.update(dt, null);
+    ev.update(dt, { target: null });
+    combat.update(dt, camera);
     flyover.update(dt, camera);
     enemies.update(dt, { playerPos: _far, playerEye: _far, playerAlive: false, onPlayerHit() {}, camera });
     _focus.copy(flyover.focus);
@@ -726,6 +951,8 @@ function update(dt) {
     _focus.copy(overviewCam.focus);
   } else if (state === 'won' || state === 'lost') {
     heli.update(dt, null);
+    ev.update(dt, { target: null });
+    combat.update(dt, camera);
     enemies.update(dt, { playerPos: player.pos, playerEye: _eye, playerAlive: false, onPlayerHit() {}, camera });
     weapon.update(dt, { moving: false, speed01: 0, grounded: true, lookDX: 0, lookDY: 0, aim: 0, lean: 0 });
     _focus.copy(player.pos);
@@ -733,9 +960,16 @@ function update(dt) {
     _focus.copy(player.pos);
   }
   weapon.updateEffects(dt);
-  // Rotor sound: full in the cockpit, fading with distance outside; silent in menus / the map.
+  // Rotor / engine sound: full inside, fading with distance outside; silent in menus / the map.
   const heard = state === 'playing' || state === 'won' || state === 'lost';
-  audio.setRotor(heard ? heli.rotor * (flying ? 1 : Math.max(0, 1 - camera.position.distanceTo(heli.pos) / 160)) : 0);
+  audio.setRotor(heard ? heli.rotor * (vehicle === 'heli' ? 1 : Math.max(0, 1 - camera.position.distanceTo(heli.pos) / 160)) : 0);
+  audio.setEngine(heard && vehicle === 'tank' ? 0.15 + 0.85 * Math.min(1, Math.abs(ptank.speed) / 12) : 0);
+  // Camera shake from explosions nearby (and the tank's own gun).
+  if (shake > 0.01 && (state === 'playing' || state === 'won' || state === 'lost')) {
+    camera.position.x += (Math.random() - 0.5) * shake * 0.35; camera.position.y += (Math.random() - 0.5) * shake * 0.35;
+    camera.updateMatrixWorld();
+  }
+  shake *= Math.exp(-dt * 6);
   world.update(dt, camera);
   gfx.updateSun(_focus);
   gfx.update(dt, { adaptive: state === 'playing' });
@@ -743,7 +977,7 @@ function update(dt) {
 
 function render() {
   if (state === 'map') return;                         // the map covers the whole screen
-  if (state === 'menu' || state === 'overview' || flying) gfx.render();   // no weapon viewmodel while flying
+  if (state === 'menu' || state === 'overview' || vehicle) gfx.render();   // no weapon viewmodel in a vehicle
   else gfx.render(weapon.viewScene, weapon.viewCamera);
 }
 
@@ -771,7 +1005,9 @@ if (params.has('autostart')) startFromMenu(); // for automated screenshots
 window.__game = {
   scene, camera, player, enemies, weapon, world, city: world.parts.city, physics, renderer, gfx, input, ui, audio,
   map: worldMap, pickups, viewpoints, overviewCam, flyover, settings, sites, heli, fcam,
-  get state() { return state; }, get flying() { return flying; }, enterHeli, exitHeli, startPlaying, endRound, shoot, pause, newRound, toTitle,
+  ptank, ev, combat,
+  get state() { return state; }, get flying() { return vehicle === 'heli'; }, get vehicle() { return vehicle; },
+  enterHeli: () => enterVehicle('heli'), exitHeli: () => exitVehicle(), enterTank: () => enterVehicle('tank'), exitVehicle, startPlaying, endRound, shoot, pause, newRound, toTitle,
   freeze(v = true) { frozen = v; clock.getDelta(); },
   step(n = 1, dt = 1 / 30, draw = true) { for (let i = 0; i < n; i++) update(dt); if (draw) render(); },
   openMap() { if (state === 'menu') startFromMenu(); openMap(); worldMap.update(0); },
