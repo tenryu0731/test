@@ -14,17 +14,54 @@ import { createKit, makeFace } from './city-kit.js';
 import { createBuilders } from './city-buildings.js';
 import { createMonuments } from './city-monuments.js';
 import { createProps } from './city-props.js';
-import { buildGrid, makeLots, insetLots, SPACES, MON, TOWERS, PASSAGES, ALLEY_ARCHES, GROUND_KINDS, GW, WALK, COURT, TX0, TX1, TZ0, TZ1 } from './city-plan.js';
+import { buildGrid, makeLots, insetLots, SPACES, MON, TOWERS, WALL_TOWERS, PASSAGES, ALLEY_ARCHES, GROUND_KINDS, GW, WALK, COURT, TX0, TX1, TZ0, TZ1 } from './city-plan.js';
 
 let DETAIL_DIST = 90, FAR_DIST = 190;
+
+// Footprint of a city-wall tower (same rule as city-monuments.js wallTower), used to keep houses out of it.
+function wallTowerRect([x, z, side]) {
+  const corner = side.length === 2, s = corner ? 4.5 : 3.6, out = 2.2;
+  let x0 = x - s, x1 = x + s, z0 = z - s, z1 = z + s;
+  if (!corner) {
+    if (side === 'N') { z0 = z - out; z1 = z + 2 * s - out; }
+    if (side === 'S') { z1 = z + out; z0 = z - 2 * s + out; }
+    if (side === 'W') { x0 = x - out; x1 = x + 2 * s - out; }
+    if (side === 'E') { x1 = x + out; x0 = x - 2 * s + out; }
+  } else {
+    x0 = side.includes('W') ? x - out : x - 2 * s + out; x1 = x0 + 2 * s;
+    z0 = side.includes('N') ? z - out : z - 2 * s + out; z1 = z0 + 2 * s;
+  }
+  return [x0 - 0.05, x1 + 0.05, z0 - 0.05, z1 + 0.05];
+}
+// Rectangle subtraction: lots overlapping a blocker are replaced by the (up to four) pieces around it;
+// slivers narrower than 3 m are dropped.
+function carveLots(lots, blockers) {
+  let cur = lots;
+  for (const [bx0, bx1, bz0, bz1] of blockers) {
+    const next = [];
+    for (const l of cur) {
+      if (l.x1 <= bx0 || l.x0 >= bx1 || l.z1 <= bz0 || l.z0 >= bz1) { next.push(l); continue; }
+      const pieces = [
+        [l.x0, l.x1, l.z0, Math.min(l.z1, bz0)],                                   // north of it
+        [l.x0, l.x1, Math.max(l.z0, bz1), l.z1],                                   // south
+        [l.x0, Math.min(l.x1, bx0), Math.max(l.z0, bz0), Math.min(l.z1, bz1)],     // west
+        [Math.max(l.x0, bx1), l.x1, Math.max(l.z0, bz0), Math.min(l.z1, bz1)],     // east
+      ];
+      for (const [x0, x1, z0, z1] of pieces) if (x1 - x0 >= 3 && z1 - z0 >= 3) next.push({ ...l, x0, x1, z0, z1 });
+    }
+    cur = next;
+  }
+  return cur;
+}
 
 export function buildCity(scene, M, opts = {}) {
   const t0 = performance.now();
   const R = mulberry32(20240917);
   const rr = (a, b) => a + (b - a) * R();
   const grid = buildGrid();
-  const lots = makeLots(grid, R);
+  let lots = makeLots(grid, R);
   insetLots(grid, lots, R);
+  lots = carveLots(lots, WALL_TOWERS.map(wallTowerRect));
   const NX = 6, NZ = 8, GX0 = TX0 - 8, GZ0 = TZ0 - 8;
   const geo = new Geo(M.town, { x0: GX0, z0: GZ0, cw: (TX1 - TX0 + 16) / NX, ch: (TZ1 - TZ0 + 16) / NZ, nx: NX, nz: NZ });
   const colliders = [];

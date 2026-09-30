@@ -432,16 +432,23 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
 
   // ---------------------------------------------------------------- roofs
   // Gable (ridge along the long side) or hip roof with overhang, underside, fascia and ridge caps.
+  // Pitched roof over the rectangle. ov: eave overhang; opt.sides {N, S, W, E} overrides it per side
+  // (0 on party walls, so neighbouring roofs meet at the wall instead of crossing), opt.ends
+  // {A0, A1}: 'hip' | 'gable' per ridge end (a gable end gets a triangular wall up to the ridge).
   function roof(x0, x1, z0, z1, H, L, ov, opt = {}) {
     const tp = Math.tan(L.pitch ?? 0.35);
     const alongX = opt.axis ? opt.axis === 'x' : x1 - x0 >= z1 - z0;
-    const hip = opt.hip || (!opt.gable && Math.max(x1 - x0, z1 - z0) / Math.min(x1 - x0, z1 - z0) < 1.35);
-    const A0 = (alongX ? x0 : z0) - ov, A1 = (alongX ? x1 : z1) + ov;
-    const B0 = (alongX ? z0 : x0) - ov, B1 = (alongX ? z1 : x1) + ov;
-    const half = (B1 - B0) / 2, Bc = (B0 + B1) / 2;
-    const ye = H - ov * tp, Hr = H + (half - ov) * tp;
-    let Ar0 = A0, Ar1 = A1;
-    if (hip) { Ar0 = Math.min(A0 + half, (A0 + A1) / 2); Ar1 = Math.max(A1 - half, (A0 + A1) / 2); }
+    const hipAll = opt.hip || (!opt.gable && Math.max(x1 - x0, z1 - z0) / Math.min(x1 - x0, z1 - z0) < 1.35);
+    const sd = opt.sides || {};
+    const ovOf = (d) => (sd[d] ?? ov);
+    const oA0 = ovOf(alongX ? 'W' : 'N'), oA1 = ovOf(alongX ? 'E' : 'S'), oB0 = ovOf(alongX ? 'N' : 'W'), oB1 = ovOf(alongX ? 'S' : 'E');
+    const hip0 = opt.ends ? opt.ends.A0 === 'hip' : hipAll, hip1 = opt.ends ? opt.ends.A1 === 'hip' : hipAll;
+    const wa0 = alongX ? x0 : z0, wa1 = alongX ? x1 : z1, wb0 = alongX ? z0 : x0, wb1 = alongX ? z1 : x1;
+    const A0 = wa0 - oA0, A1 = wa1 + oA1, B0 = wb0 - oB0, B1 = wb1 + oB1;
+    const half = (wb1 - wb0) / 2, Bc = (wb0 + wb1) / 2, Hr = H + half * tp;
+    const ye0 = H - oB0 * tp, ye1 = H - oB1 * tp;          // eave heights of the two long sides
+    const mid = (wa0 + wa1) / 2;
+    const Ar0 = hip0 ? Math.min(wa0 + half, mid) : A0, Ar1 = hip1 ? Math.max(wa1 - half, mid) : A1;
     const P = (a, y, b) => (alongX ? [a, y, b] : [b, y, a]);
     const D = (da, dy, db) => (alongX ? [da, dy, db] : [db, dy, da]);
     const rf = T.roof, tile = rf.tile;
@@ -452,16 +459,13 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
       return [e / tile, s / tile];
     };
     const n1 = Math.hypot(1, tp);
+    const nrm = (a, b, c) => { const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]]; const n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]]; const l = Math.hypot(...n) || 1; return n[1] < 0 ? n.map((x) => -x / l) : n.map((x) => x / l); };
     const planes = [];
-    planes.push({ pts: [P(A0, ye, B0), P(A1, ye, B0), P(Ar1, Hr, Bc), P(Ar0, Hr, Bc)], n: D(0, 1, -tp), e: D(1, 0, 0), up: D(0, tp / n1, 1 / n1), o: P(A0, ye, B0) });
-    planes.push({ pts: [P(A1, ye, B1), P(A0, ye, B1), P(Ar0, Hr, Bc), P(Ar1, Hr, Bc)], n: D(0, 1, tp), e: D(1, 0, 0), up: D(0, tp / n1, -1 / n1), o: P(A0, ye, B1) });
-    if (hip) {
-      planes.push({ pts: [P(A0, ye, B1), P(A0, ye, B0), P(Ar0, Hr, Bc)], n: D(-tp, 1, 0), e: D(0, 0, 1), up: D(1 / n1, tp / n1, 0), o: P(A0, ye, B0) });
-      planes.push({ pts: [P(A1, ye, B0), P(A1, ye, B1), P(Ar1, Hr, Bc)], n: D(tp, 1, 0), e: D(0, 0, 1), up: D(-1 / n1, tp / n1, 0), o: P(A1, ye, B0) });
-    }
+    planes.push({ pts: [P(A0, ye0, B0), P(A1, ye0, B0), P(Ar1, Hr, Bc), P(Ar0, Hr, Bc)], n: D(0, 1, -tp), e: D(1, 0, 0), up: D(0, tp / n1, 1 / n1), o: P(A0, ye0, B0) });
+    planes.push({ pts: [P(A1, ye1, B1), P(A0, ye1, B1), P(Ar0, Hr, Bc), P(Ar1, Hr, Bc)], n: D(0, 1, tp), e: D(1, 0, 0), up: D(0, tp / n1, -1 / n1), o: P(A0, ye1, B1) });
+    if (hip0) { const pts = [P(A0, ye1, B1), P(A0, ye0, B0), P(Ar0, Hr, Bc)]; planes.push({ pts, n: nrm(...pts), e: D(0, 0, 1), up: D(1 / n1, tp / n1, 0), o: P(A0, ye0, B0) }); }
+    if (hip1) { const pts = [P(A1, ye0, B0), P(A1, ye1, B1), P(Ar1, Hr, Bc)]; planes.push({ pts, n: nrm(...pts), e: D(0, 0, 1), up: D(-1 / n1, tp / n1, 0), o: P(A1, ye0, B0) }); }
     const wallO = { tint: L.tint ?? 1, uvOff: L.uvOff, gao: false };
-    const wa0 = alongX ? x0 : z0, wa1 = alongX ? x1 : z1, wb0 = alongX ? z0 : x0, wb1 = alongX ? z1 : x1;
-    const HrW = H + ((wb1 - wb0) / 2) * tp;
     const emit = (lod) => {
       const prev = setLod(lod);
       for (const pl of planes) {
@@ -476,18 +480,20 @@ export function createKit({ geo, M, R, grid, collide, decals }) {
           geo.quad(T.wood, [a[0], a[1] - 0.14, a[2]], [b[0], b[1] - 0.14, b[2]], b, a, [pl.n[0], 0, pl.n[2]], { gao: false, ao: 0.85 });
         }
       }
-      if (!hip) {
-        const wall = L.wall || T.plaster;
-        geo.tri(wall, P(wa0, H, wb0), P(wa0, H, wb1), P(wa0, HrW, Bc), D(-1, 0, 0), wallO);
-        geo.tri(wall, P(wa1, H, wb0), P(wa1, H, wb1), P(wa1, HrW, Bc), D(1, 0, 0), wallO);
-        if (lod === LOD.BASE) for (const [Aend, s] of [[A0, -1], [A1, 1]]) for (const Bend of [B0, B1]) {
+      // Gable ends: wall triangle up to the ridge (both faces, so a party-wall gable reads from either side).
+      const wall = L.wall || T.plaster;
+      for (const [isHip, wa, s, Aend] of [[hip0, wa0, -1, A0], [hip1, wa1, 1, A1]]) {
+        if (isHip) continue;
+        geo.tri(wall, P(wa, H, wb0), P(wa, H, wb1), P(wa, Hr, Bc), D(s, 0, 0), wallO);
+        geo.tri(wall, P(wa, H, wb1), P(wa, H, wb0), P(wa, Hr, Bc), D(-s, 0, 0), wallO);
+        if (lod === LOD.BASE && Math.abs(Aend - wa) > 0.02) for (const [Bend, ye] of [[B0, ye0], [B1, ye1]]) {
           const lo = P(Aend, ye, Bend), hi = P(Aend, Hr, Bc);
           geo.quad(T.wood, [lo[0], lo[1] - 0.14, lo[2]], [hi[0], hi[1] - 0.14, hi[2]], hi, lo, D(s, 0, 0), { gao: false, ao: 0.85 });
         }
       }
       if (lod === LOD.BASE) {
         if (Ar1 - Ar0 > 0.05) halfTube(rf, P(Ar0, Hr + 0.02, Bc), P(Ar1, Hr + 0.02, Bc), 0.13, { tint: rt }, 3);
-        if (hip) for (const [ae, ar] of [[A0, Ar0], [A1, Ar1]]) for (const be of [B0, B1]) halfTube(rf, P(ae, ye + 0.02, be), P(ar, Hr + 0.02, Bc), 0.11, { tint: rt }, 2);
+        for (const [isHip, ae, ar] of [[hip0, A0, Ar0], [hip1, A1, Ar1]]) if (isHip) for (const [be, ye] of [[B0, ye0], [B1, ye1]]) halfTube(rf, P(ae, ye + 0.02, be), P(ar, Hr + 0.02, Bc), 0.11, { tint: rt }, 2);
       }
       setLod(prev);
     };

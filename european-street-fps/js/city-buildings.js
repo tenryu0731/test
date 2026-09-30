@@ -191,6 +191,19 @@ export function createBuilders(ctx) {
     let prev = setLod(LOD.BASE);
     const y0 = opt.y0 ?? 0;
     geo.box(S.wall, bx0, y0, bz0, bx1, S.H, bz1, { tint: S.tint, uvOff: S.uvOff, top: S.H, skip });
+    // Close the ends of each façade slab on party-wall sides: the slab stands FAC in front of the
+    // body, and without a cap the gap shows light through the building wherever the neighbour is lower.
+    // Box face bits: 1 +x, 2 -x, 4 top, 8 bottom, 16 +z, 32 -z; only the outward side face is kept.
+    for (const [d, ends] of [['N', ['W', 'E']], ['S', ['W', 'E']], ['W', ['N', 'S']], ['E', ['N', 'S']]]) {
+      if (!facade(d)) continue;
+      for (const e of ends) {
+        if (facade(e)) continue;
+        const px = d === 'W' ? [x0, x0 + FAC] : d === 'E' ? [x1 - FAC, x1] : e === 'W' ? [x0, x0 + FAC] : [x1 - FAC, x1];
+        const pz = d === 'N' ? [z0, z0 + FAC] : d === 'S' ? [z1 - FAC, z1] : e === 'N' ? [z0, z0 + FAC] : [z1 - FAC, z1];
+        const keep = { E: 1, W: 2, S: 16, N: 32 }[e];
+        geo.box(S.wall, px[0], y0, pz[0], px[1], S.H, pz[1], { tint: S.tint, uvOff: S.uvOff, top: S.H, skip: 63 & ~keep });
+      }
+    }
     setLod(LOD.FAR);
     geo.box(S.wall, x0, y0, z0, x1, S.H, z1, { tint: S.tint, uvOff: S.uvOff, gao: false, skip: 4 });
     setLod(LOD.BASE);
@@ -260,7 +273,16 @@ export function createBuilders(ctx) {
     // Roof.
     if (!opt.noRoof) {
       const pitch = S.eave === 'crenel' ? 0.18 : S.pitch;
-      const Hr = roof(x0, x1, z0, z1, S.H - (S.eave === 'crenel' ? 0.3 : 0), { pitch, wall: S.wall, tint: S.tint, uvOff: S.uvOff, roofTint: S.roofTint }, S.eave === 'crenel' ? 0 : 0.42, opt.roof || {});
+      // Terraced roofs: the ridge runs along the street front, eaves overhang only over streets and
+      // courts, and the ends are hipped where the building is exposed and gabled on party walls.
+      const ns = facade('N') || facade('S'), we = facade('W') || facade('E');
+      let axis = ns && !we ? 'x' : we && !ns ? 'z' : (x1 - x0 >= z1 - z0 ? 'x' : 'z');
+      if (axis === 'x' && z1 - z0 > 1.6 * (x1 - x0)) axis = 'z';        // deep narrow lot: ridge front to back
+      else if (axis === 'z' && x1 - x0 > 1.6 * (z1 - z0)) axis = 'x';
+      const eov = S.eave === 'crenel' ? 0 : 0.42;
+      const sides = { N: facade('N') ? eov : 0, S: facade('S') ? eov : 0, W: facade('W') ? eov : 0, E: facade('E') ? eov : 0 };
+      const ends = axis === 'x' ? { A0: facade('W') ? 'hip' : 'gable', A1: facade('E') ? 'hip' : 'gable' } : { A0: facade('N') ? 'hip' : 'gable', A1: facade('S') ? 'hip' : 'gable' };
+      const Hr = roof(x0, x1, z0, z1, S.H - (S.eave === 'crenel' ? 0.3 : 0), { pitch, wall: S.wall, tint: S.tint, uvOff: S.uvOff, roofTint: S.roofTint }, eov, { axis, sides, ends, ...(opt.roof || {}) });
       if (R() < 0.3 && S.eave !== 'crenel') {
         const cx = rr(x0 + 1, x1 - 1), cz = rr(z0 + 1, z1 - 1);
         chimney(cx, cz, S.H - 0.5, Hr + 0.4 + R() * 0.6, S);
