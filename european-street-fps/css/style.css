@@ -611,8 +611,11 @@ kbd {
 #touch.active.fly > .tbtn-fire, #touch.active.fly > .tbtn-aim, #touch.active.fly > .tbtn-reload,
 #touch.active.fly > .tbtn-jump, #touch.active.fly > .lean-pad { display: none; }
 .tbtn-fly { width: var(--fire); height: var(--fire); right: var(--bx); font-size: 14px; }
-.tbtn-up { bottom: calc(var(--by) + var(--fire) + 14px); background: rgba(240, 176, 74, 0.5); border-color: rgba(255, 236, 200, 0.85); }
-.tbtn-down { bottom: var(--by); }
+/* Side by side along the bottom edge (stacked they reached the minimap on short landscape screens). */
+.tbtn-up { bottom: var(--by); background: rgba(240, 176, 74, 0.5); border-color: rgba(255, 236, 200, 0.85); }
+.tbtn-down { right: calc(var(--bx) + var(--fire) + 14px); bottom: var(--by); }
+/* 「降りる」 sits above the two flight buttons instead of on top of ▼. */
+@media (orientation: landscape) { #touch.fly .tbtn-interact { right: var(--bx); bottom: calc(var(--by) + var(--fire) + 16px); } }
 .tbtn-fly svg { width: 38%; height: 38%; }
 .tbtn-down .flip { display: flex; width: 38%; height: 38%; transform: rotate(180deg); }
 .tbtn-down .flip svg { width: 100%; height: 100%; }
