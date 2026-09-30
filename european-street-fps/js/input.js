@@ -262,6 +262,7 @@ export class Input {
     this._interactEl = root.querySelector('.tbtn-interact');
     this._aimEl = root.querySelector('.tbtn-aim');
     this._leanEls = { '-1': root.querySelector('[data-role="leanL"]'), 1: root.querySelector('[data-role="leanR"]') };
+    this._leanPadEl = root.querySelector('.lean-pad');
     this._joyBase = { x: 0, y: 0, r: 60 };
     this._hideJoystick();
 
@@ -361,7 +362,10 @@ export class Input {
   _showJoystick(x, y) {
     const r = this._joyRadius();
     const m = r + 10;
-    x = clamp(x, m, innerWidth / 2 - 10); y = clamp(y, m, innerHeight - m);
+    // Keep the ring below the lean buttons so it never covers them.
+    const lp = this._leanPadEl?.getBoundingClientRect();
+    const top = lp && lp.height ? Math.min(lp.bottom + r + 6, innerHeight - m) : m;
+    x = clamp(x, m, innerWidth / 2 - 10); y = clamp(y, Math.max(m, top), innerHeight - m);
     this._joyBase = { x, y, r };
     this._placeJoy(x, y, r, true);
     this._knobEl.style.transform = 'translate3d(-50%, -50%, 0)';
