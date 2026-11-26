@@ -8,6 +8,6 @@
 | [`last-light/`](last-light/) | **LAST LIGHT** — 星が消えていく世界で、小さな生き物が最後の星を守る 60 秒の物語 | 2D アニメーション（動画） |
 | [`lumen/`](lumen/) | **LUMEN** — キリスト教の信仰を描く 60 秒のセリフなし短編 | 2D アニメーション（動画） |
 | [`european-street-fps/`](european-street-fps/) | **サン・ジミニャーノ市街戦** — 昼のトスカーナの街で訓練用ロボット 5 体を停止させる | 3D FPS（ブラウザ、スマホ対応）※制作中。PR #1 のマージで追加 |
-| [`american-city-open-world/`](american-city-open-world/) | **アメリカの都市オープンワールド** — GTA のように動き回れる米国の街を作るための 3D 素材調査と取得テスト | 素材調査（ゲーム本体は未着手） |
+| [`american-city-open-world/`](american-city-open-world/) | **AMERICAN CITY** — 米国のダウンタウンを車と徒歩で自由に動き回るオープンワールド（素材は Poly Haven の CC0） | 3D オープンワールド（ブラウザ、スマホ対応）※制作中 |
 
 新しい作品を追加するときのルールは [`CLAUDE.md`](CLAUDE.md) にあります。

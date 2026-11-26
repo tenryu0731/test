@@ -17,6 +17,7 @@ import { HUD } from './hud.js';
 import { Audio } from './audio.js';
 
 const bootEl = document.getElementById('boot');
+if (isTouch) document.body.classList.add('touch');
 const say = (t) => { bootEl.textContent = t; };
 const QUALITY = params.get('q') || localStorage.getItem('acq') || (isTouch ? 'low' : 'high');
 

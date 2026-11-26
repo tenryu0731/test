@@ -2,7 +2,7 @@
 
 ## クレジット表記が必要な素材（CC0 以外）
 
-**現時点ではありません。** 取得済みの素材（`assets/ledger.json` の 5 件）はすべて CC0 1.0 です。
+**現時点ではありません。** 取得済みの素材（`assets/ledger.json` の全件）はすべて CC0 1.0 です。
 
 CC-BY などの素材を追加したときは、この表に 1 行ずつ追加し、ゲーム内のクレジット画面にも同じ文面を出します。
 
@@ -21,3 +21,8 @@ CC-BY 4.0 の表記の型（Sketchfab や OpenGameArt の CC-BY 素材を採用�
 - Kenney — City Kit (Roads), City Kit (Commercial) — www.kenney.nl
 - Kay Lousberg — KayKit City Builder Bits — www.kaylousberg.com
 - Poly Haven — Modular Urban Apartments Facade (James Ray Cock), Street Lamp 01 (Josh Dean) — polyhaven.com
+- Poly Haven（ゲームで使用）— テクスチャ 11 点、HDRI「Kloofendal 48d Partly Cloudy (Pure Sky)」（Greg Zaal, Jarod Guest）、小物 11 点。作者は `assets/game/manifest.json` と `assets/ledger.json` に記録。polyhaven.com
+
+## ソフトウェア
+
+- three.js r170 — MIT License（`vendor/LICENSE-three.txt`）

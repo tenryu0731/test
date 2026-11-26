@@ -1,42 +1,106 @@
-# american-city-open-world — アメリカの都市オープンワールド（素材調査段階）
+# american-city-open-world — AMERICAN CITY
 
-GTA のように自由に動き回れる、アメリカの都市をイメージしたゲームを作るための準備です。
-いまは **3D 素材（建物・道路・信号・街灯・車・木・小物）の調査と取得テスト** の段階で、ゲーム本体はまだありません。
+アメリカのダウンタウンを、車でも徒歩でも自由に動き回れるブラウザ向けのオープンワールドです（three.js）。
+素材は「最もリアルで、量が十分にある」CC0 の配布元として Poly Haven を使っています（実写の PBR テクスチャ、HDRI の空、街路の小物）。
+車・建物の形・信号・街路樹・音はコードで生成しています。
 
-## 見るもの
+素材選びの調査（19 の配布元の比較）は [`docs/asset-survey.md`](docs/asset-survey.md) にあります。
 
-- 調査レポート: [`docs/asset-survey.md`](docs/asset-survey.md) — 19 の配布元の比較表、取得テストの結果、おすすめの組み合わせ 3 案
-- 縮尺の比較画像: `docs/img/scale-*.png`（赤い柱 = 身長 1.8 m）
-- 素材の台帳: [`assets/ledger.json`](assets/ledger.json)
-- クレジット: [`CREDITS.md`](CREDITS.md)
+## 遊び方
 
-## 実行方法（このフォルダをカレントにする）
+開始画面で画質を選び、「街へ出る」を押します。最初は赤いセダンに乗っています。
 
-```bash
-npm install                    # glTF の検証ツールと three.js
-bash tools/fetch-assets.sh     # 素材を配布元から取り直す（assets/raw/ は git 管理外）
-node tools/check.mjs assets/vendor/kaykit-city-builder-bits/gltf/*.gltf   # 検証とサイズ計測
-python3 -m http.server 8765 &  # 縮尺比較の画面: http://127.0.0.1:8765/tools/scale.html?v=all|k|y|p
-node tools/shot.cjs out.png y  # 上の画面を Playwright で撮影
+| 操作 | パソコン | スマートフォン |
+|---|---|---|
+| アクセル / ブレーキ・後退 | W / S | 右下の「アクセル」「ブレーキ」（左スティックの上下でも可） |
+| ハンドル | A / D | 左側をドラッグ（仮想スティック） |
+| サイドブレーキ（ドリフト） | Space | 「サイドブレーキ」 |
+| 乗る / 降りる | F | 「乗る」/「降りる」 |
+| 歩く・走る | W A S D、Shift で走る | 左スティック（大きく倒すと走る） |
+| 視点 | マウス（クリックでポインタロック） | 右側をドラッグ |
+| カメラ切替（後方 / ボンネット） | C | 「視点」 |
+| ホーン | H | 「ホーン」 |
+| 一時停止 | Esc | 左上の Ⅱ |
+
+- 車を降りて、近くの車（走っている AI の車や駐車中の車）に F で乗ると、その車を運転できます。
+- AI の車は信号（約 35 秒周期）に従い、前の車との車間を保ち、交差点で直進・右左折します。
+
+## 実行方法
+
+ES モジュールを使うので、このフォルダを Web サーバーで配信して開きます。
+
+```sh
+cd american-city-open-world
+python3 -m http.server 8000
+# http://localhost:8000/ を開く
 ```
+
+URL パラメータ: `?q=high|medium|low`（画質）、`?autostart`（開始画面を飛ばす）、`?fps`（FPS 表示）、`?touch`（タッチ操作 UI を強制）。
+
+| 画質 | 内容 |
+|---|---|
+| 高 | GTAO（環境遮蔽）、ブルーム、SMAA、2048 の影、解像度 1.5 倍まで |
+| 中 | MSAA、2048 の影 |
+| 低 | 1024 の影、AI の車を減らす（タッチ端末の既定） |
+
+フレーム時間に応じて描画解像度を自動で上げ下げします。
+
+## 作りの要点
+
+- **街**: 6 × 8 ブロックの碁盤目（交差点間隔 90 m × 70 m、片側 2 車線、歩道 4.5 m）。中心ほど高層で、高層ビルはセットバックします。外周の 1 列は背景用のビル。
+- **外壁**: Poly Haven の実写テクスチャに、窓をシェーダーで描きます。窓の奥は「インテリアマッピング」（部屋の箱と視線の交点を計算）で、天井の照明・壁・床・ブラインドが視点に応じて見えます。遠くでは窓の模様を平均色に寄せてモアレを防ぎます。1 階は店舗のガラスと、架空の店名の看板・日よけ。
+- **空と光**: HDRI（Kloofendal 48d Partly Cloudy, Pure Sky）で環境光と背景を作り、HDRI の一番明るい画素から太陽の向きを求めて影を落とします。
+- **車**: 側面の輪郭を押し出して作ったセダン・SUV・タクシー・箱型トラック（実在の車種・ロゴは再現していません）。クリアコート塗装。挙動はアーケード寄り（グリップと横滑り、サイドブレーキでドリフト、衝突で跳ね返る）。
+- **交通**: 車線上の位置で管理し、交差点はベジェ曲線で曲がります。遠くの車・詰まった車は、カメラに映らない場所へ入れ替えます。
+
+## テスト
+
+```sh
+npm install
+python3 -m http.server 8780 &
+node tools/sim-test.cjs     # 描画せずに挙動を検証（加速、衝突、信号無視の回数、乗り降り、車を奪う）
+node tools/play-test.cjs <出力先> low   # 実際に描画してスクリーンショットを撮る
+```
+
+`sim-test` の確認項目: 6 秒の全開加速、建物への衝突後に建物の中へ入っていないこと、AI の車が 3 分間で赤信号の停止線を越えた回数（0 であること）、降車・歩行・再乗車、AI の車の乗っ取り。
+
+## 素材の作り直し
+
+```sh
+npm install
+NODE_USE_ENV_PROXY=1 node tools/build-game-assets.mjs        # 全部
+node tools/build-game-assets.mjs props                       # 小物だけ（tex / hdri も可）
+```
+
+Poly Haven の公開 API から取得し、配布元の MD5 と照合してから軽量化します（テクスチャは JPEG 再圧縮、小物はポリゴン削減と 512px 化）。取得した素材は [`assets/ledger.json`](assets/ledger.json) に記録しています。
 
 ## ファイル構成
 
 ```
+index.html, css/style.css
+js/
+  main.js        描画設定、空と太陽、ゲームループ、カメラ、乗り降り、徒歩
+  config.js      街の寸法と共通関数
+  materials.js   PBR マテリアルと外壁シェーダー（窓・インテリアマッピング）
+  city.js        街の生成（道路、歩道、車線表示、建物、屋上、看板、信号、小物、街路樹、衝突判定）
+  vehicle.js     車のモデルと挙動、車どうしの衝突
+  traffic.js     信号の周期と AI の交通
+  input.js       キーボード・マウス・タッチ
+  hud.js         速度計、ミニマップ、開始・一時停止画面
+  audio.js       エンジン音などの合成
+vendor/          three.js r170（MIT）
 assets/
-  ledger.json              取得した素材の台帳
-  vendor/                  取得した素材（GLB/glTF とライセンスファイルのみ）
-    kenney-city-kit-roads/
-    kenney-city-kit-commercial/
-    kaykit-city-builder-bits/
-    polyhaven/
-docs/
-  asset-survey.md          調査レポート
-  img/                     縮尺比較の画像
-tools/
-  fetch-assets.sh          取得スクリプト（curl / git / Poly Haven API、MD5 照合つき）
-  check.mjs                Khronos glTF-Validator での検証と、寸法・三角形数の計測
-  scale.html, shot.cjs     three.js で並べて表示・撮影
+  game/          ゲーム用素材（tex/, sky/, props/, manifest.json）
+  vendor/        調査時の取得テスト素材（Kenney、KayKit、Poly Haven）
+  ledger.json    素材の台帳
+docs/            素材調査レポートと比較画像
+tools/           素材の取得・軽量化、テスト、確認用ページ
 CREDITS.md
-package.json
 ```
+
+## まだないもの
+
+- 歩行者・人物モデル（無料で質の高い人物の CC0 素材が見つかっておらず、未実装）
+- 夜・時間帯の変化、天候
+- 建物の中に入ること、ミッションやストーリー
+- 車の損傷表現、警察などのゲーム的な要素

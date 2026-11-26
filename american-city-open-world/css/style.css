@@ -46,3 +46,24 @@ body.playing #touch { display: block; }
 #touch .tb.brake { background: rgba(160,40,40,.55); }
 #touch .pause { position: absolute; left: 16px; top: 60px; width: 52px; height: 44px; }
 #touch[data-mode="foot"] .hb, #touch[data-mode="foot"] .pedal { visibility: hidden; }
+
+/* スマートフォン（タッチ）と背の低い画面 */
+body.touch #minimap { width: 118px; height: 118px; right: 12px; top: 10px; border-width: 2px; }
+body.touch #speed { right: 16px; top: 132px; }
+body.touch #speed b { font-size: 32px; }
+body.touch #speed span { font-size: 10px; }
+body.touch #mode { left: 12px; top: 10px; font-size: 12px; padding: 4px 9px; }
+body.touch #touch .pause { left: 12px; top: 44px; width: 44px; height: 38px; }
+body.touch #touch .tbtns { grid-template-columns: repeat(3, 66px); gap: 8px; right: 12px; bottom: 12px; }
+body.touch #touch .tb { height: 48px; font-size: 12px; border-radius: 10px; }
+body.touch #touch .tb.pedal { height: 74px; }
+@media (max-height: 520px) {
+  .panel { padding: 16px 20px; width: min(760px, 94vw); }
+  .panel h1 { font-size: 28px; }
+  .panel .sub { margin: 2px 0 8px; font-size: 13px; }
+  .keys { font-size: 12px; margin-bottom: 8px; }
+  .keys th, .keys td { padding: 3px 8px 3px 0; }
+  .q { margin: 4px 0 10px; font-size: 12px; display: inline-block; margin-right: 16px; }
+  .panel button { padding: 9px 26px; font-size: 16px; }
+  .credit { margin-top: 8px; font-size: 10px; }
+}

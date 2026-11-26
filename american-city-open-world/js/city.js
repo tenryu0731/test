@@ -388,6 +388,12 @@ export class City {
       const px = (t) => s.a[0] + dx * t - s.n[0] * edge, pz = (t) => s.a[1] + dz * t - s.n[1] * edge;
       const rotToRoad = Math.atan2(s.n[0], s.n[1]);
       for (let t = 14; t < L - 10; t += 34) this.place('street_lamp_01', px(t), CURB_H, pz(t), rotToRoad, 1, 0.18);
+      // 街路樹（街灯の間。角は避ける）
+      for (let t = 31; t < L - 18; t += 34) if (R() < 0.8) {
+        const tx = px(t) - s.n[0] * 0.7, tz = pz(t) - s.n[1] * 0.7;
+        this.place('tree', tx, CURB_H, tz, R() * 6.28, 0.85 + R() * 0.35, 0.3);
+        this.flat(tx - 0.75, tz - 0.75, tx + 0.75, tz + 0.75, CURB_H + 0.005, 'trimDark');
+      }
       // 消火栓（角の近く）
       if (R() < 0.8) { const t = 6 + R() * 3; this.place('fire_hydrant', px(t) - s.n[0] * 0.2, CURB_H, pz(t) - s.n[1] * 0.2, rotToRoad, 1, 0.25); }
       if (R() < 0.7) { const t = L - 6 - R() * 4; this.place('metal_trash_can', px(t) - s.n[0] * 0.3, CURB_H, pz(t) - s.n[1] * 0.3, rotToRoad, 1, 0.35); }
@@ -535,6 +541,7 @@ export class City {
     for (const name of Object.keys(this.instances)) {
       let src;
       if (name === 'watertower') src = makeWaterTower(this.mats);
+      else if (name === 'tree') src = makeTree();
       else src = (await loader.loadAsync(`assets/game/props/${name}.glb`)).scene;
       src.updateMatrixWorld(true);
       // 区画（2×2 ブロック）ごとに InstancedMesh を分け、画面外の区画は描かない
@@ -596,6 +603,41 @@ function makeSignAtlas() {
   });
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
+}
+
+// 街路樹（手続き生成。葉は小さな多面体の塊を寄せ集める）
+function makeTree() {
+  const rnd = mulberry32(99);
+  const g = new THREE.Group();
+  const bark = new THREE.MeshStandardMaterial({ color: 0x3b3128, roughness: 0.95 });
+  const leaf = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.82 });
+  const parts = [new THREE.CylinderGeometry(0.11, 0.17, 3.2, 8).translate(0, 1.6, 0)];
+  for (let i = 0; i < 4; i++) {
+    const a = i * 1.7 + rnd(), b = new THREE.CylinderGeometry(0.05, 0.08, 1.8, 6).translate(0, 0.9, 0);
+    b.rotateZ(0.6 + rnd() * 0.3); b.rotateY(a); b.translate(0, 2.6 + rnd() * 0.6, 0); parts.push(b);
+  }
+  g.add(new THREE.Mesh(mergeGeometries(parts), bark));
+  const blobs = [];
+  for (let i = 0; i < 16; i++) {
+    const r = 0.9 + rnd() * 0.8, a = rnd() * Math.PI * 2, d = rnd() * 1.9;
+    const geo = new THREE.IcosahedronGeometry(r, 2);
+    const pos = geo.attributes.position;
+    const c = new THREE.Color().setHSL(0.24 + rnd() * 0.06, 0.45 + rnd() * 0.15, 0.17 + rnd() * 0.1);
+    const cols = [];
+    for (let k = 0; k < pos.count; k++) {
+      const n = 0.85 + rnd() * 0.3; pos.setXYZ(k, pos.getX(k) * n, pos.getY(k) * n * 0.85, pos.getZ(k) * n);
+      const sh = 0.8 + 0.35 * (pos.getY(k) / r); cols.push(c.r * sh, c.g * sh, c.b * sh);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    // 法線は塊の中心から外向き（角張って見えないように）
+    const nrm = geo.attributes.normal, v = new THREE.Vector3();
+    for (let k = 0; k < pos.count; k++) { v.set(pos.getX(k), pos.getY(k), pos.getZ(k)).normalize(); nrm.setXYZ(k, v.x, v.y, v.z); }
+    geo.translate(Math.cos(a) * d, 4.3 + rnd() * 1.9 - d * 0.25, Math.sin(a) * d);
+    blobs.push(geo);
+  }
+  const lg = mergeGeometries(blobs);
+  g.add(new THREE.Mesh(lg, leaf));
+  return g;
 }
 
 // 屋上の給水塔（木製の樽 + 円錐の屋根 + 鉄骨の脚）
