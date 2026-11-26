@@ -1,0 +1,241 @@
+{
+  "generated": "2026-11-26",
+  "source": "Poly Haven (https://polyhaven.com), CC0 1.0",
+  "textures": {
+    "asphalt_02": {
+      "name": "Asphalt 02",
+      "authors": [
+        "Rob Tuytel"
+      ],
+      "url": "https://polyhaven.com/a/asphalt_02",
+      "dimensions_mm": [
+        3000.000238418579,
+        3000
+      ]
+    },
+    "concrete_pavement": {
+      "name": "Concrete Pavement",
+      "authors": [
+        "Charlotte Baglioni"
+      ],
+      "url": "https://polyhaven.com/a/concrete_pavement",
+      "dimensions_mm": [
+        1800.0000715255737,
+        1800.0000715255737
+      ]
+    },
+    "brushed_concrete": {
+      "name": "Brushed Concrete ",
+      "authors": [
+        "Dario Barresi",
+        "Dimitrios Savva"
+      ],
+      "url": "https://polyhaven.com/a/brushed_concrete",
+      "dimensions_mm": [
+        2500,
+        2500
+      ]
+    },
+    "red_brick_03": {
+      "name": "Red Brick 03",
+      "authors": [
+        "Rob Tuytel"
+      ],
+      "url": "https://polyhaven.com/a/red_brick_03",
+      "dimensions_mm": [
+        1000,
+        1000
+      ]
+    },
+    "factory_brick": {
+      "name": "Factory Brick",
+      "authors": [
+        "Rob Tuytel"
+      ],
+      "url": "https://polyhaven.com/a/factory_brick",
+      "dimensions_mm": [
+        1500,
+        1500.0001192092896
+      ]
+    },
+    "painted_brick": {
+      "name": "Painted Brick",
+      "authors": [
+        "Amal Kumar"
+      ],
+      "url": "https://polyhaven.com/a/painted_brick",
+      "dimensions_mm": [
+        1800.0000715255737,
+        1800.0000715255737
+      ]
+    },
+    "beige_wall_001": {
+      "name": "Beige Wall 001",
+      "authors": [
+        "Dimitrios Savva",
+        "Rico Cilliers"
+      ],
+      "url": "https://polyhaven.com/a/beige_wall_001",
+      "dimensions_mm": [
+        3000,
+        3000.000238418579
+      ]
+    },
+    "concrete_wall_008": {
+      "name": "Concrete Wall 008",
+      "authors": [
+        "Dario Barresi",
+        "Charlotte Baglioni"
+      ],
+      "url": "https://polyhaven.com/a/concrete_wall_008",
+      "dimensions_mm": [
+        2710.0000381469727,
+        2710.0000381469727
+      ]
+    },
+    "grey_plaster_02": {
+      "name": "Grey Plaster 02",
+      "authors": [
+        "Rob Tuytel"
+      ],
+      "url": "https://polyhaven.com/a/grey_plaster_02",
+      "dimensions_mm": [
+        1000,
+        1000
+      ]
+    },
+    "concrete_tile_facade": {
+      "name": "Concrete Tile Facade",
+      "authors": [
+        "Charlotte Baglioni"
+      ],
+      "url": "https://polyhaven.com/a/concrete_tile_facade",
+      "dimensions_mm": [
+        2089.9999141693115,
+        2089.9999141693115
+      ]
+    },
+    "bitumen": {
+      "name": "Bitumen",
+      "authors": [
+        "Rob Tuytel"
+      ],
+      "url": "https://polyhaven.com/a/bitumen",
+      "dimensions_mm": [
+        19999.996185302734,
+        19999.996185302734
+      ]
+    }
+  },
+  "hdri": {
+    "kloofendal_48d_partly_cloudy_puresky": {
+      "name": "Kloofendal 48d Partly Cloudy (Pure Sky)",
+      "authors": [
+        "Greg Zaal",
+        "Jarod Guest"
+      ],
+      "url": "https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky"
+    }
+  },
+  "props": {
+    "street_lamp_01": {
+      "name": "Street Lamp 01",
+      "authors": [
+        "Josh Dean"
+      ],
+      "url": "https://polyhaven.com/a/street_lamp_01",
+      "triangles_before": 30610,
+      "triangles_after": 1102
+    },
+    "fire_hydrant": {
+      "name": "Fire Hydrant",
+      "authors": [
+        "Gonçalo Felício"
+      ],
+      "url": "https://polyhaven.com/a/fire_hydrant",
+      "triangles_before": 86316,
+      "triangles_after": 1732
+    },
+    "metal_trash_can": {
+      "name": "Metal Trash Can",
+      "authors": [
+        "GurJas Studios"
+      ],
+      "url": "https://polyhaven.com/a/metal_trash_can",
+      "triangles_before": 13960,
+      "triangles_after": 973
+    },
+    "utility_box_01": {
+      "name": "Utility Box 01",
+      "authors": [
+        "James Ray Cock"
+      ],
+      "url": "https://polyhaven.com/a/utility_box_01",
+      "triangles_before": 4404,
+      "triangles_after": 1320
+    },
+    "utility_box_02": {
+      "name": "Utility Box 02",
+      "authors": [
+        "James Ray Cock"
+      ],
+      "url": "https://polyhaven.com/a/utility_box_02",
+      "triangles_before": 6268,
+      "triangles_after": 1566
+    },
+    "concrete_road_barrier": {
+      "name": "Concrete Road Barrier",
+      "authors": [
+        "Amal Kumar"
+      ],
+      "url": "https://polyhaven.com/a/concrete_road_barrier",
+      "triangles_before": 60928,
+      "triangles_after": 910
+    },
+    "modular_fire_escape": {
+      "name": "Modular Fire Escape",
+      "authors": [
+        "Juniix"
+      ],
+      "url": "https://polyhaven.com/a/modular_fire_escape",
+      "triangles_before": 11322,
+      "triangles_after": 6258
+    },
+    "modular_street_seating": {
+      "name": "Modular Street Seating",
+      "authors": [
+        "Stuart Attenborrow"
+      ],
+      "url": "https://polyhaven.com/a/modular_street_seating",
+      "triangles_before": 25156,
+      "triangles_after": 9053
+    },
+    "covered_car": {
+      "name": "Covered Car",
+      "authors": [
+        "MP"
+      ],
+      "url": "https://polyhaven.com/a/covered_car",
+      "triangles_before": 12592,
+      "triangles_after": 3139
+    },
+    "planter_box_01": {
+      "name": "Planter Box 01",
+      "authors": [
+        "James Ray Cock"
+      ],
+      "url": "https://polyhaven.com/a/planter_box_01",
+      "triangles_before": 8094,
+      "triangles_after": 808
+    },
+    "water_manhole_cover": {
+      "name": "Water Manhole Cover",
+      "authors": [
+        "Raunox"
+      ],
+      "url": "https://polyhaven.com/a/water_manhole_cover",
+      "triangles_before": 6301,
+      "triangles_after": 839
+    }
+  }
+}
