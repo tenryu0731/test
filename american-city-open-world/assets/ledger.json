@@ -1,0 +1,81 @@
+{
+  "description": "取得した素材の台帳。1 エントリ = 1 回の取得単位（パックまたは単体アセット）。",
+  "fields": {
+    "name": "素材名",
+    "source_url": "出典（配布ページ）URL",
+    "author": "作者",
+    "license": "ライセンス名",
+    "license_url": "ライセンス本文の URL",
+    "credit_text": "クレジット表記の文面（不要なら null。任意表記の例は credit_optional）",
+    "acquired_on": "取得日 (YYYY-MM-DD)",
+    "saved_to": "保存先（作品フォルダからの相対パス）",
+    "modified": "改変の有無"
+  },
+  "entries": [
+    {
+      "name": "City Kit (Roads) 2.2",
+      "source_url": "https://kenney.nl/assets/city-kit-roads",
+      "author": "Kenney (www.kenney.nl)",
+      "license": "CC0 1.0 Universal",
+      "license_url": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "credit_text": null,
+      "credit_optional": "Kenney (www.kenney.nl)",
+      "acquired_on": "2026-11-26",
+      "saved_to": "assets/vendor/kenney-city-kit-roads/",
+      "modified": false,
+      "notes": "zip から GLB format フォルダと License.txt のみ抽出。FBX/OBJ/Previews は未収録。zip sha256=374a4552115cbd11b4ec5c930ee31a533562dc78a09af249a655d03f7ea3b959, md5=8076386e41b1b390d356dc4030e1afe8（配布元は MD5 を公開していないため、取得時の値の記録のみ）"
+    },
+    {
+      "name": "City Kit (Commercial) 2.1",
+      "source_url": "https://kenney.nl/assets/city-kit-commercial",
+      "author": "Kenney (www.kenney.nl)",
+      "license": "CC0 1.0 Universal",
+      "license_url": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "credit_text": null,
+      "credit_optional": "Kenney (www.kenney.nl)",
+      "acquired_on": "2026-11-26",
+      "saved_to": "assets/vendor/kenney-city-kit-commercial/",
+      "modified": false,
+      "notes": "zip から GLB format フォルダと License.txt のみ抽出。zip sha256=f8b09b081c2bb88bcc126e2dec1cb40fd0dad7e7e591b6c26aaefe96fb35276b, md5=65ed30007c8d7f7adab01f9adf0a59f4"
+    },
+    {
+      "name": "KayKit : City Builder Bits 1.0 (Free 版)",
+      "source_url": "https://github.com/KayKit-Game-Assets/KayKit-City-Builder-Bits-1.0",
+      "author": "Kay Lousberg (www.kaylousberg.com)",
+      "license": "CC0 1.0 Universal",
+      "license_url": "http://creativecommons.org/publicdomain/zero/1.0/",
+      "credit_text": null,
+      "credit_optional": "Kay Lousberg, www.kaylousberg.com",
+      "acquired_on": "2026-11-26",
+      "saved_to": "assets/vendor/kaykit-city-builder-bits/",
+      "modified": false,
+      "notes": "git clone（commit 63976910ca04d16f0fc531b9c614244be8128713）から gltf/ と texture/、LICENSE.txt、README.md のみ収録。itch.io 配布ページ: https://kaylousberg.itch.io/city-builder-bits（作者の依頼: 無改変のまま再販しない・自作と偽らない）"
+    },
+    {
+      "name": "Modular Urban Apartments Facade (1k glTF)",
+      "source_url": "https://polyhaven.com/a/modular_urban_apartments_facade",
+      "author": "James Ray Cock",
+      "license": "CC0 1.0 Universal",
+      "license_url": "https://polyhaven.com/license",
+      "credit_text": null,
+      "credit_optional": "Poly Haven (polyhaven.com) / James Ray Cock",
+      "acquired_on": "2026-11-26",
+      "saved_to": "assets/vendor/polyhaven/modular_urban_apartments_facade/",
+      "modified": false,
+      "notes": "https://api.polyhaven.com/files/modular_urban_apartments_facade の gltf/1k を取得。15 ファイルすべて API 提供の MD5 と一致。"
+    },
+    {
+      "name": "Street Lamp 01 (1k glTF)",
+      "source_url": "https://polyhaven.com/a/street_lamp_01",
+      "author": "Josh Dean",
+      "license": "CC0 1.0 Universal",
+      "license_url": "https://polyhaven.com/license",
+      "credit_text": null,
+      "credit_optional": "Poly Haven (polyhaven.com) / Josh Dean",
+      "acquired_on": "2026-11-26",
+      "saved_to": "assets/vendor/polyhaven/street_lamp_01/",
+      "modified": false,
+      "notes": "https://api.polyhaven.com/files/street_lamp_01 の gltf/1k を取得。5 ファイルすべて API 提供の MD5 と一致。"
+    }
+  ]
+}

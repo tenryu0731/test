@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>body{margin:0;background:#cfd8e3}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+const W = 1600, H = 900;
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); document.body.appendChild(r.domElement);
+r.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xcfd8e3);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x667788, 2.2));
+const sun = new THREE.DirectionalLight(0xffffff, 2.5); sun.position.set(30, 60, 40); scene.add(sun);
+const cam = new THREE.PerspectiveCamera(35, W / H, 0.1, 1000);
+const loader = new GLTFLoader();
+const KR = '/assets/vendor/kenney-city-kit-roads/', KC = '/assets/vendor/kenney-city-kit-commercial/';
+const KY = '/assets/vendor/kaykit-city-builder-bits/gltf/';
+const PH = '/assets/vendor/polyhaven/';
+// scale factors to metres (assumed; see README)
+const items = [
+  // Kenney: 1 unit ~ 10 m (assumed)
+  [KR + 'road-straight.glb', -40, 0, 10], [KR + 'road-straight.glb', -40, -10, 10], [KR + 'road-crossroad.glb', -40, 10, 10],
+  [KC + 'building-a.glb', -50, 0, 10], [KC + 'building-skyscraper-a.glb', -50, -11, 10], [KC + 'building-c.glb', -50, 10, 10],
+  [KR + 'traffic-light.glb', -44, 5, 10], [KR + 'light-square.glb', -36, -4, 10],
+  // KayKit: 1 unit ~ 5 m (assumed)
+  [KY + 'road_straight.gltf', 0, 0, 5], [KY + 'road_straight.gltf', 0, -10, 5], [KY + 'road_junction.gltf', 0, 10, 5],
+  [KY + 'building_A.gltf', -10, 0, 5], [KY + 'building_H.gltf', -10, -10, 5], [KY + 'building_C.gltf', -10, 10, 5],
+  [KY + 'car_sedan.gltf', 2, 0, 5], [KY + 'trafficlight_A.gltf', -4.5, 5, 5], [KY + 'streetlight.gltf', 4.5, -4, 5],
+  // Poly Haven: metres
+  [PH + 'modular_urban_apartments_facade/modular_urban_apartments_facade_1k.gltf', 40, 0, 1, Math.PI / 2],
+  [PH + 'street_lamp_01/street_lamp_01_1k.gltf', 48, 3, 1],
+];
+const gltfCache = {};
+for (const [url, x, z, s, ry = 0] of items) {
+  gltfCache[url] ??= loader.loadAsync(encodeURI(url));
+  const g = await gltfCache[url];
+  const o = g.scene.clone(true); o.scale.setScalar(s); o.position.set(x, 0, z); o.rotation.y = ry; scene.add(o);
+}
+// 1.8 m human reference pillars (red) at each group
+for (const x of [-44, -4, 46]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.8, 0.5), new THREE.MeshStandardMaterial({ color: 0xd01010 })); m.position.set(x, 0.9, 8); scene.add(m); }
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 80), new THREE.MeshStandardMaterial({ color: 0x9aa39a })); ground.rotation.x = -Math.PI / 2; ground.position.y = -0.05; scene.add(ground);
+const v = new URLSearchParams(location.search).get('v') || 'all';
+const views = { all: [[0,38,95],[0,6,0]], k: [[-25,14,30],[-45,4,0]], y: [[14,12,26],[-4,3,0]], p: [[75,14,30],[42,6,0]] };
+cam.position.set(...views[v][0]); cam.lookAt(...views[v][1]);
+r.render(scene, cam);
+window.DONE = true;
+</script></body></html>
