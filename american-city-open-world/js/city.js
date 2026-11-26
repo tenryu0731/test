@@ -542,7 +542,7 @@ export class City {
       let src;
       if (name === 'watertower') src = makeWaterTower(this.mats);
       else if (name === 'tree') src = makeTree();
-      else src = (await loader.loadAsync(`assets/game/props/${name}.json`)).scene;
+      else src = (await loadProp(loader, `assets/game/props/${name}.json`)).scene;
       src.updateMatrixWorld(true);
       // 区画（2×2 ブロック）ごとに InstancedMesh を分け、画面外の区画は描かない
       const groups = new Map();
@@ -573,6 +573,32 @@ export class City {
 }
 
 const LANE_OFFS = [1.75, 5.25];
+
+// 小物の読み込み。claude.ai の公開ページは data: URI への fetch を禁止しているので、
+// 埋め込まれたバッファを自分で復号してメモリ上の GLB に組み立て、画像は <img> で読ませる。
+globalThis.__GLTF_USE_IMG = true;
+async function loadProp(loader, url) {
+  const json = await (await fetch(url)).json();
+  let bin = new Uint8Array(0);
+  if (json.buffers?.length) {
+    if (json.buffers.length > 1) throw new Error('buffer が複数ある glTF には未対応: ' + url);
+    const b = json.buffers[0];
+    if (b.uri?.startsWith('data:')) {
+      const s = atob(b.uri.slice(b.uri.indexOf(',') + 1));
+      bin = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) bin[i] = s.charCodeAt(i);
+      delete b.uri;
+    }
+  }
+  const enc = new TextEncoder().encode(JSON.stringify(json));
+  const jl = (enc.length + 3) & ~3, bl = (bin.length + 3) & ~3;
+  const total = 12 + 8 + jl + (bl ? 8 + bl : 0);
+  const glb = new Uint8Array(total), dv = new DataView(glb.buffer);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true);
+  dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true);
+  glb.fill(0x20, 20, 20 + jl); glb.set(enc, 20);
+  if (bl) { dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true); glb.set(bin, 28 + jl); }
+  return loader.parseAsync(glb.buffer, '');
+}
 const PROP_VARIANT = {
   fire_hydrant: { exclude: /_aged|chain/, shift: [0.3, 0, 0] },
   metal_trash_can: { exclude: /rust/, shift: [-0.5, 0, 0] },

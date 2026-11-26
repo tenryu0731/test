@@ -2588,7 +2588,8 @@ class GLTFParser {
 
 		}
 
-		if ( typeof createImageBitmap === 'undefined' || ( isSafari && safariVersion < 17 ) || ( isFirefox && firefoxVersion < 98 ) ) {
+		// 変更点（american-city-open-world）: globalThis.__GLTF_USE_IMG が true なら <img> で読む（fetch を禁止する CSP の環境向け）
+		if ( globalThis.__GLTF_USE_IMG || typeof createImageBitmap === 'undefined' || ( isSafari && safariVersion < 17 ) || ( isFirefox && firefoxVersion < 98 ) ) {
 
 			this.textureLoader = new TextureLoader( this.options.manager );
 

@@ -60,7 +60,10 @@ npm install
 python3 -m http.server 8780 &
 node tools/sim-test.cjs     # 描画せずに挙動を検証（加速、衝突、信号無視の回数、乗り降り、車を奪う）
 node tools/play-test.cjs <出力先> low   # 実際に描画してスクリーンショットを撮る
+python3 tools/csp-server.py 8781 &       # claude.ai の公開ページに近い CSP（data: への fetch 禁止など）を付けて配信
 ```
+
+公開ページでは `data:` URI への `fetch` が禁止されるため、小物は `js/city.js` の `loadProp` で埋め込みバッファを自前で復号して読み込み、画像は `<img>` で読ませています（`vendor/addons/loaders/GLTFLoader.js` に 1 行だけ手を入れています）。
 
 `sim-test` の確認項目: 6 秒の全開加速、建物への衝突後に建物の中へ入っていないこと、AI の車が 3 分間で赤信号の停止線を越えた回数（0 であること）、降車・歩行・再乗車、AI の車の乗っ取り。
 
