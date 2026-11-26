@@ -72,7 +72,8 @@ NODE_USE_ENV_PROXY=1 node tools/build-game-assets.mjs        # 全部
 node tools/build-game-assets.mjs props                       # 小物だけ（tex / hdri も可）
 ```
 
-Poly Haven の公開 API から取得し、配布元の MD5 と照合してから軽量化します（テクスチャは JPEG 再圧縮、小物はポリゴン削減と 512px 化）。取得した素材は [`assets/ledger.json`](assets/ledger.json) に記録しています。
+Poly Haven の公開 API から取得し、配布元の MD5 と照合してから軽量化します（テクスチャは JPEG 再圧縮、小物はポリゴン削減と 512px 化）。
+小物はテクスチャを埋め込んだ glTF（`.json`）、HDRI は明るさを対数で 8 ビットに詰めた PNG で保存し、実行時に GPU で浮動小数に戻します（claude.ai の公開ページが `.glb` / `.hdr` を配信できないため。太陽の向きはビルド時に求めて `manifest.json` に記録）。取得した素材は [`assets/ledger.json`](assets/ledger.json) に記録しています。
 
 ## ファイル構成
 

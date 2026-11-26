@@ -12,6 +12,8 @@ import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS } from '@gltf-transform/extensions';
 import { weld, simplify, dedup, prune, textureCompress, resample } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+import { FloatType } from 'three';
 
 const RAW = 'assets/raw/polyhaven';
 const OUT = 'assets/game';
@@ -70,7 +72,24 @@ async function buildHdri() {
   const f = await getJSON(`${API}/files/${HDRI}`);
   const h = f.hdri['1k'].hdr;
   const hb = await download(h.url, `${RAW}/hdri/${HDRI}_1k.hdr`, h.md5);
-  fs.writeFileSync(`${OUT}/sky/${HDRI}_1k.hdr`, hb);
+  // .hdr は公開ページで配信できない形式なので、明るさを対数で 8 ビットに詰めた PNG にする
+  // 復号: c = exp2(v * L) - 1（L は manifest の logRange）
+  const loader = new RGBELoader(); loader.setDataType(FloatType);
+  const { data, width, height } = loader.parse(hb.buffer.slice(hb.byteOffset, hb.byteOffset + hb.byteLength));
+  let maxV = 0, best = -1, bi = 0;
+  for (let i = 0; i < width * height; i++) {
+    const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
+    maxV = Math.max(maxV, r, g, b);
+    const l = r * 0.2126 + g * 0.7152 + b * 0.0722; if (l > best) { best = l; bi = i; }
+  }
+  const L = Math.log2(1 + maxV);
+  const px = Buffer.alloc(width * height * 3);
+  for (let i = 0; i < width * height; i++) for (let c = 0; c < 3; c++) px[i * 3 + c] = Math.round(255 * Math.log2(1 + Math.max(0, data[i * 4 + c])) / L);
+  await sharp(px, { raw: { width, height, channels: 3 } }).png({ compressionLevel: 9 }).toFile(`${OUT}/sky/${HDRI}_1k_log.png`);
+  // 一番明るい画素 = 太陽の向き（three.js の正距円筒図法の向きに合わせる。行 0 が上）
+  const u = (bi % width + 0.5) / width, v = 1 - (Math.floor(bi / width) + 0.5) / height;
+  const lat = (v - 0.5) * Math.PI, lon = (u - 0.5) * Math.PI * 2;
+  manifest.skyEncoding = { file: `sky/${HDRI}_1k_log.png`, logRange: L, sunDir: [Math.cos(lon) * Math.cos(lat), Math.sin(lat), Math.sin(lon) * Math.cos(lat)], background: `sky/${HDRI}_4k.jpg` };
   const t = f.tonemapped;
   const tb = await download(t.url, `${RAW}/hdri/${HDRI}_tonemapped.jpg`, t.md5);
   await sharp(tb).resize(4096, 2048).jpeg({ quality: 84, mozjpeg: true }).toFile(`${OUT}/sky/${HDRI}_4k.jpg`);
@@ -98,7 +117,12 @@ async function buildProps() {
       textureCompress({ encoder: sharp, targetFormat: 'jpeg', resize: [512, 512], quality: 84 }),
     );
     // jpeg に変換するとアルファが消えるので、ARM/法線/色すべて jpeg で問題ないものだけを対象にしている
-    await io.write(`${OUT}/props/${id}.glb`, doc);
+    // .glb は公開ページで配信できない形式なので、テクスチャとバッファを埋め込んだ glTF（JSON）で書く
+    const { json, resources } = await io.writeJSON(doc, { format: 0 });
+    for (const b of json.buffers || []) { b.uri = 'data:application/octet-stream;base64,' + Buffer.from(resources[b.uri]).toString('base64'); }
+    for (const im of json.images || []) { if (im.uri) { im.uri = `data:${im.mimeType || 'image/jpeg'};base64,` + Buffer.from(resources[im.uri]).toString('base64'); } }
+    fs.writeFileSync(`${OUT}/props/${id}.json`, JSON.stringify(json));
+    fs.rmSync(`${OUT}/props/${id}.glb`, { force: true });
     manifest.props[id] = { ...(await info(id)), triangles_before: Math.round(before), triangles_after: Math.round(count()) };
     console.log('prop', id, Math.round(before), '->', Math.round(count()));
   }
@@ -108,6 +132,6 @@ const only = process.argv[2];
 if (!only || only === 'tex') await buildTextures();
 if (!only || only === 'hdri') await buildHdri();
 if (!only || only === 'props') await buildProps();
-if (only) { const old = JSON.parse(fs.readFileSync(`${OUT}/manifest.json`, 'utf8')); for (const k of ['textures', 'hdri', 'props']) if (!Object.keys(manifest[k]).length) manifest[k] = old[k]; }
+if (only) { const old = JSON.parse(fs.readFileSync(`${OUT}/manifest.json`, 'utf8')); for (const k of ['textures', 'hdri', 'props']) if (!Object.keys(manifest[k]).length) manifest[k] = old[k]; if (!manifest.skyEncoding) manifest.skyEncoding = old.skyEncoding; }
 fs.writeFileSync(`${OUT}/manifest.json`, JSON.stringify(manifest, null, 2));
 console.log('done');

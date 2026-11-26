@@ -542,7 +542,7 @@ export class City {
       let src;
       if (name === 'watertower') src = makeWaterTower(this.mats);
       else if (name === 'tree') src = makeTree();
-      else src = (await loader.loadAsync(`assets/game/props/${name}.glb`)).scene;
+      else src = (await loader.loadAsync(`assets/game/props/${name}.json`)).scene;
       src.updateMatrixWorld(true);
       // 区画（2×2 ブロック）ごとに InstancedMesh を分け、画面外の区画は描かない
       const groups = new Map();

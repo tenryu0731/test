@@ -237,5 +237,15 @@
       "triangles_before": 6301,
       "triangles_after": 839
     }
+  },
+  "skyEncoding": {
+    "file": "sky/kloofendal_48d_partly_cloudy_puresky_1k_log.png",
+    "logRange": 15.906536864192471,
+    "sunDir": [
+      0.553042299746689,
+      0.7430079521351217,
+      0.37693951471670634
+    ],
+    "background": "sky/kloofendal_48d_partly_cloudy_puresky_4k.jpg"
   }
 }

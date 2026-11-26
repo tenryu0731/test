@@ -1,6 +1,5 @@
 // エントリーポイント: 描画設定、HDRI の空と太陽、ゲームループ、カメラ、乗り降り
 import * as THREE from 'three';
-import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
@@ -9,6 +8,7 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { PX, PZ, RH, CITY_W, CITY_D, clamp, damp, params, isTouch, mulberry32 } from './config.js';
 import { initMaterials, facadeUniforms } from './materials.js';
+import * as MAT from './materials.js';
 import { City } from './city.js';
 import { Vehicle, collideVehicles } from './vehicle.js';
 import { Traffic } from './traffic.js';
@@ -19,7 +19,8 @@ import { Audio } from './audio.js';
 const bootEl = document.getElementById('boot');
 if (isTouch) document.body.classList.add('touch');
 const say = (t) => { bootEl.textContent = t; };
-const QUALITY = params.get('q') || localStorage.getItem('acq') || (isTouch ? 'low' : 'high');
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* 保存できない環境 */ } } };
+const QUALITY = params.get('q') || store.get('acq') || (isTouch ? 'low' : 'high');
 
 // ---- 描画 ----
 const canvas = document.getElementById('game');
@@ -62,26 +63,33 @@ scene.add(sun, sun.target);
 const sunDir = new THREE.Vector3(0.4, 0.75, 0.3).normalize();
 
 async function loadSky() {
-  const hdr = await new RGBELoader().setDataType(THREE.FloatType).loadAsync('assets/game/sky/kloofendal_48d_partly_cloudy_puresky_1k.hdr');
-  // 一番明るい画素 = 太陽
-  const { data, width, height } = hdr.image;
-  let best = -1, bi = 0;
-  for (let i = 0; i < width * height; i++) { const l = data[i * 4] * 0.2126 + data[i * 4 + 1] * 0.7152 + data[i * 4 + 2] * 0.0722; if (l > best) { best = l; bi = i; } }
-  const px = bi % width, py = Math.floor(bi / width);
-  const u = (px + 0.5) / width, v = 1 - (py + 0.5) / height;
-  const lat = (v - 0.5) * Math.PI, lon = (u - 0.5) * Math.PI * 2;
-  sunDir.set(Math.cos(lon) * Math.cos(lat), Math.sin(lat), Math.sin(lon) * Math.cos(lat));
-  if (sunDir.y < 0.42) { sunDir.y = 0.42; } // 影が長くなりすぎないように
+  // HDRI は「明るさを対数で 8 ビットに詰めた PNG」で配布している（tools/build-game-assets.mjs）。
+  // GPU で浮動小数のテクスチャに戻してから、環境光（PMREM）を作る。
+  const sky = MAT.manifest.skyEncoding;
+  sunDir.fromArray(sky.sunDir);
+  if (sunDir.y < 0.42) sunDir.y = 0.42; // 影が長くなりすぎないように
   sunDir.normalize();
-  hdr.dispose();
-  // 環境光は HalfFloat で読み直す（Float のままだと一部の GPU / ソフトウェア描画で PMREM が黒くなる）
-  const env = await new RGBELoader().loadAsync('assets/game/sky/kloofendal_48d_partly_cloudy_puresky_1k.hdr');
-  env.mapping = THREE.EquirectangularReflectionMapping;
+  const png = await new THREE.TextureLoader().loadAsync('assets/game/' + sky.file);
+  png.colorSpace = THREE.NoColorSpace; png.generateMipmaps = false; png.minFilter = png.magFilter = THREE.NearestFilter;
+  const { width, height } = png.image;
+  const rt = new THREE.WebGLRenderTarget(width, height, { type: THREE.HalfFloatType, depthBuffer: false });
+  const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
+    uniforms: { map: { value: png }, L: { value: sky.logRange } },
+    vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
+    fragmentShader: 'uniform sampler2D map; uniform float L; varying vec2 vUv; void main() { vec3 v = texture2D(map, vUv).rgb; gl_FragColor = vec4(exp2(v * L) - 1.0, 1.0); }',
+    depthTest: false, depthWrite: false,
+  }));
+  const qs = new THREE.Scene(); qs.add(quad);
+  const ocam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const prevTone = renderer.toneMapping; renderer.toneMapping = THREE.NoToneMapping;
+  renderer.setRenderTarget(rt); renderer.render(qs, ocam); renderer.setRenderTarget(null);
+  renderer.toneMapping = prevTone;
+  rt.texture.mapping = THREE.EquirectangularReflectionMapping;
   const pm = new THREE.PMREMGenerator(renderer);
-  scene.environment = pm.fromEquirectangular(env).texture;
+  scene.environment = pm.fromEquirectangular(rt.texture).texture;
   scene.environmentIntensity = 0.9;
-  env.dispose(); pm.dispose();
-  const bg = await new THREE.TextureLoader().loadAsync('assets/game/sky/kloofendal_48d_partly_cloudy_puresky_4k.jpg');
+  pm.dispose(); rt.dispose(); png.dispose(); quad.geometry.dispose(); quad.material.dispose();
+  const bg = await new THREE.TextureLoader().loadAsync('assets/game/' + sky.background);
   bg.mapping = THREE.EquirectangularReflectionMapping; bg.colorSpace = THREE.SRGBColorSpace;
   scene.background = bg;
   scene.backgroundIntensity = 0.85;
@@ -134,7 +142,7 @@ async function boot() {
   bootEl.remove();
 
   const qs = document.getElementById('quality'); qs.value = QUALITY;
-  qs.onchange = () => { localStorage.setItem('acq', qs.value); location.reload(); };
+  qs.onchange = () => { store.set('acq', qs.value); location.search = '?q=' + qs.value; };
   const go = () => {
     document.getElementById('start').classList.add('hidden');
     running = true; paused = false; input.active = true; audio.start(); document.body.classList.add('playing');

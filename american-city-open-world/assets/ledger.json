@@ -229,9 +229,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / Greg Zaal, Jarod Guest",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/sky/kloofendal_48d_partly_cloudy_puresky_1k.hdr, assets/game/sky/kloofendal_48d_partly_cloudy_puresky_4k.jpg",
+      "saved_to": "assets/game/sky/kloofendal_48d_partly_cloudy_puresky_1k_log.png, assets/game/sky/kloofendal_48d_partly_cloudy_puresky_4k.jpg",
       "modified": true,
-      "notes": "ゲームの空と環境光。1k の .hdr はそのまま、トーンマップ済み JPG を 4096×2048 に縮小（MD5 照合済み）"
+      "notes": "ゲームの空と環境光。1k の .hdr を MD5 照合後、明るさを対数で 8 ビットに詰めた PNG に変換（公開ページで .hdr を配信できないため）。トーンマップ済み JPG は 4096×2048 に縮小"
     },
     {
       "name": "Street Lamp 01 (model)",
@@ -242,9 +242,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / Josh Dean",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/street_lamp_01.glb",
+      "saved_to": "assets/game/props/street_lamp_01.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 30610 → 1102、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 30610 → 1102、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Fire Hydrant (model)",
@@ -255,9 +255,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / Gonçalo Felício",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/fire_hydrant.glb",
+      "saved_to": "assets/game/props/fire_hydrant.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 86316 → 1732、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 86316 → 1732、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Metal Trash Can (model)",
@@ -268,9 +268,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / GurJas Studios",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/metal_trash_can.glb",
+      "saved_to": "assets/game/props/metal_trash_can.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 13960 → 973、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 13960 → 973、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Utility Box 01 (model)",
@@ -281,9 +281,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / James Ray Cock",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/utility_box_01.glb",
+      "saved_to": "assets/game/props/utility_box_01.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 4404 → 1320、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 4404 → 1320、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Utility Box 02 (model)",
@@ -294,9 +294,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / James Ray Cock",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/utility_box_02.glb",
+      "saved_to": "assets/game/props/utility_box_02.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 6268 → 1566、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 6268 → 1566、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Concrete Road Barrier (model)",
@@ -307,9 +307,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / Amal Kumar",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/concrete_road_barrier.glb",
+      "saved_to": "assets/game/props/concrete_road_barrier.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 60928 → 910、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 60928 → 910、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Modular Fire Escape (model)",
@@ -320,9 +320,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / Juniix",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/modular_fire_escape.glb",
+      "saved_to": "assets/game/props/modular_fire_escape.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 11322 → 6258、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 11322 → 6258、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Modular Street Seating (model)",
@@ -333,9 +333,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / Stuart Attenborrow",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/modular_street_seating.glb",
+      "saved_to": "assets/game/props/modular_street_seating.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 25156 → 9053、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 25156 → 9053、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Covered Car (model)",
@@ -346,9 +346,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / MP",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/covered_car.glb",
+      "saved_to": "assets/game/props/covered_car.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 12592 → 3139、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 12592 → 3139、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Planter Box 01 (model)",
@@ -359,9 +359,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / James Ray Cock",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/planter_box_01.glb",
+      "saved_to": "assets/game/props/planter_box_01.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 8094 → 808、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 8094 → 808、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     },
     {
       "name": "Water Manhole Cover (model)",
@@ -372,9 +372,9 @@
       "credit_text": null,
       "credit_optional": "Poly Haven (polyhaven.com) / Raunox",
       "acquired_on": "2026-11-26",
-      "saved_to": "assets/game/props/water_manhole_cover.glb",
+      "saved_to": "assets/game/props/water_manhole_cover.json",
       "modified": true,
-      "notes": "ゲーム用に軽量化: 三角形 6301 → 839、テクスチャ 512px。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
+      "notes": "ゲーム用に軽量化: 三角形 6301 → 839、テクスチャ 512px、テクスチャを埋め込んだ glTF（JSON）で保存。2 種類が並ぶモデルは実行時に片方だけ使う（MD5 照合済み）"
     }
   ]
 }
